@@ -1,0 +1,75 @@
+services:
+  traefik:
+    image: traefik:v2.10
+    container_name: traefik
+    command:
+      - --api.insecure=true
+      - --providers.file.directory=/etc/traefik/dynamic
+      - --providers.file.watch=true
+      - --entryPoints.web.address=:80
+    ports:
+      - "3001:80"  
+      - "8080:8080"
+    volumes:
+      - ./app/traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./app/traefik/dynamic:/etc/traefik/dynamic:ro
+    networks:
+      - backend
+
+  api-gateway:
+    image: node:20
+    container_name: api-gateway
+    working_dir: /usr/src/app
+    volumes:
+      - ./app/nestjs:/usr/src/app
+    command: npm run start:gateway
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.api-gateway.rule=Host(`api.localhost`)"
+      - "traefik.http.services.api-gateway.loadbalancer.server.port=3000"
+    networks:
+      - backend
+    depends_on:
+      - user-service
+      - trip-service
+      - driver-service
+
+  user-service:
+    image: node:20
+    container_name: user-service
+    working_dir: /usr/src/app
+    volumes:
+      - ./app/nestjs:/usr/src/app
+    command: npm run start:user
+    ports:
+      - "50050:50050" 
+    networks:
+      - backend
+
+  trip-service:
+    image: node:20
+    container_name: trip-service
+    working_dir: /usr/src/app
+    volumes:
+      - ./app/nestjs:/usr/src/app
+    command: npm run start:trip
+    ports:
+      - "50051:50051" 
+    networks:
+      - backend
+
+  driver-service:
+    image: node:20
+    container_name: driver-service
+    working_dir: /usr/src/app
+    volumes:
+      - ./app/nestjs:/usr/src/app
+    command: npm run start:driver
+    ports:
+      - "50052:50052" 
+    networks:
+      - backend
+
+networks:
+  backend:
+    driver: bridge

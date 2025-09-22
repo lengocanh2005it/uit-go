@@ -1,0 +1,13 @@
+http:
+  routers:
+    api-gateway-router:
+      rule: "Host(`api.localhost`)"
+      service: api-gateway-service
+      entryPoints:
+        - web
+
+  services:
+    api-gateway-service:
+      loadBalancer:
+        servers:
+          - url: "http://api-gateway:3000"
