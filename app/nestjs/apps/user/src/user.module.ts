@@ -1,9 +1,9 @@
+import { CommonModule } from '@libs/common';
 import { Module } from '@nestjs/common';
-import { GrpcClientModule } from '@shared/grpc-client/grpc-client.module';
-import { UserController } from './user.controller';
-import { UserService } from './user.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { User } from './entities';
+import { UserController } from './user.controller';
+import { UserService } from './user.service';
 
 @Module({
   imports: [
@@ -17,7 +17,7 @@ import { User } from './entities';
       entities: [User],
       synchronize: true,
     }),
-    GrpcClientModule,
+    CommonModule,
   ],
   controllers: [UserController],
   providers: [UserService],

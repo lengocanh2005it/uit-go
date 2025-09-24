@@ -1,20 +1,16 @@
 import { NestFactory } from '@nestjs/core';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
-import { join } from 'path';
 import { TripModule } from './trip.module';
+import { generateRmqOptions } from '@libs/common';
+import { ConfigService } from '@nestjs/config';
 
 async function bootstrap() {
-  const app = await NestFactory.createMicroservice<MicroserviceOptions>(
-    TripModule,
-    {
-      transport: Transport.GRPC,
-      options: {
-        package: 'trip',
-        protoPath: join(process.cwd(), '/proto/trip.proto'),
-        url: '0.0.0.0:50052',
-      },
-    },
+  const app = await NestFactory.create(TripModule);
+  const configService = app.get(ConfigService);
+  await app.listen(3002);
+  app.connectMicroservice<MicroserviceOptions>(
+    generateRmqOptions('trip_service', configService),
   );
-  await app.listen();
+  await app.startAllMicroservices();
 }
 bootstrap();

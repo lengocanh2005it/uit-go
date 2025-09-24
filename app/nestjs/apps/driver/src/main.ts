@@ -1,20 +1,16 @@
+import { generateRmqOptions } from '@libs/common';
+import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
+import { MicroserviceOptions } from '@nestjs/microservices';
 import { DriverModule } from './driver.module';
-import { MicroserviceOptions, Transport } from '@nestjs/microservices';
-import { join } from 'path';
 
 async function bootstrap() {
-  const app = await NestFactory.createMicroservice<MicroserviceOptions>(
-    DriverModule,
-    {
-      transport: Transport.GRPC,
-      options: {
-        package: 'driver',
-        protoPath: join(process.cwd(), '/proto/driver.proto'),
-        url: '0.0.0.0:50051',
-      },
-    },
+  const app = await NestFactory.create(DriverModule);
+  const configService = app.get(ConfigService);
+  await app.listen(3003);
+  app.connectMicroservice<MicroserviceOptions>(
+    generateRmqOptions('driver_service', configService),
   );
-  await app.listen();
+  await app.startAllMicroservices();
 }
 bootstrap();
