@@ -1,6 +1,6 @@
+import { CommonModule } from '@libs/common';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { GrpcClientModule } from '@shared/grpc-client/grpc-client.module';
 import { Trip } from './entities';
 import { TripController } from './trip.controller';
 import { TripService } from './trip.service';
@@ -18,7 +18,7 @@ import { TripService } from './trip.service';
       entities: [Trip],
       synchronize: true,
     }),
-    GrpcClientModule,
+    CommonModule,
   ],
   controllers: [TripController],
   providers: [TripService],

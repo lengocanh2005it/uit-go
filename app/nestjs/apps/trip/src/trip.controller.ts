@@ -1,18 +1,15 @@
 import { Controller } from '@nestjs/common';
-import {
-  TripRequest,
-  TripResponse,
-  TripServiceController,
-  TripServiceControllerMethods,
-} from '@shared/types/trip';
 import { TripService } from './trip.service';
+import { MessagePattern } from '@nestjs/microservices';
 
 @Controller()
-@TripServiceControllerMethods()
-export class TripController implements TripServiceController {
+export class TripController {
   constructor(private readonly tripService: TripService) {}
 
-  async getTrip(request: TripRequest): Promise<TripResponse> {
-    return this.tripService.getTrip(request);
+  @MessagePattern('get-trip')
+  async getTrip() {
+    return {
+      tripID: 1,
+    };
   }
 }
