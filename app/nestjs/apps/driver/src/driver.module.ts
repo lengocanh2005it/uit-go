@@ -1,6 +1,6 @@
+import { CommonModule } from '@libs/common';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { GrpcClientModule } from '@shared/grpc-client/grpc-client.module';
 import { DriverController } from './driver.controller';
 import { DriverService } from './driver.service';
 import { Driver } from './entities';
@@ -17,7 +17,7 @@ import { Driver } from './entities';
       entities: [Driver],
       synchronize: true,
     }),
-    GrpcClientModule,
+    CommonModule,
   ],
   controllers: [DriverController],
   providers: [DriverService],

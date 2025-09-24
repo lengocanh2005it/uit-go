@@ -6,25 +6,24 @@
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
-    "build": "nest build",
+    "build": "dotenvx run -- nest build",
     "format": "prettier --write \"apps/**/*.ts\" \"libs/**/*.ts\"",
-    "start": "nest start",
-    "start:dev": "nest start --watch",
-    "start:debug": "nest start --debug --watch",
-    "start:prod": "node dist/apps/nestjs/main",
-    "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
+    "start": "dotenvx run -- nest start",
+    "start:dev": "dotenvx run -- nest start --watch",
+    "start:debug": "dotenvx run -- nest start --debug --watch",
+    "start:prod": "dotenvx run -- node dist/apps/nestjs/main",
+    "lint": "dotenvx run -- eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./apps/nestjs/test/jest-e2e.json",
-    "start:user": "nest start user --watch",
-    "start:trip": "nest start trip --watch",
-    "start:driver": "nest start driver --watch",
-    "start:gateway": "nest start api-gateway --watch",
-    "proto:gen": "npx protoc -I=./proto --ts_proto_out=./libs/shared/types/ ./proto/*.proto --ts_proto_opt=nestJs=true"
+    "start:user": "dotenvx run -- nest start user --watch",
+    "start:trip": "dotenvx run -- nest start trip --watch",
+    "start:driver": "dotenvx run -- nest start driver --watch"
   },
   "dependencies": {
+    "@dotenvx/dotenvx": "^1.51.0",
     "@grpc/grpc-js": "^1.14.0",
     "@grpc/proto-loader": "^0.8.0",
     "@nestjs/common": "^11.0.1",
@@ -33,6 +32,8 @@
     "@nestjs/microservices": "^11.1.6",
     "@nestjs/platform-express": "^11.0.1",
     "@nestjs/typeorm": "^11.0.0",
+    "amqp-connection-manager": "^4.1.14",
+    "amqplib": "^0.10.9",
     "mysql2": "^3.15.0",
     "pg": "^8.16.3",
     "reflect-metadata": "^0.2.2",
@@ -82,7 +83,13 @@
     "coverageDirectory": "./coverage",
     "testEnvironment": "node",
     "roots": [
-      "<rootDir>/apps/"
-    ]
+      "<rootDir>/apps/",
+      "<rootDir>/libs/"
+    ],
+    "moduleNameMapper": {
+      "^@app/common(|/.*)$": "<rootDir>/libs/common/src/$1",
+      "^@app/libs/common(|/.*)$": "<rootDir>/libs/libs/common/src/$1",
+      "^@app/ngocanh(|/.*)$": "<rootDir>/libs/ngocanh/src/$1"
+    }
   }
 }
