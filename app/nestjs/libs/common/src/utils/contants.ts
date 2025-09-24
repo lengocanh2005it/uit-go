@@ -1,4 +1,5 @@
-export const AWS_SQS_SERVICE_TOKEN = Symbol('AWS_SQS_SERVICE');
+export const RABBITMQ_SERVCE_TOKEN = Symbol('RABBITMQ_SERVICE');
+export const REDIS_SERVICE_TOKEN = Symbol('REDIS_SERVICE');
 export const RABBITMQ_QUEUE_SERVICES = [
   'USER_SERVICE',
   'TRIP_SERVICE',
