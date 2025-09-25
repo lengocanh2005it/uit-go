@@ -1,7 +1,8 @@
 import { CommonModule } from '@libs/common';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { Trip } from './entities';
+import { SnakeNamingStrategy } from 'typeorm-naming-strategies';
+import { Trip, TripRating, TripRequest } from './entities';
 import { TripController } from './trip.controller';
 import { TripService } from './trip.service';
 
@@ -15,8 +16,9 @@ import { TripService } from './trip.service';
       password: 'password',
       database: 'trip_db',
       autoLoadEntities: true,
-      entities: [Trip],
+      entities: [Trip, TripRequest, TripRating],
       synchronize: true,
+      namingStrategy: new SnakeNamingStrategy(),
     }),
     CommonModule,
   ],
