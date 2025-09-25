@@ -3,5 +3,9 @@ import { IsNotEmpty, IsString } from 'class-validator';
 export class CreateTripDto {
   @IsString()
   @IsNotEmpty()
-  readonly destination_address!: string;
+  readonly originAddress!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  readonly destinationAddress!: string;
 }

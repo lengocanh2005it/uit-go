@@ -1,7 +1,8 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import { Body, Controller, Post, Req } from '@nestjs/common';
 import { TripService } from './trip.service';
 import { MessagePattern } from '@nestjs/microservices';
 import { CreateTripDto } from '@libs/common/dto';
+import { Request } from 'express';
 
 @Controller()
 export class TripController {
