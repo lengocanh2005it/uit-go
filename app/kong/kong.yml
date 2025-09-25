@@ -1,23 +1,34 @@
-_format_version: "1.1"
+_format_version: "3.0"
+
+plugins:
+  - &jwt_plugin
+    name: jwt
+    config:
+      claims_to_verify:
+        - exp
+      key_claim_name: sub
 
 services:
   - name: user-service
     url: http://user-service:3001
     routes:
       - name: user-route
-        paths:
-          - /users
+        paths: [/users]
+    plugins:
+      - *jwt_plugin
 
   - name: trip-service
     url: http://trip-service:3002
     routes:
       - name: trip-route
-        paths:
-          - /trips
+        paths: [/trips]
+    plugins:
+      - *jwt_plugin
 
   - name: driver-service
     url: http://driver-service:3003
     routes:
       - name: driver-route
-        paths:
-          - /drivers
+        paths: [/drivers]
+    plugins:
+      - *jwt_plugin

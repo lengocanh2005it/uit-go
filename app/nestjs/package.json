@@ -20,7 +20,11 @@
     "test:e2e": "jest --config ./apps/nestjs/test/jest-e2e.json",
     "start:user": "dotenvx run -- nest start user --watch",
     "start:trip": "dotenvx run -- nest start trip --watch",
-    "start:driver": "dotenvx run -- nest start driver --watch"
+    "start:driver": "dotenvx run -- nest start driver --watch",
+    "up": "dotenvx run -- docker compose up -d --build",
+    "down": "dotenvx run -- docker compose down",
+    "logs": "dotenvx run -- docker compose logs -f",
+    "ps": "dotenvx run -- docker compose ps"
   },
   "dependencies": {
     "@dotenvx/dotenvx": "^1.51.0",
@@ -37,12 +41,14 @@
     "amqplib": "^0.10.9",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.2",
+    "decimal.js": "^10.6.0",
     "ioredis": "^5.8.0",
     "mysql2": "^3.15.0",
     "pg": "^8.16.3",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
-    "typeorm": "^0.3.27"
+    "typeorm": "^0.3.27",
+    "typeorm-naming-strategies": "^4.1.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",
