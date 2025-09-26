@@ -21,12 +21,14 @@
     "start:user": "dotenvx run -- nest start user --watch",
     "start:trip": "dotenvx run -- nest start trip --watch",
     "start:driver": "dotenvx run -- nest start driver --watch",
+    "start:location": "dotenvx run -- nest start location --watch",
     "up": "dotenvx run -- docker compose up -d --build",
     "down": "dotenvx run -- docker compose down",
     "logs": "dotenvx run -- docker compose logs -f",
     "ps": "dotenvx run -- docker compose ps"
   },
   "dependencies": {
+    "@aws-sdk/client-location": "^3.896.0",
     "@dotenvx/dotenvx": "^1.51.0",
     "@golevelup/nestjs-common": "^3.0.0",
     "@grpc/grpc-js": "^1.14.0",
@@ -48,6 +50,7 @@
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "typeorm": "^0.3.27",
+    "typeorm-cursor-pagination": "^0.10.1",
     "typeorm-naming-strategies": "^4.1.0"
   },
   "devDependencies": {

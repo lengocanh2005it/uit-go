@@ -28,6 +28,15 @@
         "tsConfigPath": "apps/driver/tsconfig.app.json"
       }
     },
+    "location": {
+      "type": "application",
+      "root": "apps/location",
+      "entryFile": "main",
+      "sourceRoot": "apps/location/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/location/tsconfig.app.json"
+      }
+    },
     "trip": {
       "type": "application",
       "root": "apps/trip",

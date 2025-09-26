@@ -15,6 +15,6 @@ import { RedisModule } from './redis/redis.module';
     RedisModule,
   ],
   providers: [CommonService],
-  exports: [CommonService, ConfigModule],
+  exports: [CommonService],
 })
 export class CommonModule {}

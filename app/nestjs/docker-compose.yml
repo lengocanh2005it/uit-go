@@ -58,6 +58,18 @@ services:
       - rabbitmq
     networks:
       - backend
+    
+  location-service:
+    image: node:20
+    container_name: location-service
+    working_dir: /usr/src/app
+    volumes:
+      - ./:/usr/src/app
+    command: npm run start:location
+    depends_on:
+      - rabbitmq
+    networks:
+      - backend
 
   driver-service:
     image: node:20

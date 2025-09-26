@@ -1,5 +1,13 @@
+import { RequestTimeoutException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { RmqOptions, Transport } from '@nestjs/microservices';
+import { ClientProxy, RmqOptions, Transport } from '@nestjs/microservices';
+import {
+  catchError,
+  firstValueFrom,
+  throwError,
+  timeout,
+  TimeoutError,
+} from 'rxjs';
 
 export function generateRmqOptions(
   serviceName: string,
@@ -18,4 +26,23 @@ export function generateRmqOptions(
       queueOptions: { durable: true },
     },
   };
+}
+
+export async function sendWithTimeout<T = any>(
+  client: ClientProxy,
+  pattern: string,
+  payload: any,
+  ms = 10000,
+): Promise<T> {
+  return firstValueFrom(
+    client.send<T>(pattern, payload).pipe(
+      timeout(ms),
+      catchError((err) => {
+        if (err instanceof TimeoutError) {
+          throw new RequestTimeoutException(`Timeout for pattern "${pattern}"`);
+        }
+        return throwError(() => err);
+      }),
+    ),
+  );
 }
