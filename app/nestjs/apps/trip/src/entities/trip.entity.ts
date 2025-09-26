@@ -72,6 +72,12 @@ export class Trip {
   })
   passengerId: string;
 
+  @Column({
+    type: 'text',
+    nullable: true,
+  })
+  note?: string;
+
   @CreateDateColumn({
     type: 'timestamp',
   })

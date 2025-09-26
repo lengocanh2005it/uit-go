@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsString } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 export class CreateTripDto {
   @IsString()
@@ -8,4 +8,9 @@ export class CreateTripDto {
   @IsString()
   @IsNotEmpty()
   readonly destinationAddress!: string;
+
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  readonly note?: string;
 }
