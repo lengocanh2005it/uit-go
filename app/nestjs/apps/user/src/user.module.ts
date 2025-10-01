@@ -1,7 +1,7 @@
 import { CommonModule } from '@libs/common';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { User } from './entities';
+import { User, UserProfile } from './entities';
 import { UserController } from './user.controller';
 import { UserService } from './user.service';
 
@@ -17,9 +17,10 @@ import { UserService } from './user.service';
       entities: [User],
       synchronize: true,
     }),
+    TypeOrmModule.forFeature([User, UserProfile]),
     CommonModule,
   ],
   controllers: [UserController],
   providers: [UserService],
 })
-export class UserModule {}
+export class UserModule { }
