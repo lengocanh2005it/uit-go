@@ -21,6 +21,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { buildPaginator } from 'typeorm-cursor-pagination';
 import { Trip, TripRequest } from './entities';
+import { InjectRabbitMqService } from '@libs/common/decorators';
 
 @Injectable()
 export class TripService {
@@ -28,7 +29,7 @@ export class TripService {
     @InjectRepository(Trip) private readonly tripRepository: Repository<Trip>,
     @InjectRepository(TripRequest)
     private readonly tripRequestRepository: Repository<TripRequest>,
-    private readonly rabbitMqService: RabbitMQService,
+    @InjectRabbitMqService() private readonly rabbitMqService: RabbitMQService,
   ) {}
 
   public getTrip = async (tripId: string) => {
