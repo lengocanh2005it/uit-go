@@ -14,8 +14,10 @@ services:
     routes:
       - name: user-route
         paths: [/users]
-    plugins:
-      - *jwt_plugin
+      - name: get-me-route
+        paths: ["/users/me"]
+        plugins:
+          - *jwt_plugin
 
   - name: trip-service
     url: http://trip-service:3002
