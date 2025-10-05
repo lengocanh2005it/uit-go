@@ -59,18 +59,6 @@ services:
     networks:
       - backend
     
-  location-service:
-    image: node:20
-    container_name: location-service
-    working_dir: /usr/src/app
-    volumes:
-      - ./:/usr/src/app
-    command: npm run start:location
-    depends_on:
-      - rabbitmq
-    networks:
-      - backend
-
   driver-service:
     image: node:20
     container_name: driver-service
@@ -110,14 +98,11 @@ services:
       - backend
 
   driver-db:
-    image: postgres:15
+    command: "-jar DynamoDBLocal.jar -sharedDb -inMemory"
+    image: amazon/dynamodb-local:latest
     container_name: driver-db
-    environment:
-      POSTGRES_USER: ${POSTGRES_DRIVER_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_DRIVER_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DRIVER_DB}
     ports:
-      - "5434:5432"
+      - "8005:8000"
     networks:
       - backend
 
