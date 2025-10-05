@@ -8,6 +8,7 @@ import { TripService } from './trip.service';
 
 @Module({
   imports: [
+    TypeOrmModule.forFeature([Trip, TripRating, TripRequest]),
     TypeOrmModule.forRoot({
       type: 'mysql',
       host: 'trip-db',

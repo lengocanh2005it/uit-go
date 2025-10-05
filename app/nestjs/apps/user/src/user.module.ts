@@ -7,6 +7,7 @@ import { UserService } from './user.service';
 
 @Module({
   imports: [
+    TypeOrmModule.forFeature([User, UserProfile]),
     TypeOrmModule.forRoot({
       type: 'postgres',
       host: 'user-db',
@@ -14,13 +15,12 @@ import { UserService } from './user.service';
       username: 'user',
       password: 'password',
       database: 'user_db',
-      entities: [User],
+      entities: [User, UserProfile],
       synchronize: true,
     }),
-    TypeOrmModule.forFeature([User, UserProfile]),
     CommonModule,
   ],
   controllers: [UserController],
   providers: [UserService],
 })
-export class UserModule { }
+export class UserModule {}
