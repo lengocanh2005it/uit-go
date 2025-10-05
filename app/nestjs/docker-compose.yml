@@ -98,16 +98,13 @@ services:
       - backend
 
   driver-db:
-    command: "-jar DynamoDBLocal.jar -sharedDb -dbPath ./data"
+    command: "-jar DynamoDBLocal.jar -sharedDb -inMemory"
     image: amazon/dynamodb-local:latest
     container_name: driver-db
     ports:
-      - "8005:8005"
+      - "8005:8000"
     networks:
       - backend
-    volumes:
-      - "./docker/dynamodb:/home/dynamodblocal/data"
-    working_dir: /home/dynamodblocal
 
   trip-db:
     image: mysql:8
