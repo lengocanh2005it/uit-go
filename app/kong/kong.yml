@@ -12,10 +12,14 @@ services:
   - name: user-service
     url: http://user-service:3001
     routes:
+      - name: sign-up-route
+        paths: [/sign-up]
+      - name: sign-in-route
+        paths: [/sign-in]
       - name: user-route
         paths: [/users]
-    plugins:
-      - *jwt_plugin
+        plugins:
+          - *jwt_plugin
 
   - name: trip-service
     url: http://trip-service:3002
