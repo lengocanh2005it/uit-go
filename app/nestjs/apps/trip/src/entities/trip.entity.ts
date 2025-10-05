@@ -41,7 +41,7 @@ export class Trip {
 
   @Column({
     type: 'enum',
-    enum: [TripStatusEnum],
+    enum: TripStatusEnum,
     default: TripStatusEnum.SEARCHING,
   })
   status!: TripStatusEnum;

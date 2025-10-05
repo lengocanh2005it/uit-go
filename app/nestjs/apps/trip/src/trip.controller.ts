@@ -17,7 +17,7 @@ import {
 import { MessagePattern, Payload } from '@nestjs/microservices';
 import { TripService } from './trip.service';
 
-@Controller()
+@Controller('trips')
 export class TripController {
   constructor(private readonly tripService: TripService) {}
 
