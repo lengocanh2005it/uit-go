@@ -1,38 +1,58 @@
 _format_version: "3.0"
 
-plugins:
-  - &jwt_plugin
-    name: jwt
-    config:
-      claims_to_verify:
-        - exp
-      key_claim_name: sub
+consumers:
+  - username: user-service
+    jwt_secrets:
+      - key: user-service
+        secret: ${JWT_SECRET}
 
 services:
   - name: user-service
     url: http://user-service:3001
     routes:
       - name: sign-up-route
-        paths: [/sign-up]
+        paths: [/users/sign-up]
+        strip_path: false
       - name: sign-in-route
-        paths: [/sign-in]
-      - name: user-route
-        paths: [/users]
+        paths: [/users/sign-in]
+        strip_path: false
+      - name: get-me-route
+        paths: [/users/me]
+        strip_path: false
         plugins:
-          - *jwt_plugin
+          - &jwt_plugin
+            name: jwt
+            config:
+              claims_to_verify:
+                - exp
+              key_claim_name: sub
+              secret_is_base64: false
 
   - name: trip-service
     url: http://trip-service:3002
     routes:
       - name: trip-route
         paths: [/trips]
-    plugins:
-      - *jwt_plugin
+        strip_path: false
+        plugins:
+          - &jwt_plugin
+            name: jwt
+            config:
+              claims_to_verify:
+                - exp
+              key_claim_name: sub
+              secret_is_base64: false
 
   - name: driver-service
     url: http://driver-service:3003
     routes:
       - name: driver-route
         paths: [/drivers]
-    plugins:
-      - *jwt_plugin
+        plugins:
+          - &jwt_plugin
+            name: jwt
+            config:
+              claims_to_verify:
+                - exp
+              key_claim_name: sub
+              secret_is_base64: false
