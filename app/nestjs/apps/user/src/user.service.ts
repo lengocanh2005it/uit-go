@@ -9,7 +9,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { User, UserProfile } from './entities';
 import { Repository } from 'typeorm';
 import { CreateUserDto } from '@libs/common/dto/user/create-user.dto';
-import * as bcrypt from 'bcrypt'
+import * as bcrypt from 'bcryptjs'
 import { LoginUserDto } from '@libs/common/dto/user/login-user.dto';
 import { JwtService } from '@nestjs/jwt'
 import { UpdateProfileDto } from '@libs/common/dto/user/update-profile.dto';
@@ -65,7 +65,7 @@ export class UserService {
     return { accessToken: token };
   }
 
-  public getMe = (userId: string) => {
+  public getUser = (userId: string) => {
     return this.userRepo.findOne({
       where: { id: userId },
       relations: ['profile'],
