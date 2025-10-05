@@ -16,4 +16,6 @@ export default () => ({
     place_index: process.env.AWS_PLACE_INDEX || '',
     route_calculator: process.env.AWS_ROUTE_CALCULATOR || '',
   },
+  jwt_secret: process.env.JWT_SECRET || '',
+  jwt_expiration_time: process.env.JWT_EXPIRATION_TIME || '120s',
 });
