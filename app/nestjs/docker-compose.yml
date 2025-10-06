@@ -47,25 +47,32 @@ services:
       - backend
 
   user-service:
-    image: node:20
+    build:
+      context: .
+      dockerfile: ./apps/user/Dockerfile
+    image: uit_go-user_service
     container_name: user-service
-    working_dir: /usr/src/app
-    volumes:
-      - ./:/usr/src/app
-    command: npm run start:user
+    env_file:
+      - ./.env
+    ports:
+      - "3001:3001"
     depends_on:
       - user-db
       - rabbitmq
     networks:
       - backend
+
     
   driver-service:
-    image: node:20
+    build:
+      context: .
+      dockerfile: ./apps/driver/Dockerfile
+    image: uit_go-driver_service
     container_name: driver-service
-    working_dir: /usr/src/app
-    volumes:
-      - ./:/usr/src/app
-    command: npm run start:driver
+    env_file:
+      - ./.env
+    ports:
+      - "3003:3003"
     depends_on:
       - driver-db
       - rabbitmq
@@ -73,12 +80,13 @@ services:
       - backend
 
   trip-service:
-    image: node:20
+    build:
+      context: .
+      dockerfile: ./apps/trip/Dockerfile
+    image: uit_go-trip_service
     container_name: trip-service
-    working_dir: /usr/src/app
-    volumes:
-      - ./:/usr/src/app
-    command: npm run start:trip
+    env_file:
+      - ./.env
     depends_on:
       - trip-db
       - rabbitmq
