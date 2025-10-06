@@ -18,4 +18,8 @@ export default () => ({
   },
   jwt_secret: process.env.JWT_SECRET || '',
   jwt_expiration_time: process.env.JWT_EXPIRATION_TIME || '120s',
+  dynamodb: {
+    port: parseInt(process.env.DYNAMODB_PORT || '9000', 10) || 9000,
+    host: process.env.DYNAMODB_HOST || 'localhost',
+  },
 });
