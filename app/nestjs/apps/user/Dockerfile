@@ -1,16 +1,4 @@
-FROM node:20-alpine AS builder
-
-WORKDIR /app
-
-COPY package*.json ./
-COPY nest-cli.json ./
-COPY tsconfig*.json ./
-COPY apps ./apps
-COPY libs ./libs
-
-RUN npm install
-RUN npm run build user
-
+# syntax=docker/dockerfile:1.5
 FROM node:20-alpine
 
 WORKDIR /app
@@ -18,7 +6,15 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm install --only=production
 
-COPY --from=builder /app/dist ./dist
+COPY apps ./apps
+COPY libs ./libs
+COPY .env ./.env
+
+RUN --mount=type=secret,id=dotenv_key \
+    DOTENV_PRIVATE_KEY=$(cat /run/secrets/dotenv_key) \
+    npx dotenvx decrypt .env
+
+COPY dist ./dist
 
 EXPOSE 3001
 CMD ["node", "dist/apps/user/main.js"]
