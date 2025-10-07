@@ -17,4 +17,4 @@ RUN --mount=type=secret,id=dotenv_key \
 COPY dist ./dist
 
 EXPOSE 3002
-CMD ["node", "dist/apps/driver/main.js"]
+CMD ["node", "dist/apps/trip/main.js"]
