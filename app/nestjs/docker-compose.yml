@@ -50,27 +50,28 @@ services:
     build:
       context: .
       dockerfile: ./apps/user/Dockerfile
+      secrets:
+        - dotenv_key
     image: uit_go-user_service
+    secrets:
+      - dotenv_key
     container_name: user-service
-    env_file:
-      - ./.env
-    ports:
-      - "3001:3001"
     depends_on:
       - user-db
       - rabbitmq
     networks:
       - backend
-
     
   driver-service:
     build:
       context: .
       dockerfile: ./apps/driver/Dockerfile
+      secrets:
+        - dotenv_key
     image: uit_go-driver_service
     container_name: driver-service
-    env_file:
-      - ./.env
+    secrets:
+      - dotenv_key
     ports:
       - "3003:3003"
     depends_on:
@@ -83,10 +84,14 @@ services:
     build:
       context: .
       dockerfile: ./apps/trip/Dockerfile
+      secrets:
+        - dotenv_key
     image: uit_go-trip_service
     container_name: trip-service
-    env_file:
-      - ./.env
+    secrets:
+      - dotenv_key
+    ports:
+      - "3002:3002"
     depends_on:
       - trip-db
       - rabbitmq
@@ -138,3 +143,7 @@ services:
 networks:
   backend:
     driver: bridge
+
+secrets:
+  dotenv_key:
+    file: ./secrets/dotenv_key.txt
