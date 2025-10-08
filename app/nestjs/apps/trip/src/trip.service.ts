@@ -41,7 +41,7 @@ export class TripService {
 
     const originAddressGeoCode =
       await this.rabbitMqService.send<GetGeocodeResponse>(
-        'LOCATION_SERVICE',
+        'DRIVER_SERVICE',
         'get-geocode',
         {
           address: originAddress,
@@ -50,7 +50,7 @@ export class TripService {
 
     const destinationAddressGeoCode =
       await this.rabbitMqService.send<GetGeocodeResponse>(
-        'LOCATION_SERVICE',
+        'DRIVER_SERVICE',
         'get-geocode',
         {
           address: destinationAddress,
@@ -59,7 +59,7 @@ export class TripService {
 
     const estimateFareData =
       await this.rabbitMqService.send<GetEstimateFareResponse>(
-        'LOCATION_SERVICE',
+        'DRIVER_SERVICE',
         'get-estimate-fare',
         {
           startAddress: originAddress,
@@ -120,7 +120,7 @@ export class TripService {
     if (destinationAddress) {
       const newDestAddressGeocode =
         await this.rabbitMqService.send<GetGeocodeResponse | null>(
-          'LOCATION_SERVICE',
+          'DRIVER_SERVICE',
           'get-geocode',
           {
             address: destinationAddress,
@@ -134,7 +134,7 @@ export class TripService {
 
       const newEstimateFare =
         await this.rabbitMqService.send<GetEstimateFareResponse>(
-          'LOCATION_SERVICE',
+          'DRIVER_SERVICE',
           'get-estimate-fare',
           {
             startAddress: trip.originAddress,
