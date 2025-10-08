@@ -6,7 +6,7 @@
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
-    "build": "dotenvx run -- nest build",
+    "build": "dotenvx run -- nest build user trip driver",
     "format": "prettier --write \"apps/**/*.ts\" \"libs/**/*.ts\"",
     "start": "dotenvx run -- nest start",
     "start:dev": "dotenvx run -- nest start --watch",

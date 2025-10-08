@@ -8,7 +8,6 @@ export class RabbitMQService {
     @Inject('USER_SERVICE') private readonly userClient: ClientProxy,
     @Inject('TRIP_SERVICE') private readonly tripClient: ClientProxy,
     @Inject('DRIVER_SERVICE') private readonly driverClient: ClientProxy,
-    @Inject('LOCATION_SERVICE') private readonly locationClient: ClientProxy,
   ) {}
 
   public send<T = any>(
@@ -34,8 +33,6 @@ export class RabbitMQService {
         return this.tripClient;
       case 'DRIVER_SERVICE':
         return this.driverClient;
-      case 'LOCATION_SERVICE':
-        return this.locationClient;
       default:
         throw new Error(`Unknown service ${service}`);
     }
