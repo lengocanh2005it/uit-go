@@ -1,5 +1,13 @@
 export interface VehicleKey {
-  id: string;
+  vehicleId: string;
 }
 
-export interface Vehicle extends VehicleKey {}
+export interface Vehicle extends VehicleKey {
+  plateNumber: string;
+  brand: string;
+  model: string;
+  color: string;
+  driverId: string;
+  createdAt: Date;
+  updatedAt: Date;
+}

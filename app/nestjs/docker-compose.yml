@@ -70,6 +70,10 @@ services:
         - dotenv_key
     image: uit_go-driver_service
     container_name: driver-service
+    environment:
+      - AWS_ACCESS_KEY_ID=fake
+      - AWS_SECRET_ACCESS_KEY=fake
+      - AWS_REGION=local-env
     secrets:
       - dotenv_key
     ports:
@@ -111,11 +115,11 @@ services:
       - backend
 
   driver-db:
-    command: "-jar DynamoDBLocal.jar -sharedDb -inMemory"
+    command: "-jar DynamoDBLocal.jar -sharedDb -inMemory -port 8005"
     image: amazon/dynamodb-local:latest
     container_name: driver-db
     ports:
-      - "8005:8000"
+      - "8005:8005"
     networks:
       - backend
 

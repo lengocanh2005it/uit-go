@@ -4,6 +4,5 @@ export const RABBITMQ_QUEUE_SERVICES = [
   'USER_SERVICE',
   'TRIP_SERVICE',
   'DRIVER_SERVICE',
-  'LOCATION_SERVICE',
 ] as const;
 export type ServiceName = (typeof RABBITMQ_QUEUE_SERVICES)[number];

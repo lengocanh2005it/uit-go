@@ -1,7 +1,12 @@
-import { Controller } from '@nestjs/common';
+import { Controller, Get } from '@nestjs/common';
 import { DriverService } from './driver.service';
 
-@Controller()
+@Controller('drivers')
 export class DriverController {
-  constructor(private readonly driverService: DriverService) {}
+  constructor(private readonly driverService: DriverService) { }
+
+  @Get('test')
+  test() {
+    return this.driverService.test();
+  }
 }
