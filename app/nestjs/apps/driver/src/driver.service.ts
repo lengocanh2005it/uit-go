@@ -1,4 +1,15 @@
-import { Driver, DriverApproval, DriverApprovalKey, DriverKey, DriverLocation, DriverLocationKey, DriverStatus, DriverStatusKey, Vehicle, VehicleKey } from '@/driver/src/interfaces';
+import {
+  Driver,
+  DriverApproval,
+  DriverApprovalKey,
+  DriverKey,
+  DriverLocation,
+  DriverLocationKey,
+  DriverStatus,
+  DriverStatusKey,
+  Vehicle,
+  VehicleKey,
+} from '@/driver/src/interfaces';
 import { Injectable } from '@nestjs/common';
 import type { Model } from 'nestjs-dynamoose';
 import { InjectModel } from 'nestjs-dynamoose';
@@ -13,9 +24,15 @@ export class DriverService {
     @InjectModel('Vehicle')
     private readonly vehicleModel: Model<Vehicle, VehicleKey>,
     @InjectModel('DriverLocation')
-    private readonly driverLocationModel: Model<DriverLocation, DriverLocationKey>,
+    private readonly driverLocationModel: Model<
+      DriverLocation,
+      DriverLocationKey
+    >,
     @InjectModel('DriverApproval')
-    private readonly driverApprovalModel: Model<DriverApproval, DriverApprovalKey>,
+    private readonly driverApprovalModel: Model<
+      DriverApproval,
+      DriverApprovalKey
+    >,
   ) {}
 
   async test() {
