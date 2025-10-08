@@ -12,10 +12,13 @@ async function bootstrap() {
       transform: true,
       whitelist: true,
       forbidNonWhitelisted: true,
-    })
+    }),
   );
   const configService = app.get(ConfigService);
-  await app.listen(3003);
+  const PORT = configService.get<number>('services.driver.port', 3003);
+  await app.listen(PORT, () => {
+    console.log(`DriverService is running.`);
+  });
   app.connectMicroservice<MicroserviceOptions>(
     generateRmqOptions('driver_service', configService),
   );
