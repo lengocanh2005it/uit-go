@@ -6,7 +6,7 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm install
 
-COPY apps ./apps
+COPY apps/driver ./apps/driver
 COPY libs ./libs
 COPY .env ./.env
 COPY tsconfig*.json ./
@@ -15,8 +15,7 @@ RUN --mount=type=secret,id=dotenv_key \
     DOTENV_PRIVATE_KEY=$(cat /run/secrets/dotenv_key) \
     npx dotenvx decrypt .env
 
-RUN npm run build
-COPY dist ./dist
+COPY dist/apps/driver ./dist/apps/driver
 
 EXPOSE 3003
 CMD ["node", "dist/apps/driver/main.js"]

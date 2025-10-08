@@ -1,5 +1,4 @@
 export default () => ({
-  port: parseInt(process.env.PORT ?? '3001', 10) || 3001,
   rabbitmq: {
     url: process.env.RABBITMQ_URL || '',
     queues: process.env.RABBITMQ_QUEUES || '',
@@ -21,5 +20,31 @@ export default () => ({
   dynamodb: {
     port: parseInt(process.env.DYNAMODB_PORT || '9000', 10) || 9000,
     host: process.env.DYNAMODB_HOST || 'localhost',
+  },
+  services: {
+    user: {
+      port: parseInt(process.env.USER_SERVICE_PORT || '3001', 10) || 3001,
+      database: {
+        host: process.env.USER_SERVICE_DB_HOST || '',
+        port: parseInt(process.env.USER_SERVICE_DB_PORT || '5432', 10) || 5432,
+        username: process.env.USER_SERVICE_DB_USERNAME || '',
+        password: process.env.USER_SERVICE_DB_PASSWORD || '',
+        name: process.env.USER_SERVICE_DB_NAME || '',
+      },
+    },
+    driver: {
+      port: parseInt(process.env.DRIVER_SERVICE_PORT || '3003', 10) || 3003,
+      local_url: process.env.DRIVER_SERVICE_LOCAL_URL || '',
+    },
+    trip: {
+      port: parseInt(process.env.TRIP_SERVICE_PORT || '3002', 10) || 3002,
+      database: {
+        host: process.env.TRIP_SERVICE_DB_HOST || '',
+        port: parseInt(process.env.TRIP_SERVICE_DB_PORT || '3306', 10) || 3306,
+        username: process.env.TRIP_SERVICE_DB_USERNAME || '',
+        password: process.env.TRIP_SERVICE_DB_PASSWORD || '',
+        name: process.env.TRIP_SERVICE_DB_NAME || '',
+      },
+    },
   },
 });
