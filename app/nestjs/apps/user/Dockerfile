@@ -6,7 +6,7 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm install
 
-COPY apps ./apps
+COPY apps/user ./apps/user
 COPY libs ./libs
 COPY .env ./.env
 COPY tsconfig*.json ./
@@ -15,8 +15,7 @@ RUN --mount=type=secret,id=dotenv_key \
     DOTENV_PRIVATE_KEY=$(cat /run/secrets/dotenv_key) \
     npx dotenvx decrypt .env
 
-RUN npm run build
-COPY dist ./dist
+COPY dist/apps/user ./dist/apps/user
 
 EXPOSE 3001
 CMD ["node", "dist/apps/user/main.js"]

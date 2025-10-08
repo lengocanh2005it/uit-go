@@ -1,5 +1,6 @@
 import { CommonModule } from '@libs/common';
 import { Module } from '@nestjs/common';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { User, UserProfile } from './entities';
 import { UserController } from './user.controller';
@@ -8,15 +9,33 @@ import { UserService } from './user.service';
 @Module({
   imports: [
     TypeOrmModule.forFeature([User, UserProfile]),
-    TypeOrmModule.forRoot({
-      type: 'postgres',
-      host: 'user-db',
-      port: 5432,
-      username: 'user',
-      password: 'password',
-      database: 'user_db',
-      entities: [User, UserProfile],
-      synchronize: true,
+    TypeOrmModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => ({
+        type: 'postgres',
+        host: configService.get<string>(
+          'services.user.database.host',
+          'localhost',
+        ),
+        port: configService.get<number>('services.user.database.port', 5432),
+        username: configService.get<string>(
+          'services.user.database.username',
+          'user',
+        ),
+        password: configService.get<string>(
+          'services.user.database.password',
+          'password',
+        ),
+        database: configService.get<string>(
+          'services.user.database.name',
+          'user_db',
+        ),
+        entities: [User, UserProfile],
+        synchronize: true,
+        autoLoadEntities: true,
+        logging: false,
+      }),
     }),
     CommonModule,
   ],
