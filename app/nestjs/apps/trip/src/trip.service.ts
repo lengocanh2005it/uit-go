@@ -11,6 +11,7 @@ import { RabbitMQService } from '@libs/common/rabbitmq/rabbitmq.service';
 import {
   GetEstimateFareResponse,
   GetGeocodeResponse,
+  GetTripsOfDriverResponse,
 } from '@libs/common/utils';
 import {
   ForbiddenException,
@@ -196,7 +197,7 @@ export class TripService {
   public getTripsOfDriver = async (
     driverId: string,
     getTripsOfDriverQueryDto: GetTripsOfDriverQueryDto,
-  ) => {
+  ): Promise<GetTripsOfDriverResponse> => {
     const { afterCursor } = getTripsOfDriverQueryDto;
     const paginator = buildPaginator({
       entity: Trip,
