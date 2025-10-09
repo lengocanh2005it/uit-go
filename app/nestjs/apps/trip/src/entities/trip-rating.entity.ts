@@ -2,8 +2,11 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  JoinColumn,
+  OneToOne,
   PrimaryGeneratedColumn,
 } from 'typeorm';
+import { Trip } from './trip.entity';
 
 @Entity()
 export class TripRating {
@@ -23,10 +26,14 @@ export class TripRating {
   })
   createdAt: Date;
 
-  @Column({
-    type: 'uuid',
+  @OneToOne(() => Trip, (trip) => trip.rating, {
+    onDelete: 'CASCADE',
+    onUpdate: 'CASCADE',
   })
-  tripId: string;
+  @JoinColumn({
+    name: 'tripId',
+  })
+  trip!: Trip;
 
   @Column({
     type: 'uuid',

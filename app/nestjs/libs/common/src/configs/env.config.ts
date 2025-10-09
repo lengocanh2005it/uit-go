@@ -48,4 +48,5 @@ export default () => ({
     },
   },
   kong_url: process.env.KONG_URL || '',
+  ipwho_url: process.env.IPWHO_URL || '',
 });

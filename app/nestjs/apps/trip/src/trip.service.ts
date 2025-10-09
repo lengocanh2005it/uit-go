@@ -6,7 +6,11 @@ import {
   UpdateTripDto,
   UpdateTripRequestStatusDto,
 } from '@libs/common/dto';
-import { DriverStatusEnum, TripStatusEnum } from '@libs/common/enums';
+import {
+  DriverStatusEnum,
+  TripRequestStatusEnum,
+  TripStatusEnum,
+} from '@libs/common/enums';
 import { RabbitMQService } from '@libs/common/rabbitmq/rabbitmq.service';
 import {
   GetEstimateFareResponse,
@@ -156,7 +160,7 @@ export class TripService {
     await this.tripRepository.save(trip);
 
     if (status === TripStatusEnum.COMPLETED) {
-      await this.rabbitMqService.send(
+      this.rabbitMqService.emit(
         'DRIVER_SERVICE',
         patterns.driverService.updateDriverStatus,
         {
@@ -197,6 +201,9 @@ export class TripService {
       where: {
         id: tripRequestId,
       },
+      relations: {
+        trip: true,
+      },
     });
 
     if (!tripRequest) throw new NotFoundException('Trip request not found.');
@@ -204,6 +211,16 @@ export class TripService {
     const { status } = updateTripRequestStatusDto;
     tripRequest.status = status;
     await this.tripRequestRepository.save(tripRequest);
+    if (status === TripRequestStatusEnum.ACCEPTED) {
+      this.rabbitMqService.emit(
+        'DRIVER_SERVICE',
+        patterns.driverService.updateDriverStatus,
+        {
+          driverId: tripRequest.trip.id,
+          status: DriverStatusEnum.BUSY,
+        },
+      );
+    }
   };
 
   public getTripsOfDriver = async (
