@@ -6,12 +6,13 @@ import {
   UpdateTripDto,
   UpdateTripRequestStatusDto,
 } from '@libs/common/dto';
-import { TripStatusEnum } from '@libs/common/enums';
+import { DriverStatusEnum, TripStatusEnum } from '@libs/common/enums';
 import { RabbitMQService } from '@libs/common/rabbitmq/rabbitmq.service';
 import {
   GetEstimateFareResponse,
   GetGeocodeResponse,
   GetTripsOfDriverResponse,
+  patterns,
 } from '@libs/common/utils';
 import {
   ForbiddenException,
@@ -153,6 +154,17 @@ export class TripService {
     if (!destinationAddress) trip.fareFinal = fareFinal || trip.fareFinal;
 
     await this.tripRepository.save(trip);
+
+    if (status === TripStatusEnum.COMPLETED) {
+      await this.rabbitMqService.send(
+        'DRIVER_SERVICE',
+        patterns.driverService.updateDriverStatus,
+        {
+          driverId: trip.driverId,
+          status: DriverStatusEnum.ONLINE,
+        },
+      );
+    }
 
     return trip;
   };

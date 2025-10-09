@@ -10,11 +10,20 @@ import {
   Vehicle,
   VehicleKey,
 } from '@/driver/src/interfaces';
-import type { GetTripsOfDriverResponse, TUserSession } from '@libs/common';
+import {
+  patterns,
+  type GetTripsOfDriverResponse,
+  type TUserSession,
+} from '@libs/common';
 import { InjectRabbitMqService } from '@libs/common/decorators';
 import { GetTripsOfDriverQueryDto } from '@libs/common/dto';
+import { DriverStatusEnum } from '@libs/common/enums';
 import { RabbitMQService } from '@libs/common/rabbitmq/rabbitmq.service';
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import type { Model } from 'nestjs-dynamoose';
 import { InjectModel } from 'nestjs-dynamoose';
 
@@ -65,10 +74,32 @@ export class DriverService {
 
     return this.rabbitMqService.send<GetTripsOfDriverResponse>(
       'TRIP_SERVICE',
-      'get-trips-of-driver',
+      patterns.driverService.getTripsOfDriverPattern,
       {
         getTripsOfDriverQueryDto,
         driverId,
+      },
+    );
+  }
+
+  async updateDriverStatus(driverId: string, status: DriverStatusEnum) {
+    const findDriver = await this.driverModel.get({
+      driverId,
+    });
+
+    if (!findDriver) throw new NotFoundException('Driver info not found.');
+
+    const findDriverStatusRecord = await this.driverStatusModel.get({
+      driverId,
+    });
+
+    if (!findDriverStatusRecord)
+      throw new NotFoundException('Driver status info not found.');
+
+    await this.driverStatusModel.update(
+      { driverId },
+      {
+        status,
       },
     );
   }
