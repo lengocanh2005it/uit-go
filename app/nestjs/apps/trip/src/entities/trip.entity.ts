@@ -4,9 +4,12 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  OneToOne,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { TripRating } from './trip-rating.entity';
+import { TripRequest } from './trip-request.entity';
 
 @Entity()
 export class Trip {
@@ -77,6 +80,18 @@ export class Trip {
     nullable: true,
   })
   note?: string;
+
+  @OneToOne(() => TripRequest, (tripRequest) => tripRequest.trip, {
+    cascade: true,
+    orphanedRowAction: 'delete',
+  })
+  request!: TripRequest;
+
+  @OneToOne(() => TripRating, (tripRating) => tripRating.trip, {
+    cascade: true,
+    orphanedRowAction: 'delete',
+  })
+  rating!: TripRating;
 
   @CreateDateColumn({
     type: 'timestamp',

@@ -38,3 +38,10 @@ export interface GetTripsOfDriverResponse {
   data: Trip[];
   afterCursor: string | null;
 }
+
+export interface GetServerLocationResponse {
+  latitude: number;
+  longitude: number;
+  city: string;
+  country: string;
+}
