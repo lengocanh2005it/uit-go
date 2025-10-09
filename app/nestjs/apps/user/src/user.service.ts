@@ -1,4 +1,7 @@
-import { InjectKongService } from '@libs/common/decorators';
+import {
+  InjectKongService,
+  InjectRabbitMqService,
+} from '@libs/common/decorators';
 import { CreateUserDto } from '@libs/common/dto/user/create-user.dto';
 import { LoginUserDto } from '@libs/common/dto/user/login-user.dto';
 import { UpdateProfileDto } from '@libs/common/dto/user/update-profile.dto';
@@ -16,7 +19,10 @@ import * as bcrypt from 'bcryptjs';
 import { omit } from 'lodash';
 import { Repository } from 'typeorm';
 import { User, UserProfile } from './entities';
-import { TUserSession } from '@libs/common';
+import { patterns, TUserSession } from '@libs/common';
+import { UserRole } from '@libs/common/enums';
+import { RabbitMQService } from '@libs/common/rabbitmq/rabbitmq.service';
+import { ObjectType } from 'nestjs-dynamoose';
 
 @Injectable()
 export class UserService {
@@ -27,6 +33,7 @@ export class UserService {
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     @InjectKongService() private readonly kongService: KongService,
+    @InjectRabbitMqService() private readonly rabbitMqService: RabbitMQService,
   ) {}
 
   public register = async (createUserDto: CreateUserDto) => {
@@ -81,7 +88,19 @@ export class UserService {
 
     if (!user) throw new NotFoundException('User not found.');
 
-    return omit(user, ['passwordHash']);
+    let formattedUser: any = omit(user, ['passwordHash']);
+
+    if (user.role === UserRole.DRIVER) {
+      formattedUser.driverInfo = await this.rabbitMqService.send<ObjectType>(
+        'DRIVER_SERVICE',
+        patterns.driverService.getDriverInfo,
+        {
+          userId: user.id,
+        },
+      );
+    }
+
+    return formattedUser;
   };
 
   async updateProfile(userId: string, updateProfileDto: UpdateProfileDto) {

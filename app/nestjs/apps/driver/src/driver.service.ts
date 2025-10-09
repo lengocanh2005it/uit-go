@@ -93,7 +93,7 @@ export class DriverService {
       driverId,
     });
 
-    if (!findDriverStatusRecord)
+    if (!findDriverStatusRecord?.toJSON())
       throw new NotFoundException('Driver status info not found.');
 
     await this.driverStatusModel.update(
@@ -102,5 +102,11 @@ export class DriverService {
         status,
       },
     );
+  }
+
+  async getDriverInfo(userId: string) {
+    const [driver] = await this.driverModel.query('userId').eq(userId).exec();
+    if (!driver) throw new NotFoundException('Driver info not found.');
+    return driver.toJSON();
   }
 }

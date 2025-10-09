@@ -1,10 +1,10 @@
 import { patterns, type TUserSession } from '@libs/common';
 import { UserSession } from '@libs/common/decorators';
 import { GetTripsOfDriverQueryDto } from '@libs/common/dto';
-import { Controller, Get, Param, ParseUUIDPipe, Query } from '@nestjs/common';
-import { DriverService } from './driver.service';
-import { EventPattern, Payload } from '@nestjs/microservices';
 import { DriverStatusEnum } from '@libs/common/enums';
+import { Controller, Get, Param, ParseUUIDPipe, Query } from '@nestjs/common';
+import { EventPattern, MessagePattern, Payload } from '@nestjs/microservices';
+import { DriverService } from './driver.service';
 
 @Controller('drivers')
 export class DriverController {
@@ -16,6 +16,11 @@ export class DriverController {
     @Payload('status') status: DriverStatusEnum,
   ) {
     return this.driverService.updateDriverStatus(driverId, status);
+  }
+
+  @MessagePattern(patterns.driverService.getDriverInfo)
+  async getDriverInfo(@Payload('userId', ParseUUIDPipe) userId: string) {
+    return this.driverService.getDriverInfo(userId);
   }
 
   @Get(':id/trips')
