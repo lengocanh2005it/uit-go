@@ -10,7 +10,11 @@ import {
   Vehicle,
   VehicleKey,
 } from '@/driver/src/interfaces';
-import { Injectable } from '@nestjs/common';
+import type { GetTripsOfDriverResponse, TUserSession } from '@libs/common';
+import { InjectRabbitMqService } from '@libs/common/decorators';
+import { GetTripsOfDriverQueryDto } from '@libs/common/dto';
+import { RabbitMQService } from '@libs/common/rabbitmq/rabbitmq.service';
+import { ForbiddenException, Injectable } from '@nestjs/common';
 import type { Model } from 'nestjs-dynamoose';
 import { InjectModel } from 'nestjs-dynamoose';
 
@@ -33,6 +37,7 @@ export class DriverService {
       DriverApproval,
       DriverApprovalKey
     >,
+    @InjectRabbitMqService() private readonly rabbitMqService: RabbitMQService,
   ) {}
 
   async test() {
@@ -47,5 +52,24 @@ export class DriverService {
       updatedAt: new Date(),
     };
     return this.driverModel.create(driver);
+  }
+
+  async getAllTripsOfDriver(
+    userSession: TUserSession,
+    driverId: string,
+    getTripsOfDriverQueryDto: GetTripsOfDriverQueryDto,
+  ) {
+    const { sub } = userSession;
+    if (driverId !== sub)
+      throw new ForbiddenException('You can only view your own trip list.');
+
+    return this.rabbitMqService.send<GetTripsOfDriverResponse>(
+      'TRIP_SERVICE',
+      'get-trips-of-driver',
+      {
+        getTripsOfDriverQueryDto,
+        driverId,
+      },
+    );
   }
 }

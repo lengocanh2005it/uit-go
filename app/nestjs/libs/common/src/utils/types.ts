@@ -1,3 +1,4 @@
+import { Trip } from '@/trip/src/entities';
 import { TripStatusEnum } from '@libs/common/enums';
 
 export interface AWSQueueMessage<T = any> {
@@ -32,3 +33,8 @@ export type JwtPayload = TUserSession & {
   iat: number;
   exp: number;
 };
+
+export interface GetTripsOfDriverResponse {
+  data: Trip[];
+  afterCursor: string | null;
+}
