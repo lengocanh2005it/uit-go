@@ -16,6 +16,7 @@ import {
 } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
 import { TripService } from './trip.service';
+import { patterns } from '@libs/common';
 
 @Controller('trips')
 export class TripController {
@@ -55,7 +56,7 @@ export class TripController {
     );
   }
 
-  @MessagePattern('get-trips-of-driver')
+  @MessagePattern(patterns.driverService.getTripsOfDriverPattern)
   async getTripsOfDriver(
     @Payload('getTripsOfDriverQueryDto')
     getTripsOfDriverQueryDto: GetTripsOfDriverQueryDto,
