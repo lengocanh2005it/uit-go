@@ -1,50 +1,52 @@
 services:
+  kong-database:
+    image: postgres:15
+    container_name: kong-database
+    environment:
+      POSTGRES_USER: kong
+      POSTGRES_PASSWORD: kong_password
+      POSTGRES_DB: kong
+    networks:
+      - backend
+    volumes:
+      - kong_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kong"]
+      interval: 5s
+      retries: 5
+      start_period: 5s
+
   kong:
     build:
       context: ../kong
     container_name: kong
     networks:
       - backend
+    depends_on:
+      kong-database:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+      - "8443:8443"
+      - "8001:8001"
+      - "8444:8444"
     environment:
-      KONG_DATABASE: "off"
-      KONG_DECLARATIVE_CONFIG: /tmp/kong_rendered.yml
+      KONG_DATABASE: "postgres"
+      KONG_PG_HOST: "kong-database"
+      KONG_PG_PORT: 5432
+      KONG_PG_USER: "kong"
+      KONG_PG_PASSWORD: "kong_password"
+      KONG_PG_DATABASE: "kong"
       KONG_PROXY_ACCESS_LOG: /dev/stdout
       KONG_ADMIN_ACCESS_LOG: /dev/stdout
       KONG_PROXY_ERROR_LOG: /dev/stderr
       KONG_ADMIN_ERROR_LOG: /dev/stderr
       KONG_ADMIN_LISTEN: 0.0.0.0:8001
       KONG_PLUGINS: "bundled,jwt"
-      AWS_KEY: ${AWS_KEY}
-      AWS_SECRET: ${AWS_SECRET}
-      AWS_REGION: ${AWS_REGION}
-      JWT_SECRET: ${JWT_SECRET}
-    ports:
-      - "8000:8000"
-      - "8443:8443"
-      - "8001:8001" 
-      - "8444:8444" 
     volumes:
-      - ../kong/kong.yml:/kong/kong.yml:ro
-    command: >
-      sh -c "envsubst < /kong/kong.yml > /tmp/kong_rendered.yml &&
-            kong start --vv"
-    depends_on:
-      - user-service
-      - trip-service
-      - driver-service
-      - rabbitmq
-
-  rabbitmq:
-    image: rabbitmq:3-management
-    container_name: rabbitmq
-    environment:
-      RABBITMQ_DEFAULT_USER: guest
-      RABBITMQ_DEFAULT_PASS: guest
-    ports:
-      - "5672:5672" 
-      - "15672:15672"
-    networks:
-      - backend
+      - ../kong/kong.yml:/tmp/kong.yml
+      - ../kong/entrypoint.sh:/docker-entrypoint.sh
+    entrypoint: ["/bin/sh", "/docker-entrypoint.sh"]
 
   user-service:
     build:
@@ -53,15 +55,17 @@ services:
       secrets:
         - dotenv_key
     image: uit_go-user_service
+    container_name: user-service
+    ports:
+      - "3001:3001"
     secrets:
       - dotenv_key
-    container_name: user-service
     depends_on:
       - user-db
       - rabbitmq
     networks:
       - backend
-    
+
   driver-service:
     build:
       context: .
@@ -115,9 +119,9 @@ services:
       - backend
 
   driver-db:
-    command: "-jar DynamoDBLocal.jar -sharedDb -inMemory -port 8005"
     image: amazon/dynamodb-local:latest
     container_name: driver-db
+    command: "-jar DynamoDBLocal.jar -sharedDb -inMemory -port 8005"
     ports:
       - "8005:8005"
     networks:
@@ -135,7 +139,19 @@ services:
       - "3307:3306"
     networks:
       - backend
-    
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    networks:
+      - backend
+
   redis:
     image: redis:6.2
     container_name: redis
@@ -151,3 +167,6 @@ networks:
 secrets:
   dotenv_key:
     file: ./secrets/dotenv_key.txt
+
+volumes:
+  kong_pgdata:

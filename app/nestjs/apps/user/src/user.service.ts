@@ -1,18 +1,22 @@
+import { InjectKongService } from '@libs/common/decorators';
 import { CreateUserDto } from '@libs/common/dto/user/create-user.dto';
 import { LoginUserDto } from '@libs/common/dto/user/login-user.dto';
 import { UpdateProfileDto } from '@libs/common/dto/user/update-profile.dto';
+import { KongService } from '@libs/common/kong/kong.service';
 import {
   BadRequestException,
   Injectable,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcryptjs';
+import { omit } from 'lodash';
 import { Repository } from 'typeorm';
 import { User, UserProfile } from './entities';
-import { ConfigService } from '@nestjs/config';
+import { TUserSession } from '@libs/common';
 
 @Injectable()
 export class UserService {
@@ -22,6 +26,7 @@ export class UserService {
     private readonly profileRepo: Repository<UserProfile>,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    @InjectKongService() private readonly kongService: KongService,
   ) {}
 
   public register = async (createUserDto: CreateUserDto) => {
@@ -31,15 +36,16 @@ export class UserService {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const user = this.userRepo.create({
-      email: email,
+      email,
       passwordHash: hashedPassword,
-      role: role,
+      role,
     });
     await this.userRepo.save(user);
 
     const profile = this.profileRepo.create({ userId: user.id });
     await this.profileRepo.save(profile);
-    return user;
+    await this.kongService.createNewConsumer(user.id);
+    return omit(user, ['passwordHash']);
   };
 
   public login = async (loginUserDto: LoginUserDto) => {
@@ -50,11 +56,9 @@ export class UserService {
     const isMatch = await bcrypt.compare(password, user.passwordHash);
     if (!isMatch) throw new UnauthorizedException('Invalid credentials');
 
-    const payload = {
-      iss: 'user-service',
+    const payload: TUserSession = {
       sub: user.id,
       role: user.role,
-      aud: 'kong-api',
     };
 
     const token = await this.jwtService.signAsync(payload, {
@@ -65,11 +69,19 @@ export class UserService {
     return { accessToken: token };
   };
 
-  public getUser = (userId: string) => {
-    return this.userRepo.findOne({
-      where: { id: userId },
-      relations: ['profile'],
+  public getUser = async (userId: string) => {
+    const user = await this.userRepo.findOne({
+      where: {
+        id: userId,
+      },
+      relations: {
+        profile: true,
+      },
     });
+
+    if (!user) throw new NotFoundException('User not found.');
+
+    return omit(user, ['passwordHash']);
   };
 
   async updateProfile(userId: string, updateProfileDto: UpdateProfileDto) {
