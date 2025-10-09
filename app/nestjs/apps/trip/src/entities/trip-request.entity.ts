@@ -3,9 +3,12 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  JoinColumn,
+  OneToOne,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { Trip } from './trip.entity';
 
 @Entity()
 export class TripRequest {
@@ -24,10 +27,14 @@ export class TripRequest {
   })
   expiresTime: Date;
 
-  @Column({
-    type: 'uuid',
+  @OneToOne(() => Trip, (trip) => trip.request, {
+    onDelete: 'CASCADE',
+    onUpdate: 'CASCADE',
   })
-  tripId: string;
+  @JoinColumn({
+    name: 'tripId',
+  })
+  trip: Trip;
 
   @CreateDateColumn({
     type: 'timestamp',

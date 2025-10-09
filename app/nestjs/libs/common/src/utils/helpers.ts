@@ -8,6 +8,7 @@ import {
   timeout,
   TimeoutError,
 } from 'rxjs';
+import * as ngeohash from 'ngeohash';
 
 export function generateRmqOptions(
   serviceName: string,
@@ -45,4 +46,10 @@ export async function sendWithTimeout<T = any>(
       }),
     ),
   );
+}
+
+export function buildGeoLocation(lat: number, lng: number, prefixLength = 5) {
+  const geo_hash = ngeohash.encode(lat, lng);
+  const hash_prefix = geo_hash.substring(0, prefixLength);
+  return { hash_prefix, geo_hash };
 }

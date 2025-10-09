@@ -1,4 +1,4 @@
-import { patterns, type TUserSession } from '@libs/common';
+import { CommonService, patterns, type TUserSession } from '@libs/common';
 import { UserSession } from '@libs/common/decorators';
 import { GetTripsOfDriverQueryDto } from '@libs/common/dto';
 import { UpdateDriverStatusDto } from '@libs/common/dto/driver';
@@ -18,7 +18,10 @@ import { DriverService } from './driver.service';
 
 @Controller('drivers')
 export class DriverController {
-  constructor(private readonly driverService: DriverService) {}
+  constructor(
+    private readonly driverService: DriverService,
+    private readonly commonService: CommonService,
+  ) {}
 
   @EventPattern(patterns.driverService.updateDriverStatus)
   async updateDriverStatus(
@@ -43,6 +46,17 @@ export class DriverController {
       throw new ForbiddenException('You can only update your own status.');
     const { status } = updateDriverStatusDto;
     await this.updateDriverStatus(driverId, status);
+
+    if (status === DriverStatusEnum.ONLINE) {
+      const { latitude, longitude } =
+        await this.commonService.getServerLocation();
+      await this.driverService.updateLocationOfDriver(
+        driverId,
+        latitude,
+        longitude,
+      );
+    }
+
     return {
       message: 'Status updated successfully.',
       data: {
