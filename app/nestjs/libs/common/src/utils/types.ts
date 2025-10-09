@@ -7,7 +7,7 @@ export interface AWSQueueMessage<T = any> {
 }
 
 export type TUserSession = {
-  id: string;
+  sub: string;
   role: string;
 };
 
@@ -26,4 +26,9 @@ export type GetEstimateFareResponse = {
 export type GetGeocodeResponse = {
   longitude: number;
   latitude: number;
+};
+
+export type JwtPayload = TUserSession & {
+  iat: number;
+  exp: number;
 };

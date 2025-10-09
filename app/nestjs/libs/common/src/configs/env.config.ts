@@ -47,4 +47,5 @@ export default () => ({
       },
     },
   },
+  kong_url: process.env.KONG_URL || '',
 });

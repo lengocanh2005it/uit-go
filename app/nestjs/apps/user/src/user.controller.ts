@@ -1,8 +1,10 @@
-import { Body, Controller, Get, Param, Post, Put } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Put, Req } from '@nestjs/common';
 import { UserService } from './user.service';
 import { CreateUserDto } from '@libs/common/dto/user/create-user.dto';
 import { LoginUserDto } from '@libs/common/dto/user/login-user.dto';
 import { UpdateProfileDto } from '@libs/common/dto/user/update-profile.dto';
+import { UserSession } from '@libs/common/decorators';
+import type { TUserSession } from '@libs/common';
 
 @Controller('users')
 export class UserController {
@@ -17,9 +19,10 @@ export class UserController {
   login(@Body() loginUserDto: LoginUserDto) {
     return this.userService.login(loginUserDto);
   }
-  @Get(':id')
-  getUser(@Param('id') id: string) {
-    return this.userService.getUser(id);
+
+  @Get('me')
+  getUser(@UserSession() userSession: TUserSession) {
+    return this.userService.getUser(userSession.sub);
   }
 
   @Put(':id')

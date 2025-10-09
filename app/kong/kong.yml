@@ -1,11 +1,5 @@
 _format_version: "3.0"
 
-consumers:
-  - username: user-service
-    jwt_secrets:
-      - key: user-service
-        secret: ${JWT_SECRET}
-
 services:
   - name: user-service
     url: http://user-service:3001
