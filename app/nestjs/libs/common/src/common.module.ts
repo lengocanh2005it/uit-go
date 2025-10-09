@@ -3,6 +3,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { CommonService } from './common.service';
+import { KongModule } from './kong/kong.module';
 import { RabbitMQModule } from './rabbitmq/rabbitmq.module';
 import { RedisModule } from './redis/redis.module';
 
@@ -25,6 +26,7 @@ import { RedisModule } from './redis/redis.module';
     }),
     RabbitMQModule,
     RedisModule,
+    KongModule,
   ],
   providers: [CommonService],
   exports: [CommonService],
