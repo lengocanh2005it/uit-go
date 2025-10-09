@@ -1,8 +1,18 @@
 import { patterns, type TUserSession } from '@libs/common';
 import { UserSession } from '@libs/common/decorators';
 import { GetTripsOfDriverQueryDto } from '@libs/common/dto';
+import { UpdateDriverStatusDto } from '@libs/common/dto/driver';
 import { DriverStatusEnum } from '@libs/common/enums';
-import { Controller, Get, Param, ParseUUIDPipe, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  ForbiddenException,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Query,
+} from '@nestjs/common';
 import { EventPattern, MessagePattern, Payload } from '@nestjs/microservices';
 import { DriverService } from './driver.service';
 
@@ -21,6 +31,25 @@ export class DriverController {
   @MessagePattern(patterns.driverService.getDriverInfo)
   async getDriverInfo(@Payload('userId', ParseUUIDPipe) userId: string) {
     return this.driverService.getDriverInfo(userId);
+  }
+
+  @Patch(':id/status')
+  async updateDriverStatusHttpRequest(
+    @Param('id', ParseUUIDPipe) driverId: string,
+    @Body() updateDriverStatusDto: UpdateDriverStatusDto,
+    @UserSession() userSession: TUserSession,
+  ) {
+    if (userSession.sub !== driverId)
+      throw new ForbiddenException('You can only update your own status.');
+    const { status } = updateDriverStatusDto;
+    await this.updateDriverStatus(driverId, status);
+    return {
+      message: 'Status updated successfully.',
+      data: {
+        driverId,
+        status,
+      },
+    };
   }
 
   @Get(':id/trips')
