@@ -4,5 +4,6 @@ export const patterns = {
   driverService: {
     getTripsOfDriverPattern: 'get-trips-of-driver',
     updateDriverStatus: 'update-driver-status',
+    getDriverInfo: 'get-driver-info',
   },
 };
