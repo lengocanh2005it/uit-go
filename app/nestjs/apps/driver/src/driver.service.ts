@@ -11,6 +11,8 @@ import {
   VehicleKey,
 } from '@/driver/src/interfaces';
 import {
+  buildGeoLocation,
+  CommonService,
   patterns,
   type GetTripsOfDriverResponse,
   type TUserSession,
@@ -47,6 +49,7 @@ export class DriverService {
       DriverApprovalKey
     >,
     @InjectRabbitMqService() private readonly rabbitMqService: RabbitMQService,
+    private readonly commonService: CommonService,
   ) {}
 
   async test() {
@@ -108,5 +111,38 @@ export class DriverService {
     const [driver] = await this.driverModel.query('userId').eq(userId).exec();
     if (!driver) throw new NotFoundException('Driver info not found.');
     return driver.toJSON();
+  }
+
+  async updateLocationOfDriver(driverId: string, lat: number, lng: number) {
+    const { hash_prefix, geo_hash } = buildGeoLocation(lat, lng);
+    const existingRecord = await this.driverLocationModel.get({
+      driverId,
+      hashPrefix: hash_prefix,
+    });
+
+    if (!existingRecord) {
+      await this.driverLocationModel.create({
+        geoHash: geo_hash,
+        hashPrefix: hash_prefix,
+        driverId,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        lat,
+        lng,
+      });
+    } else {
+      await this.driverLocationModel.update(
+        {
+          driverId,
+          hashPrefix: hash_prefix,
+        },
+        {
+          updatedAt: new Date(),
+          lat,
+          lng,
+          geoHash: geo_hash,
+        },
+      );
+    }
   }
 }
