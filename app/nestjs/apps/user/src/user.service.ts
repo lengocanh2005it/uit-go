@@ -20,7 +20,7 @@ import { omit } from 'lodash';
 import { Repository } from 'typeorm';
 import { User, UserProfile } from './entities';
 import { patterns, TUserSession } from '@libs/common';
-import { UserRole } from '@libs/common/enums';
+import { DriverStatusEnum, UserRole } from '@libs/common/enums';
 import { RabbitMQService } from '@libs/common/rabbitmq/rabbitmq.service';
 import { ObjectType } from 'nestjs-dynamoose';
 
@@ -72,6 +72,27 @@ export class UserService {
       expiresIn: this.configService.get<string>('jwt_expiration_time', '120s'),
       secret: this.configService.get<string>('jwt_secret', ''),
     });
+
+    if (user.role === UserRole.DRIVER) {
+      const driverInfo = await this.rabbitMqService.send(
+        'DRIVER_SERVICE',
+        patterns.driverService.getDriverInfo,
+        {
+          userId: user.id,
+        },
+      );
+
+      if (driverInfo) {
+        this.rabbitMqService.emit(
+          'DRIVER_SERVICE',
+          patterns.driverService.updateDriverStatus,
+          {
+            driverId: driverInfo.id,
+            status: DriverStatusEnum.ONLINE,
+          },
+        );
+      }
+    }
 
     return { accessToken: token };
   };
