@@ -6,6 +6,7 @@ import { CommonService } from './common.service';
 import { KongModule } from './kong/kong.module';
 import { RabbitMQModule } from './rabbitmq/rabbitmq.module';
 import { RedisModule } from './redis/redis.module';
+import { SchedulerModule } from './scheduler/scheduler.module';
 
 @Global()
 @Module({
@@ -28,6 +29,7 @@ import { RedisModule } from './redis/redis.module';
     RabbitMQModule,
     RedisModule,
     KongModule,
+    SchedulerModule,
   ],
   providers: [CommonService],
   exports: [CommonService],

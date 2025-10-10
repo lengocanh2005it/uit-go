@@ -1,14 +1,10 @@
 import {
   Driver,
-  DriverApproval,
-  DriverApprovalKey,
   DriverKey,
   DriverLocation,
   DriverLocationKey,
   DriverStatus,
   DriverStatusKey,
-  Vehicle,
-  VehicleKey,
 } from '@/driver/src/interfaces';
 import {
   buildGeoLocation,
@@ -17,10 +13,14 @@ import {
   type GetTripsOfDriverResponse,
   type TUserSession,
 } from '@libs/common';
-import { InjectRabbitMqService } from '@libs/common/decorators';
+import {
+  InjectRabbitMqService,
+  InjectSchedulerService,
+} from '@libs/common/decorators';
 import { GetTripsOfDriverQueryDto } from '@libs/common/dto';
 import { DriverStatusEnum } from '@libs/common/enums';
 import { RabbitMQService } from '@libs/common/rabbitmq/rabbitmq.service';
+import { SchedulerService } from '@libs/common/scheduler/scheduler.service';
 import {
   ForbiddenException,
   Injectable,
@@ -36,19 +36,14 @@ export class DriverService {
     private readonly driverModel: Model<Driver, DriverKey>,
     @InjectModel('DriverStatus')
     private readonly driverStatusModel: Model<DriverStatus, DriverStatusKey>,
-    @InjectModel('Vehicle')
-    private readonly vehicleModel: Model<Vehicle, VehicleKey>,
     @InjectModel('DriverLocation')
     private readonly driverLocationModel: Model<
       DriverLocation,
       DriverLocationKey
     >,
-    @InjectModel('DriverApproval')
-    private readonly driverApprovalModel: Model<
-      DriverApproval,
-      DriverApprovalKey
-    >,
     @InjectRabbitMqService() private readonly rabbitMqService: RabbitMQService,
+    @InjectSchedulerService()
+    private readonly schedulerService: SchedulerService,
     private readonly commonService: CommonService,
   ) {}
 
@@ -105,6 +100,20 @@ export class DriverService {
         status,
       },
     );
+
+    const jobName = `get-location:driver:${driverId}`;
+    if (
+      status === DriverStatusEnum.ONLINE ||
+      status === DriverStatusEnum.BUSY
+    ) {
+      this.schedulerService.addJob(jobName, '*/30 * * * * *', async () => {
+        const { latitude, longitude } =
+          await this.commonService.getServerLocation();
+        await this.updateLocationOfDriver(driverId, latitude, longitude);
+      });
+    } else {
+      this.schedulerService.deleteJob(jobName);
+    }
   }
 
   async getDriverInfo(userId: string) {
