@@ -3,9 +3,9 @@ services:
     image: postgres:15
     container_name: kong-database
     environment:
-      POSTGRES_USER: kong
-      POSTGRES_PASSWORD: kong_password
-      POSTGRES_DB: kong
+      POSTGRES_USER: ${KONG_POSTGRES_USER}
+      POSTGRES_PASSWORD: ${KONG_POSTGRES_PASSWORD}
+      POSTGRES_DB: ${KONG_POSTGRES_DB}
     networks:
       - backend
     volumes:
@@ -31,12 +31,12 @@ services:
       - "8001:8001"
       - "8444:8444"
     environment:
-      KONG_DATABASE: "postgres"
-      KONG_PG_HOST: "kong-database"
+      KONG_DATABASE: ${KONG_DATABASE}
+      KONG_PG_HOST:  ${KONG_DATABASE_HOST}
       KONG_PG_PORT: 5432
-      KONG_PG_USER: "kong"
-      KONG_PG_PASSWORD: "kong_password"
-      KONG_PG_DATABASE: "kong"
+      KONG_PG_USER: ${KONG_POSTGRES_USER}
+      KONG_PG_PASSWORD: ${KONG_POSTGRES_PASSWORD}
+      KONG_PG_DATABASE: ${KONG_POSTGRES_DB}
       KONG_PROXY_ACCESS_LOG: /dev/stdout
       KONG_ADMIN_ACCESS_LOG: /dev/stdout
       KONG_PROXY_ERROR_LOG: /dev/stderr
