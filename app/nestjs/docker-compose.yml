@@ -53,13 +53,15 @@ services:
       context: .
       dockerfile: ./apps/user/Dockerfile
       secrets:
-        - dotenv_key
+        - dotenv_user_key
     image: uit_go-user_service
+    env_file:
+      - ./apps/user/.env
     container_name: user-service
     ports:
       - "3001:3001"
     secrets:
-      - dotenv_key
+      - dotenv_user_key
     depends_on:
       - user-db
       - rabbitmq
@@ -71,15 +73,13 @@ services:
       context: .
       dockerfile: ./apps/driver/Dockerfile
       secrets:
-        - dotenv_key
+        - dotenv_driver_key
     image: uit_go-driver_service
     container_name: driver-service
-    environment:
-      - AWS_ACCESS_KEY_ID=fake
-      - AWS_SECRET_ACCESS_KEY=fake
-      - AWS_REGION=local-env
+    env_file:
+        - ./apps/driver/.env
     secrets:
-      - dotenv_key
+      - dotenv_driver_key
     ports:
       - "3003:3003"
     depends_on:
@@ -93,11 +93,13 @@ services:
       context: .
       dockerfile: ./apps/trip/Dockerfile
       secrets:
-        - dotenv_key
+        - dotenv_trip_key
     image: uit_go-trip_service
     container_name: trip-service
+    env_file:
+      - ./apps/trip/.env
     secrets:
-      - dotenv_key
+      - dotenv_trip_key
     ports:
       - "3002:3002"
     depends_on:
@@ -109,6 +111,9 @@ services:
   user-db:
     image: postgres:15
     container_name: user-db
+    env_file:
+      - ./apps/user/.env
+    command: ["executable", "arg"]
     environment:
       POSTGRES_USER: ${POSTGRES_USER_USER}
       POSTGRES_PASSWORD: ${POSTGRES_USER_PASSWORD}
@@ -130,6 +135,9 @@ services:
   trip-db:
     image: mysql:8
     container_name: trip-db
+    env_file:
+      - ./apps/trip/.env
+    command: ["executable", "arg"]
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_TRIP_ROOT_PASSWORD}
       MYSQL_USER: ${MYSQL_TRIP_USER}
@@ -165,8 +173,12 @@ networks:
     driver: bridge
 
 secrets:
-  dotenv_key:
-    file: ./secrets/dotenv_key.txt
+  dotenv_user_key:
+    file: ./secrets/dotenv_user_key.txt
+  dotenv_driver_key:
+    file: ./secrets/dotenv_driver_key.txt
+  dotenv_trip_key:
+    file: ./secrets/dotenv_trip_key.txt
 
 volumes:
   kong_pgdata:
