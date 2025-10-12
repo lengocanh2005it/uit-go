@@ -15,13 +15,14 @@ import {
 } from '@nestjs/common';
 import { EventPattern, MessagePattern, Payload } from '@nestjs/microservices';
 import { DriverService } from './driver.service';
+import { CreateDriverDto } from '@libs/common/dto/driver/create-driver.dto';
 
 @Controller('drivers')
 export class DriverController {
   constructor(
     private readonly driverService: DriverService,
     private readonly commonService: CommonService,
-  ) {}
+  ) { }
 
   @EventPattern(patterns.driverService.updateDriverStatus)
   async updateDriverStatus(
@@ -78,5 +79,9 @@ export class DriverController {
       driverId,
       getTripsOfDriverQueryDto,
     );
+  }
+  @MessagePattern(patterns.driverService.createDriver)
+  async handleCreateDriver(@Payload() createDriverDto: CreateDriverDto) {
+    return this.driverService.createDriver(createDriverDto)
   }
 }
