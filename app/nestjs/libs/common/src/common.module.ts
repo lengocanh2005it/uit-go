@@ -1,4 +1,5 @@
 import envConfig from '@libs/common/configs/env.config';
+import { HttpModule } from '@nestjs/axios';
 import { BullModule } from '@nestjs/bullmq';
 import { Global, Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -7,8 +8,6 @@ import { CommonService } from './common.service';
 import { KongModule } from './kong/kong.module';
 import { RabbitMQModule } from './rabbitmq/rabbitmq.module';
 import { RedisModule } from './redis/redis.module';
-import { SchedulerModule } from './scheduler/scheduler.module';
-import { HttpModule } from '@nestjs/axios';
 
 @Global()
 @Module({
@@ -25,13 +24,11 @@ import { HttpModule } from '@nestjs/axios';
       }),
     }),
     ConfigModule.forRoot({
-      isGlobal: true,
       load: [envConfig],
     }),
     RabbitMQModule,
     RedisModule,
     KongModule,
-    SchedulerModule,
     BullModule.forRootAsync({
       useFactory: (configService: ConfigService) => ({
         connection: {
