@@ -1,3 +1,5 @@
+import { patterns, type TUserSession } from '@libs/common';
+import { UserSession } from '@libs/common/decorators';
 import {
   CreateTripDto,
   GetTripsOfDriverQueryDto,
@@ -16,7 +18,6 @@ import {
 } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
 import { TripService } from './trip.service';
-import { patterns } from '@libs/common';
 
 @Controller('trips')
 export class TripController {
@@ -28,8 +29,11 @@ export class TripController {
   }
 
   @Post()
-  async createTrip(@Body() createTripDto: CreateTripDto) {
-    return this.tripService.createTrip(createTripDto);
+  async createTrip(
+    @Body() createTripDto: CreateTripDto,
+    @UserSession() userSession: TUserSession,
+  ) {
+    return this.tripService.createTrip(createTripDto, userSession);
   }
 
   @Patch(':id')
