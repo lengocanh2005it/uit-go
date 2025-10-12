@@ -45,8 +45,21 @@ export default () => ({
         password: process.env.TRIP_SERVICE_DB_PASSWORD || '',
         name: process.env.TRIP_SERVICE_DB_NAME || '',
       },
+      queues: process.env.TRIP_SERVICE_QUEUES || '',
     },
   },
   kong_url: process.env.KONG_URL || '',
   ipwho_url: process.env.IPWHO_URL || '',
+  bullmq: {
+    host: process.env.BULLMQ_HOST || 'redis',
+    port: parseInt(process.env.BULLMQ_PORT || '6379', 10) || 6379,
+  },
+  geoapify: {
+    url: process.env.GEOAPIFY_URL || '',
+    api_key: process.env.GEOAPIFY_API_KEY || '',
+  },
+  http: {
+    timeout: parseInt(process.env.HTTP_TIMEOUT || '5000', 10) || 5000,
+    max_redirects: parseInt(process.env.HTTP_TIMEOUT || '5', 10) || 5,
+  },
 });

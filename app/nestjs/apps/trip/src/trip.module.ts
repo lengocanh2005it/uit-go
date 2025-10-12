@@ -1,4 +1,7 @@
-import { CommonModule } from '@libs/common';
+import { TripRequestProcessor } from '@/trip/src/processors';
+import { TripRequestProducer } from '@/trip/src/producers';
+import { CommonModule, queueNames } from '@libs/common';
+import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -40,8 +43,11 @@ import { TripService } from './trip.service';
       }),
     }),
     CommonModule,
+    BullModule.registerQueue({
+      name: queueNames.trip.tripRequest,
+    }),
   ],
   controllers: [TripController],
-  providers: [TripService],
+  providers: [TripService, TripRequestProcessor, TripRequestProducer],
 })
 export class TripModule {}
