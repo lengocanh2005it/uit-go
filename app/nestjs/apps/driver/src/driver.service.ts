@@ -135,6 +135,30 @@ export class DriverService {
     return driver.toJSON();
   }
 
+  async getDriverApprovalStatusByUserId(userId: string) {
+    const driverRecords = await this.driverModel.query('userId').eq(userId).exec();
+    if (driverRecords.length === 0) {
+      throw new NotFoundException('Driver not found for this user.');
+    }
+
+    const driver = driverRecords[0].toJSON();
+
+    const approvalRecords = await this.driverApprovalModel
+      .query('driverId')
+      .eq(driver.driverId)
+      .exec();
+
+    if (approvalRecords.length === 0) {
+      throw new NotFoundException('Driver approval record not found.');
+    }
+
+    const record = approvalRecords[0].toJSON();
+
+    return {
+      record
+    };
+  }
+
   async updateLocationOfDriver(driverId: string, lat: number, lng: number) {
     const { hash_prefix, geo_hash } = buildGeoLocation(lat, lng);
     const existingRecord = await this.driverLocationModel.get({

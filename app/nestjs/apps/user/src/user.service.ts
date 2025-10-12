@@ -20,7 +20,7 @@ import { omit } from 'lodash';
 import { Repository } from 'typeorm';
 import { User, UserProfile } from './entities';
 import { patterns, TUserSession } from '@libs/common';
-import { DriverStatusEnum, UserRole } from '@libs/common/enums';
+import { DriverStatusEnum, UserRole, DriverApprovalStatusEnum } from '@libs/common/enums';
 import { RabbitMQService } from '@libs/common/rabbitmq/rabbitmq.service';
 import { ObjectType } from 'nestjs-dynamoose';
 
@@ -80,6 +80,26 @@ export class UserService {
 
     const isMatch = await bcrypt.compare(password, user.passwordHash);
     if (!isMatch) throw new UnauthorizedException('Invalid credentials');
+
+    if (user.role === UserRole.DRIVER) {
+      const driverApproval = await this.rabbitMqService.send(
+        'DRIVER_SERVICE',
+        patterns.driverService.getDriverApprovalStatus,
+        { userId: user.id },
+      );
+
+      if (!driverApproval) {
+        throw new UnauthorizedException(
+          'Driver approval record not found. Please register again.'
+        );
+      }
+
+      if (driverApproval.status !== DriverApprovalStatusEnum.ACCEPTED) {
+        throw new UnauthorizedException(
+          'Your driver account has not been approved yet.'
+        );
+      }
+    }
 
     const payload: TUserSession = {
       sub: user.id,
