@@ -2,6 +2,7 @@ import { CommonModule } from '@libs/common';
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { DynamooseModule } from 'nestjs-dynamoose';
+import envConfig from './configs/env.config';
 import { DriverController } from './driver.controller';
 import { DriverService } from './driver.service';
 import {
@@ -15,6 +16,10 @@ import {
 @Module({
   imports: [
     CommonModule,
+    ConfigModule.forRoot({
+      isGlobal: true,
+      load: [envConfig],
+    }),
     DynamooseModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],

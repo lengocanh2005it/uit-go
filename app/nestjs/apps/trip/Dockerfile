@@ -11,8 +11,8 @@ COPY libs ./libs
 COPY .env ./.env
 COPY tsconfig*.json ./
 
-RUN --mount=type=secret,id=dotenv_key \
-    DOTENV_PRIVATE_KEY=$(cat /run/secrets/dotenv_key) \
+RUN --mount=type=secret,id=dotenv_trip_key \
+    DOTENV_PRIVATE_KEY=$(cat /run/secrets/dotenv_trip_key) \
     npx dotenvx decrypt .env
 
 COPY dist/apps/trip ./dist/apps/trip

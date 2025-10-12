@@ -15,7 +15,7 @@ async function bootstrap() {
     }),
   );
   const configService = app.get(ConfigService);
-  const PORT = configService.get<number>('services.user.port', 3001);
+  const PORT = configService.get<number>('port', 3001);
   await app.listen(PORT, () => {
     console.log(`UserService is running.`);
   });

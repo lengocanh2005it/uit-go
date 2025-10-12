@@ -15,7 +15,7 @@ async function bootstrap() {
     }),
   );
   const configService = app.get(ConfigService);
-  const PORT = configService.get<number>('services.driver.port', 3003);
+  const PORT = configService.get<number>('port', 3003);
   await app.listen(PORT, () => {
     console.log(`DriverService is running.`);
   });

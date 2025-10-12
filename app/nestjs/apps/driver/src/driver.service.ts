@@ -1,39 +1,33 @@
 import {
   Driver,
+  DriverApproval,
+  DriverApprovalKey,
   DriverKey,
   DriverLocation,
   DriverLocationKey,
   DriverStatus,
   DriverStatusKey,
-  VehicleKey,
   Vehicle,
-  DriverApproval,
-  DriverApprovalKey
+  VehicleKey,
 } from '@/driver/src/interfaces';
 import {
   buildGeoLocation,
-  CommonService,
   patterns,
   type GetTripsOfDriverResponse,
   type TUserSession,
 } from '@libs/common';
-import {
-  InjectRabbitMqService,
-  InjectSchedulerService,
-} from '@libs/common/decorators';
+import { InjectRabbitMqService } from '@libs/common/decorators';
 import { GetTripsOfDriverQueryDto } from '@libs/common/dto';
-import { DriverStatusEnum } from '@libs/common/enums';
+import { CreateDriverDto } from '@libs/common/dto/driver/create-driver.dto';
+import { UpdateDriverApprovalDto } from '@libs/common/dto/driver/update-driver-approval.dto';
+import { DriverApprovalStatusEnum, DriverStatusEnum } from '@libs/common/enums';
 import { RabbitMQService } from '@libs/common/rabbitmq/rabbitmq.service';
-import { SchedulerService } from '@libs/common/scheduler/scheduler.service';
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
-  BadRequestException
 } from '@nestjs/common';
-import { DriverApprovalStatusEnum } from '@libs/common/enums';
-import { UpdateDriverApprovalDto } from '@libs/common/dto/driver/update-driver-approval.dto';
-import { CreateDriverDto } from '@libs/common/dto/driver/create-driver.dto';
 import type { Model } from 'nestjs-dynamoose';
 import { InjectModel } from 'nestjs-dynamoose';
 import { v4 as uuidv4 } from 'uuid';
@@ -51,14 +45,14 @@ export class DriverService {
       DriverLocationKey
     >,
     @InjectModel('DriverApproval')
-    private readonly driverApprovalModel: Model<DriverApproval, DriverApprovalKey>,
+    private readonly driverApprovalModel: Model<
+      DriverApproval,
+      DriverApprovalKey
+    >,
     @InjectModel('Vehicle')
     private readonly vehicleModel: Model<Vehicle, VehicleKey>,
     @InjectRabbitMqService() private readonly rabbitMqService: RabbitMQService,
-    @InjectSchedulerService()
-    private readonly schedulerService: SchedulerService,
-    private readonly commonService: CommonService,
-  ) { }
+  ) {}
 
   async test() {
     const driver: Driver = {
@@ -113,20 +107,6 @@ export class DriverService {
         status,
       },
     );
-
-    const jobName = `get-location:driver:${driverId}`;
-    if (
-      status === DriverStatusEnum.ONLINE ||
-      status === DriverStatusEnum.BUSY
-    ) {
-      this.schedulerService.addJob(jobName, '*/30 * * * * *', async () => {
-        const { latitude, longitude } =
-          await this.commonService.getServerLocation();
-        await this.updateLocationOfDriver(driverId, latitude, longitude);
-      });
-    } else {
-      this.schedulerService.deleteJob(jobName);
-    }
   }
 
   async getDriverInfo(userId: string) {
@@ -136,7 +116,10 @@ export class DriverService {
   }
 
   async getDriverApprovalStatusByUserId(userId: string) {
-    const driverRecords = await this.driverModel.query('userId').eq(userId).exec();
+    const driverRecords = await this.driverModel
+      .query('userId')
+      .eq(userId)
+      .exec();
     if (driverRecords.length === 0) {
       throw new NotFoundException('Driver not found for this user.');
     }
@@ -155,7 +138,7 @@ export class DriverService {
     const record = approvalRecords[0].toJSON();
 
     return {
-      record
+      record,
     };
   }
 
@@ -193,7 +176,10 @@ export class DriverService {
   }
 
   async createDriver(data: CreateDriverDto) {
-    const existed = await this.driverModel.query('userId').eq(data.userId).exec();
+    const existed = await this.driverModel
+      .query('userId')
+      .eq(data.userId)
+      .exec();
     if (existed.length > 0) {
       throw new BadRequestException('Driver already exists.');
     }
@@ -224,7 +210,7 @@ export class DriverService {
       createdAt: new Date(),
       updatedAt: new Date(),
     };
-    await this.vehicleModel.create(vehicle)
+    await this.vehicleModel.create(vehicle);
 
     await this.driverStatusModel.create({
       driverId,
@@ -244,15 +230,21 @@ export class DriverService {
     });
 
     return {
-      message: 'Driver registration submitted successfully. Awaiting admin approval.',
+      message:
+        'Driver registration submitted successfully. Awaiting admin approval.',
       driver,
       vehicle,
     };
   }
-  async updateDriverApprovalStatus(updateDriverApprovalDto: UpdateDriverApprovalDto) {
+  async updateDriverApprovalStatus(
+    updateDriverApprovalDto: UpdateDriverApprovalDto,
+  ) {
     const { driverId, status, note } = updateDriverApprovalDto;
 
-    const driverApproval = await this.driverApprovalModel.query('driverId').eq(driverId).exec();
+    const driverApproval = await this.driverApprovalModel
+      .query('driverId')
+      .eq(driverId)
+      .exec();
 
     if (driverApproval.length === 0) {
       throw new NotFoundException('Driver approval record not found.');
