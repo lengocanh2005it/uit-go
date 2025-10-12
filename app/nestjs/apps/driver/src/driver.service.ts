@@ -32,6 +32,7 @@ import {
   BadRequestException
 } from '@nestjs/common';
 import { DriverApprovalStatusEnum } from '@libs/common/enums';
+import { UpdateDriverApprovalDto } from '@libs/common/dto/driver/update-driver-approval.dto';
 import { CreateDriverDto } from '@libs/common/dto/driver/create-driver.dto';
 import type { Model } from 'nestjs-dynamoose';
 import { InjectModel } from 'nestjs-dynamoose';
@@ -222,6 +223,30 @@ export class DriverService {
       message: 'Driver registration submitted successfully. Awaiting admin approval.',
       driver,
       vehicle,
+    };
+  }
+  async updateDriverApprovalStatus(updateDriverApprovalDto: UpdateDriverApprovalDto) {
+    const { driverId, status, note } = updateDriverApprovalDto;
+
+    const driverApproval = await this.driverApprovalModel.query('driverId').eq(driverId).exec();
+
+    if (driverApproval.length === 0) {
+      throw new NotFoundException('Driver approval record not found.');
+    }
+
+    const approvalRecord = driverApproval[0];
+    const updated = await this.driverApprovalModel.update(
+      { driverApprovalId: approvalRecord.driverApprovalId },
+      {
+        status,
+        note,
+        reviewedDate: new Date(),
+        updatedAt: new Date(),
+      },
+    );
+    return {
+      message: `Driver approval updated to ${status}`,
+      data: updated,
     };
   }
 }

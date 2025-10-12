@@ -12,10 +12,12 @@ import {
   ParseUUIDPipe,
   Patch,
   Query,
+  Put
 } from '@nestjs/common';
 import { EventPattern, MessagePattern, Payload } from '@nestjs/microservices';
 import { DriverService } from './driver.service';
 import { CreateDriverDto } from '@libs/common/dto/driver/create-driver.dto';
+import { UpdateDriverApprovalDto } from '@libs/common/dto/driver/update-driver-approval.dto';
 
 @Controller('drivers')
 export class DriverController {
@@ -35,6 +37,10 @@ export class DriverController {
   @MessagePattern(patterns.driverService.getDriverInfo)
   async getDriverInfo(@Payload('userId', ParseUUIDPipe) userId: string) {
     return this.driverService.getDriverInfo(userId);
+  }
+  @MessagePattern(patterns.driverService.createDriver)
+  async handleCreateDriver(@Payload() createDriverDto: CreateDriverDto) {
+    return this.driverService.createDriver(createDriverDto)
   }
 
   @Patch(':id/status')
@@ -80,8 +86,8 @@ export class DriverController {
       getTripsOfDriverQueryDto,
     );
   }
-  @MessagePattern(patterns.driverService.createDriver)
-  async handleCreateDriver(@Payload() createDriverDto: CreateDriverDto) {
-    return this.driverService.createDriver(createDriverDto)
+  @Put('approval')
+  async updateDriverApproval(@Body() dto: UpdateDriverApprovalDto) {
+    return this.driverService.updateDriverApprovalStatus(dto);
   }
 }
