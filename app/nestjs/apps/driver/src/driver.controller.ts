@@ -42,6 +42,10 @@ export class DriverController {
   async handleCreateDriver(@Payload() createDriverDto: CreateDriverDto) {
     return this.driverService.createDriver(createDriverDto)
   }
+  @MessagePattern(patterns.driverService.getDriverApprovalStatus)
+  async handleGetDriverApprovalStatus(@Payload('userId', ParseUUIDPipe) userId: string) {
+    return this.driverService.getDriverApprovalStatusByUserId(userId);
+  }
 
   @Patch(':id/status')
   async updateDriverStatusHttpRequest(
