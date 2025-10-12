@@ -2,6 +2,8 @@ import { CommonService, patterns, type TUserSession } from '@libs/common';
 import { UserSession } from '@libs/common/decorators';
 import { GetTripsOfDriverQueryDto } from '@libs/common/dto';
 import { UpdateDriverStatusDto } from '@libs/common/dto/driver';
+import { CreateDriverDto } from '@libs/common/dto/driver/create-driver.dto';
+import { UpdateDriverApprovalDto } from '@libs/common/dto/driver/update-driver-approval.dto';
 import { DriverStatusEnum } from '@libs/common/enums';
 import {
   Body,
@@ -11,20 +13,18 @@ import {
   Param,
   ParseUUIDPipe,
   Patch,
+  Put,
   Query,
-  Put
 } from '@nestjs/common';
 import { EventPattern, MessagePattern, Payload } from '@nestjs/microservices';
 import { DriverService } from './driver.service';
-import { CreateDriverDto } from '@libs/common/dto/driver/create-driver.dto';
-import { UpdateDriverApprovalDto } from '@libs/common/dto/driver/update-driver-approval.dto';
 
 @Controller('drivers')
 export class DriverController {
   constructor(
     private readonly driverService: DriverService,
     private readonly commonService: CommonService,
-  ) { }
+  ) {}
 
   @EventPattern(patterns.driverService.updateDriverStatus)
   async updateDriverStatus(
@@ -40,10 +40,12 @@ export class DriverController {
   }
   @MessagePattern(patterns.driverService.createDriver)
   async handleCreateDriver(@Payload() createDriverDto: CreateDriverDto) {
-    return this.driverService.createDriver(createDriverDto)
+    return this.driverService.createDriver(createDriverDto);
   }
   @MessagePattern(patterns.driverService.getDriverApprovalStatus)
-  async handleGetDriverApprovalStatus(@Payload('userId', ParseUUIDPipe) userId: string) {
+  async handleGetDriverApprovalStatus(
+    @Payload('userId', ParseUUIDPipe) userId: string,
+  ) {
     return this.driverService.getDriverApprovalStatusByUserId(userId);
   }
 
