@@ -6,5 +6,6 @@ export const patterns = {
     updateDriverStatus: 'update-driver-status',
     getDriverInfo: 'get-driver-info',
     getGeocode: 'get-geocode',
+    createDriver: 'create-driver'
   },
 };

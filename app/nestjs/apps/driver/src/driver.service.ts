@@ -5,6 +5,10 @@ import {
   DriverLocationKey,
   DriverStatus,
   DriverStatusKey,
+  VehicleKey,
+  Vehicle,
+  DriverApproval,
+  DriverApprovalKey
 } from '@/driver/src/interfaces';
 import {
   buildGeoLocation,
@@ -25,9 +29,13 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  BadRequestException
 } from '@nestjs/common';
+import { DriverApprovalStatusEnum } from '@libs/common/enums';
+import { CreateDriverDto } from '@libs/common/dto/driver/create-driver.dto';
 import type { Model } from 'nestjs-dynamoose';
 import { InjectModel } from 'nestjs-dynamoose';
+import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
 export class DriverService {
@@ -41,11 +49,15 @@ export class DriverService {
       DriverLocation,
       DriverLocationKey
     >,
+    @InjectModel('DriverApproval')
+    private readonly driverApprovalModel: Model<DriverApproval, DriverApprovalKey>,
+    @InjectModel('Vehicle')
+    private readonly vehicleModel: Model<Vehicle, VehicleKey>,
     @InjectRabbitMqService() private readonly rabbitMqService: RabbitMQService,
     @InjectSchedulerService()
     private readonly schedulerService: SchedulerService,
     private readonly commonService: CommonService,
-  ) {}
+  ) { }
 
   async test() {
     const driver: Driver = {
@@ -153,5 +165,63 @@ export class DriverService {
         },
       );
     }
+  }
+
+  async createDriver(data: CreateDriverDto) {
+    const existed = await this.driverModel.query('userId').eq(data.userId).exec();
+    if (existed.length > 0) {
+      throw new BadRequestException('Driver already exists.');
+    }
+
+    const driverId = uuidv4();
+    const vehicleId = uuidv4();
+    const driverApprovalId = uuidv4();
+
+    const driver: Driver = {
+      driverId,
+      userId: data.userId,
+      rating: 0,
+      totalTrip: 0,
+      licenseNumber: data.licenseNumber,
+      licenseExpiry: data.licenseExpiry,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    await this.driverModel.create(driver);
+
+    const vehicle: Vehicle = {
+      vehicleId,
+      plateNumber: data.plateNumber,
+      brand: data.brand,
+      model: data.model,
+      color: data.color,
+      driverId,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    await this.vehicleModel.create(vehicle)
+
+    await this.driverStatusModel.create({
+      driverId,
+      status: DriverStatusEnum.OFFLINE,
+      lastSeenAt: new Date().toISOString(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    await this.driverApprovalModel.create({
+      driverApprovalId,
+      status: DriverApprovalStatusEnum.PENDING,
+      driverId,
+      vehicleId,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    return {
+      message: 'Driver registration submitted successfully. Awaiting admin approval.',
+      driver,
+      vehicle,
+    };
   }
 }
