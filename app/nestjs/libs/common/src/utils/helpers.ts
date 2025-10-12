@@ -53,3 +53,8 @@ export function buildGeoLocation(lat: number, lng: number, prefixLength = 5) {
   const hash_prefix = geo_hash.substring(0, prefixLength);
   return { hash_prefix, geo_hash };
 }
+
+export function formatCurrencyVND(amount: number): string {
+  if (isNaN(amount)) return '0 VNĐ';
+  return `${amount.toLocaleString('vi-VN')} VNĐ`;
+}

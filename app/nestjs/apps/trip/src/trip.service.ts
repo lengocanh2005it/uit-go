@@ -1,4 +1,6 @@
-import { ForbiddenTripStatus } from '@libs/common';
+import { TripRequestProducer } from '@/trip/src/producers';
+import { CommonService, ForbiddenTripStatus } from '@libs/common';
+import { InjectRabbitMqService } from '@libs/common/decorators';
 import {
   CreateTripDto,
   CreateTripRequestDto,
@@ -13,10 +15,12 @@ import {
 } from '@libs/common/enums';
 import { RabbitMQService } from '@libs/common/rabbitmq/rabbitmq.service';
 import {
+  formatCurrencyVND,
   GetEstimateFareResponse,
   GetGeocodeResponse,
   GetTripsOfDriverResponse,
   patterns,
+  TUserSession,
 } from '@libs/common/utils';
 import {
   ForbiddenException,
@@ -27,7 +31,6 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { buildPaginator } from 'typeorm-cursor-pagination';
 import { Trip, TripRequest } from './entities';
-import { InjectRabbitMqService } from '@libs/common/decorators';
 
 @Injectable()
 export class TripService {
@@ -36,54 +39,43 @@ export class TripService {
     @InjectRepository(TripRequest)
     private readonly tripRequestRepository: Repository<TripRequest>,
     @InjectRabbitMqService() private readonly rabbitMqService: RabbitMQService,
+    private readonly tripRequestProducer: TripRequestProducer,
+    private readonly commonService: CommonService,
   ) {}
 
   public getTrip = async (tripId: string) => {
     return this.findTripById(tripId);
   };
 
-  public createTrip = async (createTripDto: CreateTripDto) => {
+  public createTrip = async (
+    createTripDto: CreateTripDto,
+    userSession: TUserSession,
+  ) => {
+    const { sub } = userSession;
     const { destinationAddress, originAddress } = createTripDto;
 
     const originAddressGeoCode =
-      await this.rabbitMqService.send<GetGeocodeResponse>(
-        'DRIVER_SERVICE',
-        'get-geocode',
-        {
-          address: originAddress,
-        },
-      );
+      await this.commonService.getCoordinates(originAddress);
 
     const destinationAddressGeoCode =
-      await this.rabbitMqService.send<GetGeocodeResponse>(
-        'DRIVER_SERVICE',
-        'get-geocode',
-        {
-          address: destinationAddress,
-        },
-      );
+      await this.commonService.getCoordinates(destinationAddress);
 
-    const estimateFareData =
-      await this.rabbitMqService.send<GetEstimateFareResponse>(
-        'DRIVER_SERVICE',
-        'get-estimate-fare',
-        {
-          startAddress: originAddress,
-          destinationAddress,
-        },
-      );
+    const fareEstimate = await this.commonService.getEstimatedFare(
+      originAddress,
+      destinationAddress,
+    );
 
     const newTrip = this.tripRepository.create({
       originAddress,
       destinationAddress,
-      originLat: originAddressGeoCode?.latitude ?? 0,
-      originLng: originAddressGeoCode?.longitude ?? 0,
-      destinationLat: destinationAddressGeoCode?.latitude ?? 0,
-      destinationLng: destinationAddressGeoCode?.longitude ?? 0,
-      fareEstimate: estimateFareData.estimatedFare ?? 0,
-      fareFinal: estimateFareData?.estimatedFare ?? 0,
+      originLat: originAddressGeoCode?.lat ?? 0,
+      originLng: originAddressGeoCode?.lon ?? 0,
+      destinationLat: destinationAddressGeoCode?.lat ?? 0,
+      destinationLng: destinationAddressGeoCode?.lon ?? 0,
+      fareEstimate,
+      fareFinal: fareEstimate,
       driverId: '1',
-      passengerId: '1',
+      passengerId: sub,
     });
 
     await this.tripRepository.save(newTrip);
@@ -92,10 +84,48 @@ export class TripService {
     const expiresTime = new Date(now);
     expiresTime.setMinutes(now.getMinutes() + 15);
 
-    await this.createTripRequest({
-      expiresTime,
-      tripId: newTrip.id,
-    });
+    const newTripRequesst = await this.createTripRequest(
+      {
+        expiresTime,
+        tripId: newTrip.id,
+      },
+      newTrip,
+    );
+
+    await this.tripRequestProducer.processTripRequest(
+      {
+        tripRequestId: newTripRequesst.id,
+      },
+      15000,
+    );
+
+    return {
+      success: true,
+      message: 'Trip created successfully.',
+      data: {
+        id: newTrip.id,
+        status: newTrip.status,
+        customer: {
+          id: sub,
+        },
+        origin: {
+          address: originAddress,
+          lat: originAddressGeoCode.lat,
+          lon: originAddressGeoCode.lon,
+        },
+        destination: {
+          address: destinationAddress,
+          lat: destinationAddressGeoCode.lat,
+          lon: destinationAddressGeoCode.lon,
+        },
+        distance_km: await this.commonService.getDistance(
+          originAddress,
+          destinationAddress,
+        ),
+        estimated_price: formatCurrencyVND(fareEstimate),
+        created_at: newTrip.createdAt,
+      },
+    };
   };
 
   public updateTrip = async (tripId: string, updateTripDto: UpdateTripDto) => {
@@ -253,9 +283,11 @@ export class TripService {
 
   private createTripRequest = async (
     createTripRequestDto: CreateTripRequestDto,
+    trip: Trip,
   ) => {
     const newTripRequest =
       this.tripRequestRepository.create(createTripRequestDto);
+    newTripRequest.trip = trip;
     return this.tripRequestRepository.save(newTripRequest);
   };
 

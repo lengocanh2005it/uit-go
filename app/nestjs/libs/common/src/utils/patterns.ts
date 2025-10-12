@@ -5,5 +5,6 @@ export const patterns = {
     getTripsOfDriverPattern: 'get-trips-of-driver',
     updateDriverStatus: 'update-driver-status',
     getDriverInfo: 'get-driver-info',
+    getGeocode: 'get-geocode',
   },
 };

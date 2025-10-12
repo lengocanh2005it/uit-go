@@ -45,3 +45,7 @@ export interface GetServerLocationResponse {
   city: string;
   country: string;
 }
+
+export type ProcessTripRequestDto = {
+  tripRequestId: string;
+};
