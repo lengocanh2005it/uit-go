@@ -20,7 +20,7 @@ import { omit } from 'lodash';
 import { Repository } from 'typeorm';
 import { User, UserProfile } from './entities';
 import { patterns, TUserSession } from '@libs/common';
-import { DriverStatusEnum, UserRole } from '@libs/common/enums';
+import { DriverStatusEnum, UserRole, DriverApprovalStatusEnum } from '@libs/common/enums';
 import { RabbitMQService } from '@libs/common/rabbitmq/rabbitmq.service';
 import { ObjectType } from 'nestjs-dynamoose';
 
@@ -34,10 +34,10 @@ export class UserService {
     private readonly configService: ConfigService,
     @InjectKongService() private readonly kongService: KongService,
     @InjectRabbitMqService() private readonly rabbitMqService: RabbitMQService,
-  ) {}
+  ) { }
 
   public register = async (createUserDto: CreateUserDto) => {
-    const { email, password, role } = createUserDto;
+    const { email, password, role, licenseNumber, licenseExpiry, plateNumber, brand, model, color } = createUserDto;
     const exists = await this.userRepo.findOne({ where: { email } });
     if (exists) throw new BadRequestException('Email has existed.');
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -51,7 +51,25 @@ export class UserService {
 
     const profile = this.profileRepo.create({ userId: user.id });
     await this.profileRepo.save(profile);
-    await this.kongService.createNewConsumer(user.id);
+    try {
+      await this.kongService.createNewConsumer(user.id);
+    } catch (err) {
+      console.error('Failed to create Kong consumer:', err.message);
+    }
+    if (user.role === UserRole.DRIVER) {
+      await this.rabbitMqService.send(
+        'DRIVER_SERVICE',
+        patterns.driverService.createDriver,
+        {
+          userId: user.id,
+          licenseNumber: licenseNumber,
+          licenseExpiry: licenseExpiry,
+          plateNumber: plateNumber,
+          brand: brand,
+          model: model,
+          color: color,
+        })
+    }
     return omit(user, ['passwordHash']);
   };
 
@@ -62,6 +80,26 @@ export class UserService {
 
     const isMatch = await bcrypt.compare(password, user.passwordHash);
     if (!isMatch) throw new UnauthorizedException('Invalid credentials');
+
+    if (user.role === UserRole.DRIVER) {
+      const driverApproval = await this.rabbitMqService.send(
+        'DRIVER_SERVICE',
+        patterns.driverService.getDriverApprovalStatus,
+        { userId: user.id },
+      );
+
+      if (!driverApproval) {
+        throw new UnauthorizedException(
+          'Driver approval record not found. Please register again.'
+        );
+      }
+
+      if (driverApproval.status !== DriverApprovalStatusEnum.ACCEPTED) {
+        throw new UnauthorizedException(
+          'Your driver account has not been approved yet.'
+        );
+      }
+    }
 
     const payload: TUserSession = {
       sub: user.id,
