@@ -11,6 +11,7 @@ import {
   ForbiddenException,
   Get,
   Param,
+  ParseFloatPipe,
   ParseUUIDPipe,
   Patch,
   Put,
@@ -95,5 +96,26 @@ export class DriverController {
   @Put('approval')
   async updateDriverApproval(@Body() dto: UpdateDriverApprovalDto) {
     return this.driverService.updateDriverApprovalStatus(dto);
+  }
+
+  @MessagePattern(patterns.driverService.findAvailableDriver)
+  async findAvailableDrivers(
+    @Payload('lat', ParseFloatPipe) lat: number,
+    @Payload('lng', ParseFloatPipe) lng: number,
+  ) {
+    return this.driverService.findAvailableDrivers(lat, lng);
+  }
+  
+    @Get(':id/location')
+    async getLocationOfDriver(@Param('id', ParseUUIDPipe) driverId: string) {
+      return this.driverService.getLocationOfDriver(driverId);
+    }
+
+  @Get('test')
+  async test(
+    @Query('lat', ParseFloatPipe) lat: number,
+    @Query('lng', ParseFloatPipe) lng: number,
+  ) {
+    return this.driverService.findAvailableDrivers(lat, lng);
   }
 }
