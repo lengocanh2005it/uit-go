@@ -8,7 +8,7 @@ RUN npm install
 
 COPY apps/driver ./apps/driver
 COPY libs ./libs
-COPY .env ./.env
+COPY ./apps/driver/.env ./.env
 COPY tsconfig*.json ./
 
 RUN --mount=type=secret,id=dotenv_driver_key \

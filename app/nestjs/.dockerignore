@@ -10,6 +10,7 @@ yarn-error.log
 .gitignore
 
 Dockerfile
+Dockerfile.db
 **/Dockerfile
 .dockerignore
 

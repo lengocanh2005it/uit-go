@@ -8,7 +8,7 @@ RUN npm install
 
 COPY apps/trip ./apps/trip
 COPY libs ./libs
-COPY .env ./.env
+COPY ./apps/trip/.env ./.env
 COPY tsconfig*.json ./
 
 RUN --mount=type=secret,id=dotenv_trip_key \

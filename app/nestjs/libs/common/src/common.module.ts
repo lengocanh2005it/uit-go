@@ -1,4 +1,3 @@
-import envConfig from '@libs/common/configs/env.config';
 import { HttpModule } from '@nestjs/axios';
 import { BullModule } from '@nestjs/bullmq';
 import { Global, Module } from '@nestjs/common';
@@ -22,9 +21,6 @@ import { RedisModule } from './redis/redis.module';
           expiresIn: configService.get<string>('jwt_expiration_time', '120s'),
         },
       }),
-    }),
-    ConfigModule.forRoot({
-      load: [envConfig],
     }),
     RabbitMQModule,
     RedisModule,
