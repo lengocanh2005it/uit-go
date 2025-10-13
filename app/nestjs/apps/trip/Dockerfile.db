@@ -1,0 +1,22 @@
+# syntax=docker/dockerfile:1.5
+FROM mysql:8
+
+RUN microdnf install -y curl tar gzip && \
+    curl -fsSL https://rpm.nodesource.com/setup_20.x | bash - && \
+    microdnf install -y nodejs && \
+    npm install -g @dotenvx/dotenvx && \
+    microdnf clean all
+
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+COPY . /apps/trip
+
+ENV MYSQL_ROOT_PASSWORD=password
+ENV MYSQL_USER=trip
+ENV MYSQL_PASSWORD=password
+ENV MYSQL_DATABASE=trip_db
+
+EXPOSE 3306
+
+ENTRYPOINT ["/entrypoint.sh"]

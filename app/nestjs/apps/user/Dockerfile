@@ -8,7 +8,7 @@ RUN npm install
 
 COPY apps/user ./apps/user
 COPY libs ./libs
-COPY .env ./.env
+COPY ./apps/user/.env ./.env
 COPY tsconfig*.json ./
 
 RUN --mount=type=secret,id=dotenv_user_key \

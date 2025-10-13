@@ -55,8 +55,6 @@ services:
       secrets:
         - dotenv_user_key
     image: uit_go-user_service
-    env_file:
-      - ./apps/user/.env
     container_name: user-service
     ports:
       - "3001:3001"
@@ -65,6 +63,7 @@ services:
     depends_on:
       - user-db
       - rabbitmq
+      - redis
     networks:
       - backend
 
@@ -76,8 +75,6 @@ services:
         - dotenv_driver_key
     image: uit_go-driver_service
     container_name: driver-service
-    env_file:
-        - ./apps/driver/.env
     secrets:
       - dotenv_driver_key
     ports:
@@ -85,6 +82,7 @@ services:
     depends_on:
       - driver-db
       - rabbitmq
+      - redis
     networks:
       - backend
 
@@ -96,8 +94,6 @@ services:
         - dotenv_trip_key
     image: uit_go-trip_service
     container_name: trip-service
-    env_file:
-      - ./apps/trip/.env
     secrets:
       - dotenv_trip_key
     ports:
@@ -105,55 +101,52 @@ services:
     depends_on:
       - trip-db
       - rabbitmq
+      - redis
     networks:
       - backend
 
   user-db:
-    image: postgres:15
+    build:
+      context: ./apps/user
+      dockerfile: Dockerfile.db
     container_name: user-db
-    env_file:
-      - ./apps/user/.env
-    command: ["executable", "arg"]
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_USER_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_USER_DB}
     ports:
       - "5433:5432"
     networks:
       - backend
+    secrets:
+      - dotenv_user_key
 
   driver-db:
-    image: amazon/dynamodb-local:latest
+    build:
+      context: ./apps/driver
+      dockerfile: Dockerfile.db
     container_name: driver-db
-    command: "-jar DynamoDBLocal.jar -sharedDb -inMemory -port 8005"
     ports:
       - "8005:8005"
     networks:
       - backend
 
   trip-db:
-    image: mysql:8
+    build:
+      context: ./apps/trip
+      dockerfile: Dockerfile.db
+      secrets:
+        - dotenv_trip_key
     container_name: trip-db
-    env_file:
-      - ./apps/trip/.env
-    command: ["executable", "arg"]
-    environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_TRIP_ROOT_PASSWORD}
-      MYSQL_USER: ${MYSQL_TRIP_USER}
-      MYSQL_PASSWORD: ${MYSQL_TRIP_PASSWORD}
-      MYSQL_DATABASE: ${MYSQL_TRIP_DATABASE}
     ports:
       - "3307:3306"
     networks:
       - backend
+    secrets:
+      - dotenv_trip_key
 
   rabbitmq:
     image: rabbitmq:3-management
     container_name: rabbitmq
     environment:
-      RABBITMQ_DEFAULT_USER: guest
-      RABBITMQ_DEFAULT_PASS: guest
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
     ports:
       - "5672:5672"
       - "15672:15672"
