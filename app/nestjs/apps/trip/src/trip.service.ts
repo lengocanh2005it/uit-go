@@ -15,6 +15,7 @@ import {
 } from '@libs/common/enums';
 import { RabbitMQService } from '@libs/common/rabbitmq/rabbitmq.service';
 import {
+  FindAvailableDriversResponse,
   formatCurrencyVND,
   GetEstimateFareResponse,
   GetGeocodeResponse,
@@ -60,6 +61,21 @@ export class TripService {
     const destinationAddressGeoCode =
       await this.commonService.getCoordinates(destinationAddress);
 
+    const availableDrivers = await this.rabbitMqService.send<FindAvailableDriversResponse>(
+      'DRIVER_SERVICE',
+      patterns.driverService.findAvailableDriver,
+      {
+        lat: originAddressGeoCode?.lat ?? 0,
+        lng: originAddressGeoCode?.lon ?? 0,
+      }
+    );
+
+    if (availableDrivers.count === 0) {
+      throw new NotFoundException('No available drivers found nearby.');
+    }
+
+    const driver = availableDrivers.drivers[0];
+
     const fareEstimate = await this.commonService.getEstimatedFare(
       originAddress,
       destinationAddress,
@@ -74,7 +90,7 @@ export class TripService {
       destinationLng: destinationAddressGeoCode?.lon ?? 0,
       fareEstimate,
       fareFinal: fareEstimate,
-      driverId: '1',
+      driverId: driver.driverId,
       passengerId: sub,
     });
 

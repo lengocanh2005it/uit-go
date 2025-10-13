@@ -1,3 +1,5 @@
+import { DriverStatusEnum } from "@libs/common/enums";
+
 export interface DriverStatusKey {
     driverId: string;
 }
@@ -10,7 +12,7 @@ export interface VehicleCached {
 }
 
 export interface DriverStatus extends DriverStatusKey {
-    status: string;
+    status: DriverStatusEnum;
     lastSeenAt: string;
     currentTripId?: string;
     vehicleCached?: VehicleCached;

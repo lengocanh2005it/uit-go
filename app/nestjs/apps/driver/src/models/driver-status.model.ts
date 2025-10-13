@@ -9,7 +9,7 @@ export const DriverStatusSchema = new Schema({
   },
   status: {
     type: String,
-    enum: [DriverStatusEnum],
+    enum: Object.values(DriverStatusEnum),
     default: DriverStatusEnum.ONLINE,
   },
   last_seen_at: {

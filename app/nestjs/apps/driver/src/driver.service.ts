@@ -12,6 +12,9 @@ import {
 } from '@/driver/src/interfaces';
 import {
   buildGeoLocation,
+  buildSearchPrefixes,
+  CommonService,
+  FindAvailableDriversResponse,
   patterns,
   type GetTripsOfDriverResponse,
   type TUserSession,
@@ -28,6 +31,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import type { Model } from 'nestjs-dynamoose';
 import { InjectModel } from 'nestjs-dynamoose';
 import { v4 as uuidv4 } from 'uuid';
@@ -52,21 +56,9 @@ export class DriverService {
     @InjectModel('Vehicle')
     private readonly vehicleModel: Model<Vehicle, VehicleKey>,
     @InjectRabbitMqService() private readonly rabbitMqService: RabbitMQService,
-  ) {}
-
-  async test() {
-    const driver: Driver = {
-      driverId: 'driver1',
-      userId: 'user1',
-      rating: 4.5,
-      totalTrip: 100,
-      licenseNumber: 'ABC123',
-      licenseExpiry: new Date('2025-12-31'),
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-    return this.driverModel.create(driver);
-  }
+    private readonly configService: ConfigService,
+    private readonly commonService: CommonService,
+  ) { }
 
   async getAllTripsOfDriver(
     userSession: TUserSession,
@@ -264,5 +256,107 @@ export class DriverService {
       message: `Driver approval updated to ${status}`,
       data: updated,
     };
+  }
+
+  pickLatestLocationPerDriver(
+    locations: DriverLocation[]
+  ): Record<string, DriverLocation> {
+    const byDriver: Record<string, DriverLocation> = {};
+    for (const location of locations) {
+      const key = location.driverId;
+      const prevLocation = byDriver[key];
+      const currentUpdated = new Date(location.updatedAt ?? Date.now()).getTime();
+      const prevUpdated = prevLocation
+        ? new Date(prevLocation.updatedAt ?? 0).getTime()
+        : -1;
+      if (!prevLocation || currentUpdated > prevUpdated) {
+        byDriver[key] = location;
+      }
+    }
+    return byDriver;
+  }
+
+  async findNearbyDrivers(
+    lat: number,
+    lng: number,
+    radiusKm = 3,
+  ): Promise<FindAvailableDriversResponse> {
+    const prefixes = buildSearchPrefixes(lat, lng, radiusKm, 5);
+    if (prefixes.length === 0) {
+      return { count: 0, drivers: [] };
+    }
+
+    const locationResponses = await Promise.all(
+      prefixes.map((prefix) =>
+        this.driverLocationModel.query('hashPrefix').eq(prefix).exec()
+      )
+    );
+
+    const locations = locationResponses.flat().map((item) => item?.toJSON?.() as DriverLocation | undefined).filter((item) => item !== undefined);
+    const latestByDriver = this.pickLatestLocationPerDriver(locations);
+
+    let entries = await Promise.all(Object.values(latestByDriver).map(async (location) => {
+      const distance = await this.commonService.getDistanceWithCoordinates(
+        { lat, lon: lng },
+        { lat: location.lat, lon: location.lng },
+      )
+      return {
+        driverId: location.driverId,
+        lat: location.lat,
+        lng: location.lng,
+        distanceKm: distance,
+      };
+    }));
+
+    entries = entries.filter((e) => e.distanceKm <= radiusKm);
+
+    const filtered: typeof entries = [];
+    for (const e of entries) {
+      const statusDoc = await this.driverStatusModel.get({ driverId: e.driverId });
+      const status = statusDoc?.toJSON()?.status as DriverStatusEnum | undefined;
+      if (status === DriverStatusEnum.ONLINE) {
+        filtered.push(e);
+      }
+    }
+    entries = filtered;
+
+    entries.sort((a, b) => a.distanceKm - b.distanceKm);
+
+    return {
+      count: entries.length,
+      drivers: entries,
+    };
+  }
+
+  async findAvailableDrivers(
+    lat: number,
+    lng: number,
+  ): Promise<FindAvailableDriversResponse> {
+    const maxRadiusKm = this.configService.get<number>('services.driver.machanisms.max_radius_km', 25);
+    const searchRadii = [3, 5, 10, 15, 20, maxRadiusKm];
+
+    for (const radius of searchRadii) {
+      const drivers = await this.findNearbyDrivers(lat, lng, radius);
+      if (drivers.count > 0) {
+        return drivers;
+      }
+    }
+
+    return { count: 0, drivers: [] };
+  }
+
+  async getLocationOfDriver(driverId: string) {
+    try {
+      const locationResponses = await this.driverLocationModel.query('driverId').eq(driverId).exec();
+
+      const locations = locationResponses.map((item) => item?.toJSON?.() as DriverLocation | undefined).filter((item) => item !== undefined);
+
+      const latestByDriver = this.pickLatestLocationPerDriver(locations);
+      const location = latestByDriver[driverId];
+
+      return location;
+    } catch (error) {
+      throw new NotFoundException('Location record for this driver not found.');
+    }
   }
 }

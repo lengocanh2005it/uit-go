@@ -7,6 +7,7 @@ export const patterns = {
     getDriverInfo: 'get-driver-info',
     getDriverApprovalStatus: 'get-driver-approval-status',
     getGeocode: 'get-geocode',
-    createDriver: 'create-driver'
+    createDriver: 'create-driver',
+    findAvailableDriver: 'find-available-driver',
   },
 };

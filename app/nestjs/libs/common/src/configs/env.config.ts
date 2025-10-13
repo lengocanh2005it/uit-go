@@ -35,6 +35,9 @@ export default () => ({
     driver: {
       port: parseInt(process.env.DRIVER_SERVICE_PORT || '3003', 10) || 3003,
       local_url: process.env.DRIVER_SERVICE_LOCAL_URL || '',
+      machanisms: {
+        max_radius_km: parseInt(process.env.DRIVER_SERVICE_MAX_RADIUS_KM || '25', 10) || 25,
+      }
     },
     trip: {
       port: parseInt(process.env.TRIP_SERVICE_PORT || '3002', 10) || 3002,
