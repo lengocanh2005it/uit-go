@@ -42,6 +42,9 @@ services:
         paths:
           - ~/drivers/[^/]+/trips$
         strip_path: false
+      - name: driver-test
+        paths: [/drivers/test]
+        strip_path: false
         plugins:
           - name: jwt
             config:

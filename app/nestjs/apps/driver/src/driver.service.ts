@@ -29,6 +29,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -38,6 +39,7 @@ import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
 export class DriverService {
+  private readonly logger = new Logger(DriverService.name);
   constructor(
     @InjectModel('Driver')
     private readonly driverModel: Model<Driver, DriverKey>,
@@ -281,68 +283,104 @@ export class DriverService {
     lng: number,
     radiusKm = 3,
   ): Promise<FindAvailableDriversResponse> {
-    const prefixes = buildSearchPrefixes(lat, lng, radiusKm, 5);
-    if (prefixes.length === 0) {
-      return { count: 0, drivers: [] };
-    }
-
-    const locationResponses = await Promise.all(
-      prefixes.map((prefix) =>
-        this.driverLocationModel.query('hashPrefix').eq(prefix).exec()
-      )
-    );
-
-    const locations = locationResponses.flat().map((item) => item?.toJSON?.() as DriverLocation | undefined).filter((item) => item !== undefined);
-    const latestByDriver = this.pickLatestLocationPerDriver(locations);
-
-    let entries = await Promise.all(Object.values(latestByDriver).map(async (location) => {
-      const distance = await this.commonService.getDistanceWithCoordinates(
-        { lat, lon: lng },
-        { lat: location.lat, lon: location.lng },
-      )
-      return {
-        driverId: location.driverId,
-        lat: location.lat,
-        lng: location.lng,
-        distanceKm: distance,
-      };
-    }));
-
-    entries = entries.filter((e) => e.distanceKm <= radiusKm);
-
-    const filtered: typeof entries = [];
-    for (const e of entries) {
-      const statusDoc = await this.driverStatusModel.get({ driverId: e.driverId });
-      const status = statusDoc?.toJSON()?.status as DriverStatusEnum | undefined;
-      if (status === DriverStatusEnum.ONLINE) {
-        filtered.push(e);
+    try {
+      const prefixes = buildSearchPrefixes(lat, lng, radiusKm, 5);
+      if (prefixes.length === 0) {
+        return { count: 0, drivers: [] };
       }
+
+      this.logger.debug(`Searching with ${prefixes.length} geo prefixes`);
+
+      const locationResponses = await Promise.all(
+        prefixes.map((prefix) =>
+          this.driverLocationModel.query('hashPrefix').eq(prefix).exec()
+        )
+      );
+
+      if (locationResponses.length === 0) {
+        return { count: 0, drivers: [] };
+      }
+
+      const locations = locationResponses.flat().map((item) => item?.toJSON?.() as DriverLocation | undefined).filter((item) => item !== undefined);
+
+      if (locations.length === 0) {
+        return { count: 0, drivers: [] };
+      }
+
+      const latestByDriver = this.pickLatestLocationPerDriver(locations);
+
+      this.logger.debug(`Found ${Object.keys(latestByDriver).length} drivers with locations`);
+
+      const entries = await Promise.all(Object.values(latestByDriver).map(async (location) => {
+        try {
+          const distance = await this.commonService.getDistanceWithCoordinates(
+            { lat, lon: lng },
+            { lat: location.lat, lon: location.lng },
+          )
+          return {
+            driverId: location.driverId,
+            lat: location.lat,
+            lng: location.lng,
+            distanceKm: distance,
+          };
+        } catch (error) {
+          this.logger.error(`Error calculating distance for driver ${location.driverId}:`, error);
+          return null;
+        }
+      }));
+
+      const noNullEntries = entries.filter((e) => e !== null);
+      const withinRadiusEntries = noNullEntries.filter((e) => e.distanceKm <= radiusKm);
+
+      const filtered: typeof withinRadiusEntries = [];
+      for (const e of withinRadiusEntries) {
+        try {
+          const statusDoc = await this.driverStatusModel.get({ driverId: e.driverId });
+          const status = statusDoc?.toJSON()?.status as DriverStatusEnum | undefined;
+          if (status === DriverStatusEnum.ONLINE) {
+            filtered.push(e);
+          }
+        } catch (error) {
+          this.logger.error(`Error fetching status for driver ${e.driverId}:`, error);
+        }
+      }
+
+      filtered.sort((a, b) => a.distanceKm - b.distanceKm);
+
+      return {
+        count: filtered.length,
+        drivers: filtered,
+      };
+    } catch (error) {
+      this.logger.error('Error in findNearbyDrivers:', error);
+      throw error;
     }
-    entries = filtered;
-
-    entries.sort((a, b) => a.distanceKm - b.distanceKm);
-
-    return {
-      count: entries.length,
-      drivers: entries,
-    };
   }
 
   async findAvailableDrivers(
     lat: number,
     lng: number,
   ): Promise<FindAvailableDriversResponse> {
-    const maxRadiusKm = this.configService.get<number>('services.driver.machanisms.max_radius_km', 25);
-    const searchRadii = [3, 5, 10, 15, 20, maxRadiusKm];
+    try {
+      this.logger.debug(`Finding available drivers near lat: ${lat}, lng: ${lng}`);
+      const maxRadiusKm = this.configService.get<number>('mechanisms.max_radius_km', 25);
+      const searchRadii = [3, 5, 10, 15, maxRadiusKm];
 
-    for (const radius of searchRadii) {
-      const drivers = await this.findNearbyDrivers(lat, lng, radius);
-      if (drivers.count > 0) {
-        return drivers;
+      for (const radius of searchRadii) {
+        this.logger.debug(`Searching within ${radius}km radius`);
+        const drivers = await this.findNearbyDrivers(lat, lng, radius);
+        if (drivers?.count > 0) {
+          this.logger.debug(`Found ${drivers.count} drivers within ${radius}km`);
+          return drivers;
+        }
       }
-    }
 
-    return { count: 0, drivers: [] };
+      this.logger.debug('No available drivers found');
+      return { count: 0, drivers: [] };
+    } catch (error) {
+      this.logger.error('Error finding available drivers:', error);
+      throw error;
+    }
   }
 
   async getLocationOfDriver(driverId: string) {
@@ -356,7 +394,7 @@ export class DriverService {
 
       return location;
     } catch (error) {
-      throw new NotFoundException('Location record for this driver not found.');
+      throw error;
     }
   }
 }
