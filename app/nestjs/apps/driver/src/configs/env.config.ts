@@ -1,6 +1,5 @@
 export default () => ({
   port: parseInt(process.env.PORT || '3003', 10) || 3003,
-  local_url: process.env.LOCAL_URL || '',
   rabbitmq: {
     url: process.env.RABBITMQ_URL || '',
     queues: process.env.RABBITMQ_QUEUES || '',
@@ -26,4 +25,13 @@ export default () => ({
     timeout: parseInt(process.env.HTTP_TIMEOUT || '5000', 10) || 5000,
     max_redirects: parseInt(process.env.HTTP_TIMEOUT || '5', 10) || 5,
   },
+  mechanisms: {
+    max_radius_km: parseInt(process.env.MAX_RADIUS_KM || '25', 10) || 25,
+  },
+  aws: {
+    region: process.env.AWS_REGION || 'us-east-1',
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID || 'fake',
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || 'fake',
+    local_url: process.env.LOCAL_URL || '',
+  }
 });
