@@ -10,8 +10,9 @@ services:
       - name: sign-in-route
         paths: [/users/sign-in]
         strip_path: false
-      - name: get-me-route
-        paths: [/users/me]
+      - name: slug-route
+        paths:
+          - ~/users/[^/]+
         strip_path: false
         plugins:
           - name: jwt
@@ -24,8 +25,31 @@ services:
   - name: trip-service
     url: http://trip-service:3002
     routes:
-      - name: trip-route
-        paths: [/trips]
+      - name: create-trip-route
+        paths:
+          - /trips
+        strip_path: false
+        plugins:
+          - name: jwt
+            config:
+              claims_to_verify:
+                - exp
+              key_claim_name: sub
+              secret_is_base64: false
+      - name: slug-route
+        paths:
+          - ~/trips/[^/]+
+        strip_path: false
+        plugins:
+          - name: jwt
+            config:
+              claims_to_verify:
+                - exp
+              key_claim_name: sub
+              secret_is_base64: false
+      - name: update-trip-request-status-route
+        paths:
+          - ~/trips/requests/[^/]+/status$
         strip_path: false
         plugins:
           - name: jwt
@@ -41,6 +65,28 @@ services:
       - name: driver-trips-route
         paths:
           - ~/drivers/[^/]+/trips$
+        strip_path: false
+        plugins:
+          - name: jwt
+            config:
+              claims_to_verify:
+                - exp
+              key_claim_name: sub
+              secret_is_base64: false
+      - name: driver-status-route
+        paths:
+          - ~/drivers/[^/]+/status$
+        strip_path: false
+        plugins:
+          - name: jwt
+            config:
+              claims_to_verify:
+                - exp
+              key_claim_name: sub
+              secret_is_base64: false
+      - name: driver-approval-route
+        paths:
+          - ~/drivers/approval
         strip_path: false
         plugins:
           - name: jwt
