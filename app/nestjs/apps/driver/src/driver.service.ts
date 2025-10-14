@@ -175,11 +175,8 @@ export class DriverService {
     }
   }
 
-  async createDriver(data: CreateDriverDto) {
-    const existed = await this.driverModel
-      .query('userId')
-      .eq(data.userId)
-      .exec();
+  async createDriver(data: CreateDriverDto, userId: string) {
+    const existed = await this.driverModel.query('userId').eq(userId).exec();
     if (existed.length > 0) {
       throw new BadRequestException('Driver already exists.');
     }
@@ -190,7 +187,7 @@ export class DriverService {
 
     const driver: Driver = {
       driverId,
-      userId: data.userId,
+      userId,
       rating: 0,
       totalTrip: 0,
       licenseNumber: data.licenseNumber,
@@ -228,13 +225,6 @@ export class DriverService {
       createdAt: new Date(),
       updatedAt: new Date(),
     });
-
-    return {
-      message:
-        'Driver registration submitted successfully. Awaiting admin approval.',
-      driver,
-      vehicle,
-    };
   }
   async updateDriverApprovalStatus(
     updateDriverApprovalDto: UpdateDriverApprovalDto,

@@ -10,7 +10,7 @@ services:
       - name: sign-in-route
         paths: [/users/sign-in]
         strip_path: false
-      - name: slug-route
+      - name: user-service-slug-route
         paths:
           - ~/users/[^/]+
         strip_path: false
@@ -36,7 +36,7 @@ services:
                 - exp
               key_claim_name: sub
               secret_is_base64: false
-      - name: slug-route
+      - name: trip-service-slug-route
         paths:
           - ~/trips/[^/]+
         strip_path: false
