@@ -1,11 +1,11 @@
+import { patterns, TUserSession } from '@libs/common';
 import {
   InjectKongService,
   InjectRabbitMqService,
 } from '@libs/common/decorators';
-import { CreateUserDto } from '@libs/common/dto/user/create-user.dto';
-import { LoginUserDto } from '@libs/common/dto/user/login-user.dto';
-import { UpdateProfileDto } from '@libs/common/dto/user/update-profile.dto';
+import { DriverApprovalStatusEnum, DriverStatusEnum } from '@libs/common/enums';
 import { KongService } from '@libs/common/kong/kong.service';
+import { RabbitMQService } from '@libs/common/rabbitmq/rabbitmq.service';
 import {
   BadRequestException,
   Injectable,
@@ -15,14 +15,17 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
+import {
+  CreateUserDto,
+  LoginUserDto,
+  UpdateProfileDto,
+} from '@user-service/dto';
+import { UserRole } from '@user-service/enums';
 import * as bcrypt from 'bcryptjs';
 import { omit } from 'lodash';
+import { ObjectType } from 'nestjs-dynamoose';
 import { Repository } from 'typeorm';
 import { User, UserProfile } from './entities';
-import { patterns, TUserSession } from '@libs/common';
-import { DriverStatusEnum, UserRole, DriverApprovalStatusEnum } from '@libs/common/enums';
-import { RabbitMQService } from '@libs/common/rabbitmq/rabbitmq.service';
-import { ObjectType } from 'nestjs-dynamoose';
 
 @Injectable()
 export class UserService {
@@ -34,43 +37,46 @@ export class UserService {
     private readonly configService: ConfigService,
     @InjectKongService() private readonly kongService: KongService,
     @InjectRabbitMqService() private readonly rabbitMqService: RabbitMQService,
-  ) { }
+  ) {}
 
   public register = async (createUserDto: CreateUserDto) => {
-    const { email, password, role, licenseNumber, licenseExpiry, plateNumber, brand, model, color } = createUserDto;
+    const { email, password, role, createDriverDto, ...res } = createUserDto;
     const exists = await this.userRepo.findOne({ where: { email } });
     if (exists) throw new BadRequestException('Email has existed.');
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const user = this.userRepo.create({
       email,
-      passwordHash: hashedPassword,
+      password: hashedPassword,
       role,
     });
     await this.userRepo.save(user);
 
-    const profile = this.profileRepo.create({ userId: user.id });
+    const profile = this.profileRepo.create({
+      ...res,
+      user,
+    });
     await this.profileRepo.save(profile);
     try {
       await this.kongService.createNewConsumer(user.id);
     } catch (err) {
       console.error('Failed to create Kong consumer:', err.message);
     }
-    if (user.role === UserRole.DRIVER) {
-      await this.rabbitMqService.send(
+    if (
+      user.role === UserRole.DRIVER &&
+      createDriverDto &&
+      Object.keys(createDriverDto)?.length > 0
+    ) {
+      this.rabbitMqService.emit(
         'DRIVER_SERVICE',
         patterns.driverService.createDriver,
         {
+          createDriverDto,
           userId: user.id,
-          licenseNumber: licenseNumber,
-          licenseExpiry: licenseExpiry,
-          plateNumber: plateNumber,
-          brand: brand,
-          model: model,
-          color: color,
-        })
+        },
+      );
     }
-    return omit(user, ['passwordHash']);
+    return this.getUser(user.id);
   };
 
   public login = async (loginUserDto: LoginUserDto) => {
@@ -78,7 +84,7 @@ export class UserService {
     const user = await this.userRepo.findOne({ where: { email } });
     if (!user) throw new UnauthorizedException('Invalid credentials');
 
-    const isMatch = await bcrypt.compare(password, user.passwordHash);
+    const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) throw new UnauthorizedException('Invalid credentials');
 
     if (user.role === UserRole.DRIVER) {
@@ -90,13 +96,13 @@ export class UserService {
 
       if (!driverApproval) {
         throw new UnauthorizedException(
-          'Driver approval record not found. Please register again.'
+          'Driver approval record not found. Please register again.',
         );
       }
 
       if (driverApproval.status !== DriverApprovalStatusEnum.ACCEPTED) {
         throw new UnauthorizedException(
-          'Your driver account has not been approved yet.'
+          'Your driver account has not been approved yet.',
         );
       }
     }
@@ -147,7 +153,7 @@ export class UserService {
 
     if (!user) throw new NotFoundException('User not found.');
 
-    let formattedUser: any = omit(user, ['passwordHash']);
+    let formattedUser: any = omit(user, ['password']);
 
     if (user.role === UserRole.DRIVER) {
       formattedUser.driverInfo = await this.rabbitMqService.send<ObjectType>(
@@ -163,7 +169,13 @@ export class UserService {
   };
 
   async updateProfile(userId: string, updateProfileDto: UpdateProfileDto) {
-    const profile = await this.profileRepo.findOne({ where: { userId } });
+    const profile = await this.profileRepo.findOne({
+      where: {
+        user: {
+          id: userId,
+        },
+      },
+    });
     if (!profile) throw new NotFoundException('Profile not found');
 
     Object.assign(profile, updateProfileDto);
