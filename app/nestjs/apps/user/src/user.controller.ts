@@ -1,10 +1,12 @@
-import { Body, Controller, Get, Param, Post, Put, Req } from '@nestjs/common';
-import { UserService } from './user.service';
-import { CreateUserDto } from '@libs/common/dto/user/create-user.dto';
-import { LoginUserDto } from '@libs/common/dto/user/login-user.dto';
-import { UpdateProfileDto } from '@libs/common/dto/user/update-profile.dto';
-import { UserSession } from '@libs/common/decorators';
 import type { TUserSession } from '@libs/common';
+import { UserSession } from '@libs/common/decorators';
+import { Body, Controller, Get, Param, Post, Put } from '@nestjs/common';
+import {
+  CreateUserDto,
+  LoginUserDto,
+  UpdateProfileDto,
+} from '@user-service/dto';
+import { UserService } from './user.service';
 
 @Controller('users')
 export class UserController {

@@ -2,6 +2,7 @@ import { CommonModule } from '@libs/common';
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { SnakeNamingStrategy } from 'typeorm-naming-strategies';
 import envConfig from './configs/env.config';
 import { User, UserProfile } from './entities';
 import { UserController } from './user.controller';
@@ -28,6 +29,7 @@ import { UserService } from './user.service';
         synchronize: true,
         autoLoadEntities: true,
         logging: false,
+        namingStrategy: new SnakeNamingStrategy(),
       }),
     }),
     CommonModule,

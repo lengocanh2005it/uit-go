@@ -1,24 +1,28 @@
-import { IsString, IsDateString, IsOptional } from 'class-validator';
+import { Transform } from 'class-transformer';
+import { IsDate, IsNotEmpty, IsString } from 'class-validator';
 
 export class CreateDriverDto {
-    @IsString()
-    userId: string;
+  @IsString()
+  @IsNotEmpty()
+  licenseNumber: string;
 
-    @IsString()
-    licenseNumber: string;
+  @Transform(({ value }) => new Date(value))
+  @IsDate()
+  licenseExpiry: Date;
 
-    @IsDateString()
-    licenseExpiry: Date;
+  @IsString()
+  @IsNotEmpty()
+  plateNumber: string;
 
-    @IsString()
-    plateNumber: string;
+  @IsString()
+  @IsNotEmpty()
+  brand: string;
 
-    @IsString()
-    brand: string;
+  @IsString()
+  @IsNotEmpty()
+  model: string;
 
-    @IsString()
-    model: string;
-
-    @IsString()
-    color: string;
+  @IsString()
+  @IsNotEmpty()
+  color: string;
 }
