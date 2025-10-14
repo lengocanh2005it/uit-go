@@ -1,15 +1,21 @@
-import { IsEnum, IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
 import { DriverApprovalStatusEnum } from '@libs/common/enums';
+import {
+  IsEnum,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsUUID,
+} from 'class-validator';
 
 export class UpdateDriverApprovalDto {
-    @IsUUID()
-    @IsNotEmpty()
-    driverId: string;
+  @IsUUID()
+  driverId: string;
 
-    @IsEnum(DriverApprovalStatusEnum)
-    status: DriverApprovalStatusEnum;
+  @IsEnum(DriverApprovalStatusEnum)
+  status: DriverApprovalStatusEnum;
 
-    @IsOptional()
-    @IsString()
-    note?: string;
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  note?: string;
 }
