@@ -104,4 +104,15 @@ export class CommonService {
 
     return distanceMeters / 1000;
   }
+
+  async getDistanceWithCoordinates(
+    origin: { lat: number; lon: number },
+    destination: { lat: number; lon: number },
+  ) {
+    const distanceMeters = getDistance(
+      { latitude: origin.lat, longitude: origin.lon },
+      { latitude: destination.lat, longitude: destination.lon },
+    );
+    return distanceMeters / 1000;
+  }
 }
