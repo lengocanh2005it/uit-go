@@ -1,5 +1,5 @@
 import { CommonModule } from '@libs/common';
-import { Module } from '@nestjs/common';
+import { Logger, Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { DynamooseModule } from 'nestjs-dynamoose';
 import envConfig from './configs/env.config';
@@ -25,7 +25,7 @@ import {
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
-        local: configService.get<string>('local_url', ''),
+        local: configService.get<string>('aws.local_url', ''),
         table: {
           create: true,
           waitForActive: true,
