@@ -1,14 +1,14 @@
-import { queueNames } from '@libs/common/constants';
+import { EventRoutingMap } from '@libs/common/configs';
+import { QueueNames } from '@libs/common/constants';
 import { InjectRabbitMqService } from '@libs/common/decorators';
 import { OutboxStatus } from '@libs/common/enums';
-import { RabbitMQService } from '@libs/common/rabbitmq/rabbitmq.service';
+import { RabbitMQService } from '@libs/common/modules/rabbitmq/rabbitmq.service';
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { InjectRepository } from '@nestjs/typeorm';
 import { OutboxEvent } from '@trip-service/entities';
-import { EventRoutingMap } from '@user-service/configs/event-routing.config';
 import { Repository } from 'typeorm';
 
-@Processor(queueNames.outboxEvent)
+@Processor(QueueNames.OUTBOX_EVENT_QUEUE)
 export class OutbotEventProcessor extends WorkerHost {
   constructor(
     @InjectRepository(OutboxEvent)
@@ -40,11 +40,14 @@ export class OutbotEventProcessor extends WorkerHost {
         await this.outboxEventRepository.update(event.id, {
           status: OutboxStatus.SENT,
           sentAt: new Date(),
+          errorMessage: undefined,
+          retryCount: 0,
         });
       } catch (error) {
         await this.outboxEventRepository.update(event.id, {
           retryCount: event.retryCount + 1,
           errorMessage: error.message,
+          status: OutboxStatus.FAILED,
         });
       }
     }

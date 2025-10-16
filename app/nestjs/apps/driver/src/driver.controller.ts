@@ -1,4 +1,5 @@
-import { CommonService, patterns, type TUserSession } from '@libs/common';
+import { CommonService, type TUserSession } from '@libs/common';
+import { PATTERNS } from '@libs/common/constants';
 import { UserSession } from '@libs/common/decorators';
 import { GetTripsOfDriverQueryDto } from '@libs/common/dto';
 import { UpdateDriverStatusDto } from '@libs/common/dto/driver';
@@ -27,20 +28,16 @@ export class DriverController {
     private readonly commonService: CommonService,
   ) {}
 
-  @MessagePattern(patterns.driverService.updateDriverStatus)
+  @MessagePattern(PATTERNS.DRIVER_SERVICE.UPDATE_STATUS)
   async updateDriverStatus(
     @Payload('driverId', ParseUUIDPipe) driverId: string,
     @Payload('status') status: DriverStatusEnum,
     @Payload('eventId', ParseUUIDPipe) eventId?: string,
   ) {
-    try {
-      return this.driverService.updateDriverStatus(driverId, status, eventId);
-    } catch (error) {
-      console.error(error);
-    }
+    return this.driverService.updateDriverStatus(driverId, status, eventId);
   }
 
-  @MessagePattern(patterns.driverService.getDriverInfo)
+  @MessagePattern(PATTERNS.DRIVER_SERVICE.GET_INFO)
   async getDriverInfo(@Payload('userId', ParseUUIDPipe) userId: string) {
     try {
       return this.driverService.getDriverInfo(userId);
@@ -48,7 +45,7 @@ export class DriverController {
       console.error(error);
     }
   }
-  @MessagePattern(patterns.driverService.createDriver)
+  @MessagePattern(PATTERNS.DRIVER_SERVICE.CREATE)
   async handleCreateDriver(
     @Payload('createDriverDto') createDriverDto: CreateDriverDto,
     @Payload('userId', ParseUUIDPipe) userId: string,
@@ -59,7 +56,7 @@ export class DriverController {
       console.error(error);
     }
   }
-  @MessagePattern(patterns.driverService.getDriverApprovalStatus)
+  @MessagePattern(PATTERNS.DRIVER_SERVICE.GET_APPROVAL_STATUS)
   async handleGetDriverApprovalStatus(@Payload() data: { userId: string }) {
     try {
       const { userId } = data;
@@ -83,7 +80,7 @@ export class DriverController {
     if (userSession.sub !== driverId)
       throw new ForbiddenException('You can only update your own status.');
     const { status } = updateDriverStatusDto;
-    await this.updateDriverStatus(driverId, status);
+    await this.driverService.updateDriverStatus(driverId, status);
 
     if (status === DriverStatusEnum.ONLINE) {
       const { latitude, longitude } =
@@ -122,18 +119,18 @@ export class DriverController {
     return this.driverService.updateDriverApprovalStatus(dto);
   }
 
-  @MessagePattern(patterns.driverService.findAvailableDriver)
+  @MessagePattern(PATTERNS.DRIVER_SERVICE.FIND_AVAILABLE)
   async findAvailableDrivers(
     @Payload('lat', ParseFloatPipe) lat: number,
     @Payload('lng', ParseFloatPipe) lng: number,
   ) {
     return this.driverService.findAvailableDrivers(lat, lng);
   }
-  
-    @Get(':id/location')
-    async getLocationOfDriver(@Param('id', ParseUUIDPipe) driverId: string) {
-      return this.driverService.getLocationOfDriver(driverId);
-    }
+
+  @Get(':id/location')
+  async getLocationOfDriver(@Param('id', ParseUUIDPipe) driverId: string) {
+    return this.driverService.getLocationOfDriver(driverId);
+  }
 
   @Get('test')
   async test(

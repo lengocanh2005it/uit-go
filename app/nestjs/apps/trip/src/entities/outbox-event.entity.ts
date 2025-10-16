@@ -45,8 +45,8 @@ export class OutboxEvent {
   @Column({ type: 'timestamp', nullable: true })
   sentAt?: Date;
 
-  @Column({ type: 'bigint' })
-  aggregateId: number;
+  @Column({ type: 'uuid' })
+  aggregateId: string;
 
   @Column()
   aggregateType: string;

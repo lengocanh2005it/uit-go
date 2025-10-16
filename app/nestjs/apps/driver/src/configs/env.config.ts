@@ -33,5 +33,5 @@ export default () => ({
     accessKeyId: process.env.AWS_ACCESS_KEY_ID || 'fake',
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || 'fake',
     local_url: process.env.LOCAL_URL || '',
-  }
+  },
 });

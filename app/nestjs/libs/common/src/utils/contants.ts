@@ -8,3 +8,10 @@ export const RABBITMQ_QUEUE_SERVICES = [
   'DRIVER_SERVICE',
 ] as const;
 export type ServiceName = (typeof RABBITMQ_QUEUE_SERVICES)[number];
+export const SERVICES = RABBITMQ_QUEUE_SERVICES.reduce(
+  (acc, service) => {
+    acc[service] = service;
+    return acc;
+  },
+  {} as Record<ServiceName, ServiceName>,
+);
