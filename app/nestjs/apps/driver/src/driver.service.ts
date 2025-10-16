@@ -12,6 +12,7 @@ import {
   Vehicle,
   VehicleKey,
 } from '@/driver/src/interfaces';
+import { GetDriversApprovalQueryDto } from '@driver-service/dto';
 import {
   buildGeoLocation,
   buildSearchPrefixes,
@@ -446,5 +447,63 @@ export class DriverService {
     } catch (error) {
       throw error;
     }
+  }
+
+  async getDriversApproval(
+    getDriversApprovalQueryDto: GetDriversApprovalQueryDto,
+  ) {
+    const { status } = getDriversApprovalQueryDto;
+
+    let driversApproval: any[];
+
+    if (status) {
+      driversApproval = await this.driverApprovalModel
+        .scan('status')
+        .eq(status)
+        .exec();
+    } else {
+      driversApproval = await this.driverApprovalModel.scan().exec();
+    }
+
+    return driversApproval.map((driver) => driver.toJSON());
+  }
+
+  async getDriverInfoDetailById(driverId: string) {
+    const driverInfo = await this.driverModel.get({ driverId });
+    if (!driverInfo) throw new NotFoundException('Driver info not found.');
+
+    const driverStatus = await this.driverStatusModel.get({
+      driverId,
+    });
+    if (!driverStatus)
+      throw new NotFoundException('Driver status info not found.');
+
+    const driverApproval = await this.driverApprovalModel
+      .query('driverId')
+      .eq(driverId)
+      .exec();
+    if (!driverApproval.length)
+      throw new NotFoundException('Driver approval info not found.');
+
+    const driverLocation = await this.driverLocationModel
+      .query('driverId')
+      .eq(driverId)
+      .exec();
+    if (!driverLocation.length)
+      throw new NotFoundException('Driver location info not found.');
+
+    const vehicle = await this.vehicleModel
+      .query('driverId')
+      .eq(driverId)
+      .exec();
+    if (!vehicle.length) throw new NotFoundException('Vehicle info not found.');
+
+    return {
+      ...driverInfo,
+      driverStatus: driverStatus.toJSON(),
+      driverApproval: driverApproval[0].toJSON(),
+      driverLocation: driverLocation[0].toJSON(),
+      vehicle: vehicle[0].toJSON(),
+    };
   }
 }
