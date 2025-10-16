@@ -1,5 +1,6 @@
 import { Trip } from '@/trip/src/entities';
 import { TripStatusEnum } from '@libs/common/enums';
+import { ServiceName } from '@libs/common/utils/contants';
 
 export interface AWSQueueMessage<T = any> {
   queueName: string;
@@ -58,4 +59,11 @@ export type FindAvailableDriversResponse = {
     lng: number;
     distanceKm: number;
   }[];
+};
+
+export type UpdateDriverStatusMetadata = {
+  serviceName: ServiceName;
+  eventId: string;
+  retryCount: number;
+  errorMessage?: string;
 };

@@ -18,7 +18,10 @@ import {
   buildSearchPrefixes,
   CommonService,
   FindAvailableDriversResponse,
+  ServiceName,
   SERVICES,
+  UPDATE_OUTBOX_PATTERNS,
+  UpdateDriverStatusMetadata,
   type GetTripsOfDriverResponse,
   type TUserSession,
 } from '@libs/common';
@@ -27,7 +30,11 @@ import { InjectRabbitMqService } from '@libs/common/decorators';
 import { GetTripsOfDriverQueryDto } from '@libs/common/dto';
 import { CreateDriverDto } from '@libs/common/dto/driver/create-driver.dto';
 import { UpdateDriverApprovalDto } from '@libs/common/dto/driver/update-driver-approval.dto';
-import { DriverApprovalStatusEnum, DriverStatusEnum } from '@libs/common/enums';
+import {
+  DriverApprovalStatusEnum,
+  DriverStatusEnum,
+  OutboxStatus,
+} from '@libs/common/enums';
 import { RabbitMQService } from '@libs/common/modules/rabbitmq/rabbitmq.service';
 import {
   BadRequestException,
@@ -93,39 +100,71 @@ export class DriverService {
   async updateDriverStatus(
     driverId: string,
     status: DriverStatusEnum,
-    eventId?: string,
+    metadata?: UpdateDriverStatusMetadata,
   ) {
-    if (eventId) {
-      const exists = await this.processedEventModel.get({ eventId });
+    try {
+      if (metadata) {
+        const { eventId } = metadata;
+        const exists = await this.processedEventModel.get({
+          eventId,
+        });
 
-      if (exists) {
-        console.log(`Skipped duplicate event: ${eventId}`);
-        return;
+        if (exists) {
+          console.log(`Skipped duplicate event: ${eventId}`);
+          return;
+        }
       }
+
+      const findDriver = await this.driverModel.get({ driverId });
+
+      if (!findDriver) {
+        throw new NotFoundException('Driver info not found.');
+      }
+
+      const findDriverStatusRecord = await this.driverStatusModel.get({
+        driverId,
+      });
+
+      if (!findDriverStatusRecord?.toJSON()) {
+        throw new NotFoundException('Driver status info not found.');
+      }
+
+      const updated = await this.driverStatusModel.update(
+        { driverId },
+        { status },
+      );
+
+      if (metadata) {
+        const { eventId, serviceName, retryCount } = metadata;
+        await this.processedEventModel.create({
+          eventId,
+          createdAt: new Date(),
+        });
+
+        const pattern = UPDATE_OUTBOX_PATTERNS[serviceName];
+        this.rabbitMqService.emit(serviceName, pattern, {
+          eventId,
+          status: OutboxStatus.SENT,
+          retryCount,
+          errorMesasge: undefined,
+        });
+      }
+
+      return updated;
+    } catch (error) {
+      if (metadata) {
+        const { serviceName, eventId, retryCount } = metadata;
+        const pattern = UPDATE_OUTBOX_PATTERNS[serviceName];
+        this.rabbitMqService.emit(serviceName, pattern, {
+          eventId,
+          status: OutboxStatus.FAILED,
+          errorMessage: error.message,
+          retryCount: retryCount + 1,
+        });
+        await this.processedEventModel.delete({ eventId });
+      }
+      throw error;
     }
-
-    const findDriver = await this.driverModel.get({ driverId });
-    if (!findDriver) {
-      throw new NotFoundException('Driver info not found.');
-    }
-
-    const findDriverStatusRecord = await this.driverStatusModel.get({
-      driverId,
-    });
-    if (!findDriverStatusRecord?.toJSON()) {
-      throw new NotFoundException('Driver status info not found.');
-    }
-
-    const updated = await this.driverStatusModel.update(
-      { driverId },
-      { status },
-    );
-
-    if (eventId) {
-      await this.processedEventModel.create({ eventId, createdAt: new Date() });
-    }
-
-    return updated;
   }
 
   async getDriverInfo(userId: string) {

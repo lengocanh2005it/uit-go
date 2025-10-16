@@ -1,3 +1,4 @@
+import { SERVICES } from '@libs/common';
 import { EventRoutingMap } from '@libs/common/configs';
 import { QueueNames } from '@libs/common/constants';
 import { InjectRabbitMqService } from '@libs/common/decorators';
@@ -31,25 +32,15 @@ export class OutbotEventProcessor extends WorkerHost {
       const route = EventRoutingMap[event.eventType];
       if (!route) continue;
 
-      try {
-        await this.rabbitMqService.send(route.service, route.pattern, {
-          ...event.payload,
+      this.rabbitMqService.emit(route.service, route.pattern, {
+        ...event.payload,
+        metadata: {
           eventId: event.id,
-        });
-
-        await this.outboxEventRepository.update(event.id, {
-          status: OutboxStatus.SENT,
-          sentAt: new Date(),
-          errorMessage: undefined,
-          retryCount: 0,
-        });
-      } catch (error) {
-        await this.outboxEventRepository.update(event.id, {
-          retryCount: event.retryCount + 1,
-          errorMessage: error.message,
-          status: OutboxStatus.FAILED,
-        });
-      }
+          serviceName: SERVICES.USER_SERVICE,
+          retryCount: event.retryCount,
+          errorMessage: event.errorMessage,
+        },
+      });
     }
   }
 }

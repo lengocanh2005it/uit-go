@@ -25,7 +25,6 @@ export function generateRmqOptions(
       urls: [url],
       queue: `${serviceName.toLowerCase()}_queue`,
       queueOptions: { durable: true },
-      noAck: false,
     },
   };
 }
