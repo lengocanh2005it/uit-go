@@ -7,6 +7,8 @@ import {
   DriverLocationKey,
   DriverStatus,
   DriverStatusKey,
+  ProcessedEvent,
+  ProcessedEventKey,
   Vehicle,
   VehicleKey,
 } from '@/driver/src/interfaces';
@@ -52,21 +54,12 @@ export class DriverService {
     @InjectModel('Vehicle')
     private readonly vehicleModel: Model<Vehicle, VehicleKey>,
     @InjectRabbitMqService() private readonly rabbitMqService: RabbitMQService,
+    @InjectModel('ProcessedEvent')
+    private readonly processedEventModel: Model<
+      ProcessedEvent,
+      ProcessedEventKey
+    >,
   ) {}
-
-  async test() {
-    const driver: Driver = {
-      driverId: 'driver1',
-      userId: 'user1',
-      rating: 4.5,
-      totalTrip: 100,
-      licenseNumber: 'ABC123',
-      licenseExpiry: new Date('2025-12-31'),
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-    return this.driverModel.create(driver);
-  }
 
   async getAllTripsOfDriver(
     userSession: TUserSession,
@@ -87,32 +80,48 @@ export class DriverService {
     );
   }
 
-  async updateDriverStatus(driverId: string, status: DriverStatusEnum) {
-    const findDriver = await this.driverModel.get({
-      driverId,
-    });
+  async updateDriverStatus(
+    driverId: string,
+    status: DriverStatusEnum,
+    eventId?: string,
+  ) {
+    if (eventId) {
+      const exists = await this.processedEventModel.get({ eventId });
 
-    if (!findDriver) throw new NotFoundException('Driver info not found.');
+      if (exists) {
+        console.log(`Skipped duplicate event: ${eventId}`);
+        return;
+      }
+    }
+
+    const findDriver = await this.driverModel.get({ driverId });
+    if (!findDriver) {
+      throw new NotFoundException('Driver info not found.');
+    }
 
     const findDriverStatusRecord = await this.driverStatusModel.get({
       driverId,
     });
-
-    if (!findDriverStatusRecord?.toJSON())
+    if (!findDriverStatusRecord?.toJSON()) {
       throw new NotFoundException('Driver status info not found.');
+    }
 
-    await this.driverStatusModel.update(
+    const updated = await this.driverStatusModel.update(
       { driverId },
-      {
-        status,
-      },
+      { status },
     );
+
+    if (eventId) {
+      await this.processedEventModel.create({ eventId, createdAt: new Date() });
+    }
+
+    return updated;
   }
 
   async getDriverInfo(userId: string) {
-    const [driver] = await this.driverModel.query('userId').eq(userId).exec();
-    if (!driver) throw new NotFoundException('Driver info not found.');
-    return driver.toJSON();
+    const existed = await this.driverModel.query('userId').eq(userId).exec();
+    if (!existed.length) throw new NotFoundException('Driver info not found.');
+    return existed[0].toJSON();
   }
 
   async getDriverApprovalStatusByUserId(userId: string) {
@@ -137,9 +146,7 @@ export class DriverService {
 
     const record = approvalRecords[0].toJSON();
 
-    return {
-      record,
-    };
+    return record;
   }
 
   async updateLocationOfDriver(driverId: string, lat: number, lng: number) {
@@ -191,7 +198,7 @@ export class DriverService {
       rating: 0,
       totalTrip: 0,
       licenseNumber: data.licenseNumber,
-      licenseExpiry: data.licenseExpiry,
+      licenseExpiry: new Date(data.licenseExpiry),
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -225,6 +232,10 @@ export class DriverService {
       createdAt: new Date(),
       updatedAt: new Date(),
     });
+
+    return {
+      mesasge: 'Driver created successfully.',
+    };
   }
   async updateDriverApprovalStatus(
     updateDriverApprovalDto: UpdateDriverApprovalDto,

@@ -10,6 +10,7 @@ import {
   DriverLocationSchema,
   DriverSchema,
   DriverStatusSchema,
+  ProcessedEventSchema,
   VehicleSchema,
 } from './models';
 
@@ -24,7 +25,7 @@ import {
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
-        local: configService.get<string>('services.driver.local_url', ''),
+        local: configService.get<string>('local_url', ''),
         table: {
           create: true,
           waitForActive: true,
@@ -67,6 +68,13 @@ import {
         schema: DriverLocationSchema,
         options: {
           tableName: 'driver_location',
+        },
+      },
+      {
+        name: 'ProcessedEvent',
+        schema: ProcessedEventSchema,
+        options: {
+          tableName: 'processed_event',
         },
       },
     ]),

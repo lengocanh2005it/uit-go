@@ -16,12 +16,12 @@ async function bootstrap() {
   );
   const configService = app.get(ConfigService);
   const PORT = configService.get<number>('port', 3001);
-  await app.listen(PORT, () => {
-    console.log(`UserService is running.`);
-  });
   app.connectMicroservice<MicroserviceOptions>(
     generateRmqOptions('user_service', configService),
   );
   await app.startAllMicroservices();
+  await app.listen(PORT, () => {
+    console.log(`UserService is running.`);
+  });
 }
 bootstrap();

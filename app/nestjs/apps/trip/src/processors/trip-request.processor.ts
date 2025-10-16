@@ -1,13 +1,14 @@
 import { Trip, TripRequest } from '@/trip/src/entities';
-import { ProcessTripRequestDto, queueNames } from '@libs/common';
+import { ProcessTripRequestDto } from '@libs/common';
 import { TripRequestStatusEnum, TripStatusEnum } from '@libs/common/enums';
 import { OnWorkerEvent, Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { queueNamesOfTripService } from '@trip-service/constants';
 import { Job } from 'bullmq';
 import { Repository } from 'typeorm';
 
-@Processor(queueNames.trip.tripRequest)
+@Processor(queueNamesOfTripService.tripRequest)
 export class TripRequestProcessor extends WorkerHost {
   private readonly logger = new Logger(TripRequestProcessor.name);
   constructor(
