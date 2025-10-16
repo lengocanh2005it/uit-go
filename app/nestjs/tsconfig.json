@@ -30,6 +30,15 @@
       ],
       "@libs/common/*": [
         "libs/common/src/*"
+      ],
+      "@user-service/*": [
+        "apps/user/src/*"
+      ],
+      "@trip-service/*": [
+        "apps/trip/src/*"
+      ],
+      "@driver-service/*": [
+        "apps/driver/src/*"
       ]
     }
   }
