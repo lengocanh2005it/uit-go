@@ -10,6 +10,8 @@ services:
       - backend
     volumes:
       - kong_pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U kong"]
       interval: 5s
@@ -114,6 +116,8 @@ services:
       - "5433:5432"
     networks:
       - backend
+    volumes:
+      - user-db-data:/var/lib/postgresql/data
     secrets:
       - dotenv_user_key
 
@@ -126,6 +130,8 @@ services:
       - "8005:8005"
     networks:
       - backend
+    volumes:
+      - driver-db-data:/home/dynamodblocal/data
 
   trip-db:
     build:
@@ -140,6 +146,8 @@ services:
       - backend
     secrets:
       - dotenv_trip_key
+    volumes:
+      - trip-db-data:/var/lib/mysql
 
   rabbitmq:
     image: rabbitmq:3-management
@@ -175,3 +183,6 @@ secrets:
 
 volumes:
   kong_pgdata:
+  user-db-data:
+  trip-db-data:
+  driver-db-data:

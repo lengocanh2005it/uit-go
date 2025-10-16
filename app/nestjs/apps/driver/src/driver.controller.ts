@@ -39,9 +39,12 @@ export class DriverController {
   async getDriverInfo(@Payload('userId', ParseUUIDPipe) userId: string) {
     return this.driverService.getDriverInfo(userId);
   }
-  @MessagePattern(patterns.driverService.createDriver)
-  async handleCreateDriver(@Payload() createDriverDto: CreateDriverDto) {
-    return this.driverService.createDriver(createDriverDto);
+  @EventPattern(patterns.driverService.createDriver)
+  async handleCreateDriver(
+    @Payload('createDriverDto') createDriverDto: CreateDriverDto,
+    @Payload('userId', ParseUUIDPipe) userId: string,
+  ) {
+    return this.driverService.createDriver(createDriverDto, userId);
   }
   @MessagePattern(patterns.driverService.getDriverApprovalStatus)
   async handleGetDriverApprovalStatus(

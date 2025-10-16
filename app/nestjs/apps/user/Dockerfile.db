@@ -3,7 +3,7 @@ FROM postgres:15
 
 WORKDIR /apps/user
 
-RUN apt-get update && apt-get install -y curl && \
+RUN apt-get update && apt-get install -y curl gosu && \
     curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
     apt-get install -y nodejs && npm install -g @dotenvx/dotenvx
 
@@ -11,6 +11,10 @@ COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 COPY .env /apps/user/.env
 
 RUN chmod +x /usr/local/bin/entrypoint.sh
+
+ENV POSTGRES_USER=user
+ENV POSTGRES_PASSWORD=password
+ENV POSTGRES_DB=user_db
 
 EXPOSE 5432
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
