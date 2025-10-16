@@ -1,11 +1,13 @@
-import { patterns, TUserSession } from '@libs/common';
+import { SERVICES, TUserSession } from '@libs/common';
+import { EventTypes, PATTERNS } from '@libs/common/constants';
 import {
   InjectKongService,
   InjectRabbitMqService,
 } from '@libs/common/decorators';
+import { CreateOutboxDto } from '@libs/common/dto';
 import { DriverApprovalStatusEnum, DriverStatusEnum } from '@libs/common/enums';
-import { KongService } from '@libs/common/kong/kong.service';
-import { RabbitMQService } from '@libs/common/rabbitmq/rabbitmq.service';
+import { KongService } from '@libs/common/modules/kong/kong.service';
+import { RabbitMQService } from '@libs/common/modules/rabbitmq/rabbitmq.service';
 import {
   BadRequestException,
   Injectable,
@@ -27,9 +29,6 @@ import { omit } from 'lodash';
 import { ObjectType } from 'nestjs-dynamoose';
 import { DataSource, EntityManager, Repository } from 'typeorm';
 import { OutboxEvent, User, UserProfile } from './entities';
-import { CreateOutboxDto } from '@libs/common/dto';
-import { eventTypes } from '@user-service/constants';
-import { RpcException } from '@nestjs/microservices';
 
 @Injectable()
 export class UserService {
@@ -73,8 +72,8 @@ export class UserService {
       Object.keys(createDriverDto)?.length > 0
     ) {
       const driverInfo = await this.rabbitMqService.send(
-        'DRIVER_SERVICE',
-        patterns.driverService.createDriver,
+        SERVICES.DRIVER_SERVICE,
+        PATTERNS.DRIVER_SERVICE.CREATE,
         {
           createDriverDto,
           userId: user.id,
@@ -100,8 +99,8 @@ export class UserService {
 
       if (user.role === UserRole.DRIVER) {
         const driverApproval = await this.rabbitMqService.send(
-          'DRIVER_SERVICE',
-          patterns.driverService.getDriverApprovalStatus,
+          SERVICES.DRIVER_SERVICE,
+          PATTERNS.DRIVER_SERVICE.GET_APPROVAL_STATUS,
           { userId: user.id },
         );
 
@@ -133,14 +132,14 @@ export class UserService {
 
       if (user.role === UserRole.DRIVER) {
         const driverInfo = await this.rabbitMqService.send(
-          'DRIVER_SERVICE',
-          patterns.driverService.getDriverInfo,
+          SERVICES.DRIVER_SERVICE,
+          PATTERNS.DRIVER_SERVICE.GET_INFO,
           { userId: user.id },
         );
 
         await this.createNewOutbox(
           {
-            eventType: eventTypes.LOGIN,
+            eventType: EventTypes.UPDATE_DRIVER_STATUS,
             payload: {
               driverId: driverInfo.driverId,
               status: DriverStatusEnum.ONLINE,
@@ -172,8 +171,8 @@ export class UserService {
 
     if (user.role === UserRole.DRIVER) {
       formattedUser.driverInfo = await this.rabbitMqService.send<ObjectType>(
-        'DRIVER_SERVICE',
-        patterns.driverService.getDriverInfo,
+        SERVICES.DRIVER_SERVICE,
+        PATTERNS.DRIVER_SERVICE.GET_INFO,
         {
           userId: user.id,
         },

@@ -1,4 +1,5 @@
-import { patterns, type TUserSession } from '@libs/common';
+import { type TUserSession } from '@libs/common';
+import { PATTERNS } from '@libs/common/constants';
 import { UserSession } from '@libs/common/decorators';
 import {
   CreateTripDto,
@@ -60,7 +61,7 @@ export class TripController {
     );
   }
 
-  @MessagePattern(patterns.driverService.getTripsOfDriverPattern)
+  @MessagePattern(PATTERNS.DRIVER_SERVICE.GET_TRIPS)
   async getTripsOfDriver(
     @Payload('getTripsOfDriverQueryDto')
     getTripsOfDriverQueryDto: GetTripsOfDriverQueryDto,

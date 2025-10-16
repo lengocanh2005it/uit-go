@@ -1,13 +1,14 @@
-import { queueNames } from '@libs/common/constants';
+import { EventRoutingMap } from '@libs/common/configs';
+import { QueueNames } from '@libs/common/constants';
 import { InjectRabbitMqService } from '@libs/common/decorators';
 import { OutboxStatus } from '@libs/common/enums';
-import { RabbitMQService } from '@libs/common/rabbitmq/rabbitmq.service';
+import { RabbitMQService } from '@libs/common/modules/rabbitmq/rabbitmq.service';
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { InjectRepository } from '@nestjs/typeorm';
 import { OutboxEvent } from '@trip-service/entities';
 import { Repository } from 'typeorm';
 
-@Processor(queueNames.outboxEvent)
+@Processor(QueueNames.OUTBOX_EVENT_QUEUE)
 export class OutbotEventProcessor extends WorkerHost {
   constructor(
     @InjectRepository(OutboxEvent)
@@ -27,25 +28,26 @@ export class OutbotEventProcessor extends WorkerHost {
     if (!pendingEvents?.length) return;
 
     for (const event of pendingEvents) {
+      const route = EventRoutingMap[event.eventType];
+      if (!route) return;
+
       try {
-        await this.rabbitMqService.send(
-          'DRIVER_SERVICE',
-          event.eventType.toLowerCase(),
-          {
-            ...event.payload,
-            eventId: event.id,
-          },
-        );
+        await this.rabbitMqService.send(route.service, route.pattern, {
+          ...event.payload,
+          eventId: event.id,
+        });
 
         await this.outboxEventRepository.update(event.id, {
           status: OutboxStatus.SENT,
           sentAt: new Date(),
+          retryCount: 0,
+          errorMessage: undefined,
         });
       } catch (error) {
-        console.error(`Failed to publish event ${event.id}`, error);
         await this.outboxEventRepository.update(event.id, {
           retryCount: event.retryCount + 1,
           errorMessage: error.message,
+          status: OutboxStatus.FAILED,
         });
       }
     }

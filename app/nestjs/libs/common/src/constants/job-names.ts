@@ -1,3 +1,3 @@
-export const jobNames = {
-  publishOutboxEvent: 'publish-outbox-event',
+export const JobNames = {
+  PUBLISH_OUTBOX_EVENT: 'publish-outbox-event',
 };
