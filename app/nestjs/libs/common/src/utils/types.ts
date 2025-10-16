@@ -49,3 +49,13 @@ export interface GetServerLocationResponse {
 export type ProcessTripRequestDto = {
   tripRequestId: string;
 };
+
+export type FindAvailableDriversResponse = {
+  count: number;
+  drivers: {
+    driverId: string;
+    lat: number;
+    lng: number;
+    distanceKm: number;
+  }[];
+};

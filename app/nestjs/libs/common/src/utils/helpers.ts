@@ -58,3 +58,18 @@ export function formatCurrencyVND(amount: number): string {
   if (isNaN(amount)) return '0 VNĐ';
   return `${amount.toLocaleString('vi-VN')} VNĐ`;
 }
+
+export const buildSearchPrefixes = (lat: number, lng: number, radiusKm: number, prefixLen = 5): string[] => {
+  const earthRadiusKm = 6371;
+  const dLat = (radiusKm / earthRadiusKm) * (180 / Math.PI);
+  const dLng =
+    (radiusKm / earthRadiusKm) * (180 / Math.PI) / Math.cos((lat * Math.PI) / 180);
+
+  const minLat = lat - dLat;
+  const maxLat = lat + dLat;
+  const minLng = lng - dLng;
+  const maxLng = lng + dLng;
+
+  const boxes = ngeohash.bboxes(minLat, minLng, maxLat, maxLng, prefixLen);
+  return Array.from(new Set(boxes.map((gh) => gh.substring(0, prefixLen))));
+}
