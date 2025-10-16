@@ -10,6 +10,7 @@ import {
   DriverLocationSchema,
   DriverSchema,
   DriverStatusSchema,
+  ProcessedEventSchema,
   VehicleSchema,
 } from './models';
 
@@ -69,9 +70,16 @@ import {
           tableName: 'driver_location',
         },
       },
+      {
+        name: 'ProcessedEvent',
+        schema: ProcessedEventSchema,
+        options: {
+          tableName: 'processed_event',
+        },
+      },
     ]),
   ],
   controllers: [DriverController],
   providers: [DriverService],
 })
-export class DriverModule { }
+export class DriverModule {}

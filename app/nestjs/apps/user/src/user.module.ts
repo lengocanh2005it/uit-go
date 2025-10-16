@@ -1,10 +1,14 @@
 import { CommonModule } from '@libs/common';
+import { queueNames } from '@libs/common/constants';
+import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { OutbotEventProcessor } from '@user-service/processors';
+import { OutboxEventProducer } from '@user-service/producers';
 import { SnakeNamingStrategy } from 'typeorm-naming-strategies';
 import envConfig from './configs/env.config';
-import { User, UserProfile } from './entities';
+import { OutboxEvent, User, UserProfile } from './entities';
 import { UserController } from './user.controller';
 import { UserService } from './user.service';
 
@@ -14,7 +18,7 @@ import { UserService } from './user.service';
       isGlobal: true,
       load: [envConfig],
     }),
-    TypeOrmModule.forFeature([User, UserProfile]),
+    TypeOrmModule.forFeature([User, UserProfile, OutboxEvent]),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -25,16 +29,19 @@ import { UserService } from './user.service';
         username: configService.get<string>('database.username', 'user'),
         password: configService.get<string>('database.password', 'password'),
         database: configService.get<string>('database.name', 'user_db'),
-        entities: [User, UserProfile],
+        entities: [User, UserProfile, OutboxEvent],
         synchronize: true,
         autoLoadEntities: true,
         logging: false,
         namingStrategy: new SnakeNamingStrategy(),
       }),
     }),
+    BullModule.registerQueue({
+      name: queueNames.outboxEvent,
+    }),
     CommonModule,
   ],
   controllers: [UserController],
-  providers: [UserService],
+  providers: [UserService, OutbotEventProcessor, OutboxEventProducer],
 })
 export class UserModule {}

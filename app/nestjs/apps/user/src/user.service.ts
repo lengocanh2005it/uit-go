@@ -9,12 +9,13 @@ import { RabbitMQService } from '@libs/common/rabbitmq/rabbitmq.service';
 import {
   BadRequestException,
   Injectable,
+  InternalServerErrorException,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { InjectRepository } from '@nestjs/typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import {
   CreateUserDto,
   LoginUserDto,
@@ -24,8 +25,11 @@ import { UserRole } from '@user-service/enums';
 import * as bcrypt from 'bcryptjs';
 import { omit } from 'lodash';
 import { ObjectType } from 'nestjs-dynamoose';
-import { Repository } from 'typeorm';
-import { User, UserProfile } from './entities';
+import { DataSource, EntityManager, Repository } from 'typeorm';
+import { OutboxEvent, User, UserProfile } from './entities';
+import { CreateOutboxDto } from '@libs/common/dto';
+import { eventTypes } from '@user-service/constants';
+import { RpcException } from '@nestjs/microservices';
 
 @Injectable()
 export class UserService {
@@ -37,6 +41,7 @@ export class UserService {
     private readonly configService: ConfigService,
     @InjectKongService() private readonly kongService: KongService,
     @InjectRabbitMqService() private readonly rabbitMqService: RabbitMQService,
+    @InjectDataSource() private readonly dataSource: DataSource,
   ) {}
 
   public register = async (createUserDto: CreateUserDto) => {
@@ -67,7 +72,7 @@ export class UserService {
       createDriverDto &&
       Object.keys(createDriverDto)?.length > 0
     ) {
-      this.rabbitMqService.emit(
+      const driverInfo = await this.rabbitMqService.send(
         'DRIVER_SERVICE',
         patterns.driverService.createDriver,
         {
@@ -75,70 +80,80 @@ export class UserService {
           userId: user.id,
         },
       );
+
+      if (!driverInfo)
+        throw new InternalServerErrorException('Driver info created failed.');
     }
     return this.getUser(user.id);
   };
 
   public login = async (loginUserDto: LoginUserDto) => {
-    const { email, password } = loginUserDto;
-    const user = await this.userRepo.findOne({ where: { email } });
-    if (!user) throw new UnauthorizedException('Invalid credentials');
+    return this.dataSource.transaction(async (manager) => {
+      const { email, password } = loginUserDto;
+      const user = await manager
+        .getRepository(User)
+        .findOne({ where: { email } });
+      if (!user) throw new UnauthorizedException('Invalid credentials');
 
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) throw new UnauthorizedException('Invalid credentials');
+      const isMatch = await bcrypt.compare(password, user.password);
+      if (!isMatch) throw new UnauthorizedException('Invalid credentials');
 
-    if (user.role === UserRole.DRIVER) {
-      const driverApproval = await this.rabbitMqService.send(
-        'DRIVER_SERVICE',
-        patterns.driverService.getDriverApprovalStatus,
-        { userId: user.id },
-      );
-
-      if (!driverApproval) {
-        throw new UnauthorizedException(
-          'Driver approval record not found. Please register again.',
-        );
-      }
-
-      if (driverApproval.status !== DriverApprovalStatusEnum.ACCEPTED) {
-        throw new UnauthorizedException(
-          'Your driver account has not been approved yet.',
-        );
-      }
-    }
-
-    const payload: TUserSession = {
-      sub: user.id,
-      role: user.role,
-    };
-
-    const token = await this.jwtService.signAsync(payload, {
-      expiresIn: this.configService.get<string>('jwt_expiration_time', '120s'),
-      secret: this.configService.get<string>('jwt_secret', ''),
-    });
-
-    if (user.role === UserRole.DRIVER) {
-      const driverInfo = await this.rabbitMqService.send(
-        'DRIVER_SERVICE',
-        patterns.driverService.getDriverInfo,
-        {
-          userId: user.id,
-        },
-      );
-
-      if (driverInfo) {
-        this.rabbitMqService.emit(
+      if (user.role === UserRole.DRIVER) {
+        const driverApproval = await this.rabbitMqService.send(
           'DRIVER_SERVICE',
-          patterns.driverService.updateDriverStatus,
+          patterns.driverService.getDriverApprovalStatus,
+          { userId: user.id },
+        );
+
+        if (!driverApproval) {
+          throw new UnauthorizedException(
+            'Driver approval record not found. Please register again.',
+          );
+        }
+
+        if (driverApproval.status !== DriverApprovalStatusEnum.ACCEPTED) {
+          throw new UnauthorizedException(
+            'Your driver account has not been approved yet.',
+          );
+        }
+      }
+
+      const payload: TUserSession = {
+        sub: user.id,
+        role: user.role,
+      };
+
+      const token = await this.jwtService.signAsync(payload, {
+        expiresIn: this.configService.get<string>(
+          'jwt_expiration_time',
+          '120s',
+        ),
+        secret: this.configService.get<string>('jwt_secret', ''),
+      });
+
+      if (user.role === UserRole.DRIVER) {
+        const driverInfo = await this.rabbitMqService.send(
+          'DRIVER_SERVICE',
+          patterns.driverService.getDriverInfo,
+          { userId: user.id },
+        );
+
+        await this.createNewOutbox(
           {
-            driverId: driverInfo.id,
-            status: DriverStatusEnum.ONLINE,
+            eventType: eventTypes.LOGIN,
+            payload: {
+              driverId: driverInfo.driverId,
+              status: DriverStatusEnum.ONLINE,
+            },
+            aggregateId: user.id,
+            aggregateType: 'USER',
           },
+          manager,
         );
       }
-    }
 
-    return { accessToken: token };
+      return { accessToken: token };
+    });
   };
 
   public getUser = async (userId: string) => {
@@ -181,4 +196,13 @@ export class UserService {
     Object.assign(profile, updateProfileDto);
     return this.profileRepo.save(profile);
   }
+
+  private createNewOutbox = async (
+    createOutboxDto: CreateOutboxDto,
+    manager: EntityManager,
+  ) => {
+    const outboxRepo = manager.getRepository(OutboxEvent);
+    const newOutbox = outboxRepo.create(createOutboxDto);
+    return outboxRepo.save(newOutbox);
+  };
 }

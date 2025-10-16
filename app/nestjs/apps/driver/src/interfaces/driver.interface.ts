@@ -1,5 +1,3 @@
-import { DriverStatusEnum } from '@libs/common/enums';
-
 export interface DriverKey {
   driverId: string;
 }
