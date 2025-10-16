@@ -19,6 +19,7 @@ import {
 } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
 import { TripService } from './trip.service';
+import { EstimateFareDto } from '@trip-service/dto';
 
 @Controller('trips')
 export class TripController {
@@ -71,5 +72,10 @@ export class TripController {
       driverId,
       getTripsOfDriverQueryDto,
     );
+  }
+
+  @Post('estimate')
+  async estimateFare(@Body() estimateFareDto: EstimateFareDto) {
+    return this.tripService.estimateFare(estimateFareDto);
   }
 }

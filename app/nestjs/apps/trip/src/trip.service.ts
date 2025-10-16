@@ -1,5 +1,7 @@
+import { EstimateFareDto } from '@/trip/src/dto';
 import { TripRequestProducer } from '@/trip/src/producers';
 import { CommonService, ForbiddenTripStatus } from '@libs/common';
+import { AggregateTypes, EventTypes, PATTERNS } from '@libs/common/constants';
 import { InjectRabbitMqService } from '@libs/common/decorators';
 import {
   CreateOutboxDto,
@@ -18,8 +20,6 @@ import { RabbitMQService } from '@libs/common/modules/rabbitmq/rabbitmq.service'
 import {
   FindAvailableDriversResponse,
   formatCurrencyVND,
-  GetEstimateFareResponse,
-  GetGeocodeResponse,
   GetTripsOfDriverResponse,
   SERVICES,
   TUserSession,
@@ -33,7 +33,6 @@ import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, Repository } from 'typeorm';
 import { buildPaginator } from 'typeorm-cursor-pagination';
 import { OutboxEvent, Trip, TripRequest } from './entities';
-import { AggregateTypes, EventTypes, PATTERNS } from '@libs/common/constants';
 
 @Injectable()
 export class TripService {
@@ -332,4 +331,15 @@ export class TripService {
     const newOutbox = outboxRepo.create(createOutboxDto);
     return outboxRepo.save(newOutbox);
   };
+
+  async estimateFare(estimateFareDto: EstimateFareDto) {
+    const { originAddress, destinationAddress } = estimateFareDto;
+    const estimateFare = await this.commonService.getEstimatedFare(
+      originAddress,
+      destinationAddress,
+    );
+    return {
+      estimateFare: formatCurrencyVND(estimateFare),
+    };
+  }
 }
