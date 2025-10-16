@@ -1,10 +1,13 @@
+import { GetDriversApprovalQueryDto } from '@driver-service/dto';
 import { CommonService, type TUserSession } from '@libs/common';
 import { PATTERNS } from '@libs/common/constants';
 import { UserSession } from '@libs/common/decorators';
 import { GetTripsOfDriverQueryDto } from '@libs/common/dto';
-import { UpdateDriverStatusDto } from '@libs/common/dto/driver';
-import { CreateDriverDto } from '@libs/common/dto/driver/create-driver.dto';
-import { UpdateDriverApprovalDto } from '@libs/common/dto/driver/update-driver-approval.dto';
+import {
+  CreateDriverDto,
+  UpdateDriverApprovalDto,
+  UpdateDriverStatusDto,
+} from '@libs/common/dto/driver';
 import { DriverStatusEnum } from '@libs/common/enums';
 import {
   Body,
@@ -138,5 +141,17 @@ export class DriverController {
     @Query('lng', ParseFloatPipe) lng: number,
   ) {
     return this.driverService.findAvailableDrivers(lat, lng);
+  }
+
+  @Get('approval')
+  async getDriversApproval(
+    @Query() getDriversApprovalQueryDto: GetDriversApprovalQueryDto,
+  ) {
+    return this.driverService.getDriversApproval(getDriversApprovalQueryDto);
+  }
+
+  @Get(':id/detail')
+  async getDriverInfoDetailById(@Param('id', ParseUUIDPipe) driverId: string) {
+    return this.driverService.getDriverInfoDetailById(driverId);
   }
 }
