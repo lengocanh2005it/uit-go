@@ -4,6 +4,7 @@ import { UserSession } from '@libs/common/decorators';
 import {
   CreateTripDto,
   GetTripsOfDriverQueryDto,
+  UpdateOutboxEventDto,
   UpdateTripDto,
   UpdateTripRequestStatusDto,
 } from '@libs/common/dto';
@@ -17,7 +18,13 @@ import {
   Patch,
   Post,
 } from '@nestjs/common';
-import { MessagePattern, Payload } from '@nestjs/microservices';
+import {
+  Ctx,
+  EventPattern,
+  MessagePattern,
+  Payload,
+  RmqContext,
+} from '@nestjs/microservices';
 import { TripService } from './trip.service';
 import { EstimateFareDto } from '@trip-service/dto';
 
@@ -77,5 +84,12 @@ export class TripController {
   @Post('estimate')
   async estimateFare(@Body() estimateFareDto: EstimateFareDto) {
     return this.tripService.estimateFare(estimateFareDto);
+  }
+
+  @EventPattern(PATTERNS.TRIP_SERVICE.UPDATE_OUTBOX)
+  async updateOutboxEvent(
+    @Payload() updateOutboxEventDto: UpdateOutboxEventDto,
+  ) {
+    await this.tripService.updateOutboxEvent(updateOutboxEventDto);
   }
 }

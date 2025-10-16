@@ -27,11 +27,7 @@ export class RabbitMQService {
     data: any,
   ): Promise<void> {
     const client = this.getClient(service);
-    try {
-      await firstValueFrom(client.emit<T>(pattern, data));
-    } catch (error) {
-      throw new Error(`Failed to emit message to ${service}: ${error.message}`);
-    }
+    client.emit<T>(pattern, data);
   }
 
   private getClient(service: ServiceName): ClientProxy {

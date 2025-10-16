@@ -12,7 +12,7 @@ services:
         strip_path: false
       - name: user-service-slug-route
         paths:
-          - ~/users/(?!sign-up$|sign-in$)[^/]+
+          - ~/users/(?!sign-up$|sign-in$)[^/]+$
         plugins:
           - name: jwt
             config:
