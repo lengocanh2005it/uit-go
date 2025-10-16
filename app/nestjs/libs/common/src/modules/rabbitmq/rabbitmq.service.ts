@@ -1,0 +1,49 @@
+import { sendWithTimeout, ServiceName, SERVICES } from '@libs/common/utils';
+import { Injectable, Inject } from '@nestjs/common';
+import { ClientProxy } from '@nestjs/microservices';
+import { firstValueFrom } from 'rxjs';
+
+@Injectable()
+export class RabbitMQService {
+  constructor(
+    @Inject(SERVICES.USER_SERVICE) private readonly userClient: ClientProxy,
+    @Inject(SERVICES.TRIP_SERVICE) private readonly tripClient: ClientProxy,
+    @Inject(SERVICES.DRIVER_SERVICE) private readonly driverClient: ClientProxy,
+  ) {}
+
+  public send<T = any>(
+    service: ServiceName,
+    pattern: string,
+    data: any,
+    ms?: number,
+  ) {
+    const client = this.getClient(service);
+    return sendWithTimeout<T>(client, pattern, data, ms);
+  }
+
+  public async emit<T = any>(
+    service: ServiceName,
+    pattern: string,
+    data: any,
+  ): Promise<void> {
+    const client = this.getClient(service);
+    try {
+      await firstValueFrom(client.emit<T>(pattern, data));
+    } catch (error) {
+      throw new Error(`Failed to emit message to ${service}: ${error.message}`);
+    }
+  }
+
+  private getClient(service: ServiceName): ClientProxy {
+    switch (service) {
+      case SERVICES.USER_SERVICE:
+        return this.userClient;
+      case SERVICES.TRIP_SERVICE:
+        return this.tripClient;
+      case SERVICES.DRIVER_SERVICE:
+        return this.driverClient;
+      default:
+        throw new Error(`Unknown service ${service}`);
+    }
+  }
+}

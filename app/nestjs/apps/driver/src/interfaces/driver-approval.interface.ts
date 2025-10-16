@@ -1,4 +1,4 @@
-import { DriverApprovalStatusEnum } from "@libs/common/enums";
+import { DriverApprovalStatusEnum } from '@libs/common/enums';
 
 export interface DriverApprovalKey {
   driverApprovalId: string;
