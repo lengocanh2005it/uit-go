@@ -1,5 +1,4 @@
 import { CommonModule } from '@libs/common';
-import { queueNames } from '@libs/common/constants';
 import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -11,6 +10,7 @@ import envConfig from './configs/env.config';
 import { OutboxEvent, User, UserProfile } from './entities';
 import { UserController } from './user.controller';
 import { UserService } from './user.service';
+import { QueueNames } from '@libs/common/constants';
 
 @Module({
   imports: [
@@ -37,7 +37,7 @@ import { UserService } from './user.service';
       }),
     }),
     BullModule.registerQueue({
-      name: queueNames.outboxEvent,
+      name: QueueNames.OUTBOX_EVENT_QUEUE,
     }),
     CommonModule,
   ],

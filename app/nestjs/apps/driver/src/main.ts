@@ -1,4 +1,4 @@
-import { generateRmqOptions } from '@libs/common';
+import { generateRmqOptions, SERVICES } from '@libs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { MicroserviceOptions } from '@nestjs/microservices';
@@ -17,7 +17,7 @@ async function bootstrap() {
   const configService = app.get(ConfigService);
   const PORT = configService.get<number>('port', 3003);
   app.connectMicroservice<MicroserviceOptions>(
-    generateRmqOptions('driver_service', configService),
+    generateRmqOptions(SERVICES.DRIVER_SERVICE.toLowerCase(), configService),
   );
   await app.startAllMicroservices();
   await app.listen(PORT, () => {

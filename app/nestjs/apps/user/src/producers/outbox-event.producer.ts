@@ -1,4 +1,4 @@
-import { jobNames, queueNames } from '@libs/common/constants';
+import { JobNames, QueueNames } from '@libs/common/constants';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Injectable } from '@nestjs/common';
 import { Queue } from 'bullmq';
@@ -6,11 +6,11 @@ import { Queue } from 'bullmq';
 @Injectable()
 export class OutboxEventProducer {
   constructor(
-    @InjectQueue(queueNames.outboxEvent)
+    @InjectQueue(QueueNames.OUTBOX_EVENT_QUEUE)
     private readonly outboxEventQueue: Queue,
   ) {
     this.outboxEventQueue.add(
-      jobNames.publishOutboxEvent,
+      JobNames.PUBLISH_OUTBOX_EVENT,
       {},
       {
         repeat: {

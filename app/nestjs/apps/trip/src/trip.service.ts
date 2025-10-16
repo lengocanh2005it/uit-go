@@ -2,6 +2,7 @@ import { TripRequestProducer } from '@/trip/src/producers';
 import { CommonService, ForbiddenTripStatus } from '@libs/common';
 import { InjectRabbitMqService } from '@libs/common/decorators';
 import {
+  CreateOutboxDto,
   CreateTripDto,
   CreateTripRequestDto,
   GetTripsOfDriverQueryDto,
@@ -13,14 +14,14 @@ import {
   TripRequestStatusEnum,
   TripStatusEnum,
 } from '@libs/common/enums';
-import { RabbitMQService } from '@libs/common/rabbitmq/rabbitmq.service';
+import { RabbitMQService } from '@libs/common/modules/rabbitmq/rabbitmq.service';
 import {
   FindAvailableDriversResponse,
   formatCurrencyVND,
   GetEstimateFareResponse,
   GetGeocodeResponse,
   GetTripsOfDriverResponse,
-  patterns,
+  SERVICES,
   TUserSession,
 } from '@libs/common/utils';
 import {
@@ -28,10 +29,11 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
+import { DataSource, EntityManager, Repository } from 'typeorm';
 import { buildPaginator } from 'typeorm-cursor-pagination';
-import { Trip, TripRequest } from './entities';
+import { OutboxEvent, Trip, TripRequest } from './entities';
+import { AggregateTypes, EventTypes, PATTERNS } from '@libs/common/constants';
 
 @Injectable()
 export class TripService {
@@ -42,6 +44,7 @@ export class TripService {
     @InjectRabbitMqService() private readonly rabbitMqService: RabbitMQService,
     private readonly tripRequestProducer: TripRequestProducer,
     private readonly commonService: CommonService,
+    @InjectDataSource() private readonly dataSource: DataSource,
   ) {}
 
   public getTrip = async (tripId: string) => {
@@ -61,14 +64,15 @@ export class TripService {
     const destinationAddressGeoCode =
       await this.commonService.getCoordinates(destinationAddress);
 
-    const availableDrivers = await this.rabbitMqService.send<FindAvailableDriversResponse>(
-      'DRIVER_SERVICE',
-      patterns.driverService.findAvailableDriver,
-      {
-        lat: originAddressGeoCode?.lat ?? 0,
-        lng: originAddressGeoCode?.lon ?? 0,
-      }
-    );
+    const availableDrivers =
+      await this.rabbitMqService.send<FindAvailableDriversResponse>(
+        SERVICES.DRIVER_SERVICE,
+        PATTERNS.DRIVER_SERVICE.FIND_AVAILABLE,
+        {
+          lat: originAddressGeoCode?.lat ?? 0,
+          lng: originAddressGeoCode?.lon ?? 0,
+        },
+      );
 
     if (availableDrivers.count === 0) {
       throw new NotFoundException('No available drivers found nearby.');
@@ -145,78 +149,72 @@ export class TripService {
   };
 
   public updateTrip = async (tripId: string, updateTripDto: UpdateTripDto) => {
-    const trip = await this.tripRepository.findOne({
-      where: {
-        id: tripId,
-      },
-    });
-
-    if (!trip) throw new NotFoundException('Trip not found.');
-
-    const { destinationAddress, status, note, fareFinal } = updateTripDto;
-
-    if (
-      trip.status === TripStatusEnum.CANCELLED ||
-      trip.status === TripStatusEnum.COMPLETED
-    )
-      throw new ForbiddenException(
-        `Trip has been ${trip.status === TripStatusEnum.CANCELLED ? 'cancelled' : 'completed'} and cannot be modified.`,
-      );
-
-    if (trip.status === TripStatusEnum.ONGOING && destinationAddress) {
-      throw new ForbiddenException(
-        'Destination address cannot be changed while the trip is ongoing.',
-      );
-    }
-
-    if (destinationAddress) {
-      const newDestAddressGeocode =
-        await this.rabbitMqService.send<GetGeocodeResponse | null>(
-          'DRIVER_SERVICE',
-          'get-geocode',
-          {
-            address: destinationAddress,
-          },
-        );
-
-      trip.destinationLat =
-        newDestAddressGeocode?.latitude || trip.destinationLat;
-      trip.destinationLng =
-        newDestAddressGeocode?.longitude || trip.destinationLng;
-
-      const newEstimateFare =
-        await this.rabbitMqService.send<GetEstimateFareResponse>(
-          'DRIVER_SERVICE',
-          'get-estimate-fare',
-          {
-            startAddress: trip.originAddress,
-            destinationAddress,
-          },
-        );
-
-      trip.fareEstimate = newEstimateFare.estimatedFare || trip.fareEstimate;
-      trip.fareFinal = newEstimateFare.estimatedFare || trip.fareEstimate;
-    }
-
-    trip.status = status || trip.status;
-    trip.note = note || trip.note;
-    trip.destinationAddress = destinationAddress || trip.destinationAddress;
-    if (!destinationAddress) trip.fareFinal = fareFinal || trip.fareFinal;
-
-    await this.tripRepository.save(trip);
-
-    if (status === TripStatusEnum.COMPLETED) {
-      this.rabbitMqService.emit(
-        'DRIVER_SERVICE',
-        patterns.driverService.updateDriverStatus,
-        {
-          driverId: trip.driverId,
-          status: DriverStatusEnum.ONLINE,
+    return this.dataSource.transaction(async (manager) => {
+      const tripRepo = manager.getRepository(Trip);
+      const trip = await tripRepo.findOne({
+        where: {
+          id: tripId,
         },
-      );
-    }
+      });
 
-    return trip;
+      if (!trip) throw new NotFoundException('Trip not found.');
+
+      const { destinationAddress, status, note, fareFinal } = updateTripDto;
+
+      if (
+        trip.status === TripStatusEnum.CANCELLED ||
+        trip.status === TripStatusEnum.COMPLETED
+      )
+        throw new ForbiddenException(
+          `Trip has been ${trip.status === TripStatusEnum.CANCELLED ? 'cancelled' : 'completed'} and cannot be modified.`,
+        );
+
+      if (trip.status === TripStatusEnum.ONGOING && destinationAddress) {
+        throw new ForbiddenException(
+          'Destination address cannot be changed while the trip is ongoing.',
+        );
+      }
+
+      if (destinationAddress) {
+        const { lat, lon } =
+          await this.commonService.getCoordinates(destinationAddress);
+
+        trip.destinationLat = lat || trip.destinationLat;
+        trip.destinationLng = lon || trip.destinationLng;
+
+        const newEstimateFare = await this.commonService.getEstimatedFare(
+          trip.originAddress,
+          destinationAddress,
+        );
+
+        trip.fareEstimate = newEstimateFare || trip.fareEstimate;
+        trip.fareFinal = newEstimateFare || trip.fareEstimate;
+      }
+
+      trip.status = status || trip.status;
+      trip.note = note || trip.note;
+      trip.destinationAddress = destinationAddress || trip.destinationAddress;
+      if (!destinationAddress) trip.fareFinal = fareFinal || trip.fareFinal;
+
+      await this.tripRepository.save(trip);
+
+      if (status === TripStatusEnum.COMPLETED) {
+        await this.createNewOutboxEvent(
+          {
+            eventType: EventTypes.UPDATE_DRIVER_STATUS,
+            payload: {
+              driverId: trip.driverId,
+              status: DriverStatusEnum.ONLINE,
+            },
+            aggregateId: tripId,
+            aggregateType: AggregateTypes.TRIP,
+          },
+          manager,
+        );
+      }
+
+      return trip;
+    });
   };
 
   public cancelTrip = async (tripId: string) => {
@@ -243,30 +241,37 @@ export class TripService {
     tripRequestId: string,
     updateTripRequestStatusDto: UpdateTripRequestStatusDto,
   ) => {
-    const tripRequest = await this.tripRequestRepository.findOne({
-      where: {
-        id: tripRequestId,
-      },
-      relations: {
-        trip: true,
-      },
-    });
-
-    if (!tripRequest) throw new NotFoundException('Trip request not found.');
-
-    const { status } = updateTripRequestStatusDto;
-    tripRequest.status = status;
-    await this.tripRequestRepository.save(tripRequest);
-    if (status === TripRequestStatusEnum.ACCEPTED) {
-      this.rabbitMqService.emit(
-        'DRIVER_SERVICE',
-        patterns.driverService.updateDriverStatus,
-        {
-          driverId: tripRequest.trip.id,
-          status: DriverStatusEnum.BUSY,
+    return this.dataSource.transaction(async (manager) => {
+      const tripRequestRepo = manager.getRepository(TripRequest);
+      const tripRequest = await tripRequestRepo.findOne({
+        where: {
+          id: tripRequestId,
         },
-      );
-    }
+        relations: {
+          trip: true,
+        },
+      });
+
+      if (!tripRequest) throw new NotFoundException('Trip request not found.');
+
+      const { status } = updateTripRequestStatusDto;
+      tripRequest.status = status;
+      await tripRequestRepo.save(tripRequest);
+      if (status === TripRequestStatusEnum.ACCEPTED) {
+        await this.createNewOutboxEvent(
+          {
+            eventType: EventTypes.UPDATE_DRIVER_STATUS,
+            payload: {
+              driverId: tripRequest.trip.driverId,
+              status: DriverStatusEnum.BUSY,
+            },
+            aggregateId: tripRequest.id,
+            aggregateType: AggregateTypes.TRIP,
+          },
+          manager,
+        );
+      }
+    });
   };
 
   public getTripsOfDriver = async (
@@ -317,5 +322,14 @@ export class TripService {
     if (!trip) throw new NotFoundException('Trip not found.');
 
     return trip;
+  };
+
+  private createNewOutboxEvent = async (
+    createOutboxDto: CreateOutboxDto,
+    manager: EntityManager,
+  ) => {
+    const outboxRepo = manager.getRepository(OutboxEvent);
+    const newOutbox = outboxRepo.create(createOutboxDto);
+    return outboxRepo.save(newOutbox);
   };
 }

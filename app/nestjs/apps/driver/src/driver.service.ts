@@ -17,16 +17,17 @@ import {
   buildSearchPrefixes,
   CommonService,
   FindAvailableDriversResponse,
-  patterns,
+  SERVICES,
   type GetTripsOfDriverResponse,
   type TUserSession,
 } from '@libs/common';
+import { PATTERNS } from '@libs/common/constants';
 import { InjectRabbitMqService } from '@libs/common/decorators';
 import { GetTripsOfDriverQueryDto } from '@libs/common/dto';
 import { CreateDriverDto } from '@libs/common/dto/driver/create-driver.dto';
 import { UpdateDriverApprovalDto } from '@libs/common/dto/driver/update-driver-approval.dto';
 import { DriverApprovalStatusEnum, DriverStatusEnum } from '@libs/common/enums';
-import { RabbitMQService } from '@libs/common/rabbitmq/rabbitmq.service';
+import { RabbitMQService } from '@libs/common/modules/rabbitmq/rabbitmq.service';
 import {
   BadRequestException,
   ForbiddenException,
@@ -79,8 +80,8 @@ export class DriverService {
       throw new ForbiddenException('You can only view your own trip list.');
 
     return this.rabbitMqService.send<GetTripsOfDriverResponse>(
-      'TRIP_SERVICE',
-      patterns.driverService.getTripsOfDriverPattern,
+      SERVICES.DRIVER_SERVICE,
+      PATTERNS.DRIVER_SERVICE.GET_TRIPS,
       {
         getTripsOfDriverQueryDto,
         driverId,

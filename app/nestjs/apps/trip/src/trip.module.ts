@@ -1,17 +1,17 @@
 import { TripRequestProcessor } from '@/trip/src/processors';
 import { TripRequestProducer } from '@/trip/src/producers';
 import { CommonModule } from '@libs/common';
+import { QueueNames } from '@libs/common/constants';
 import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { QueueNamesOfTripService } from '@trip-service/constants';
 import { SnakeNamingStrategy } from 'typeorm-naming-strategies';
 import envConfig from './configs/env.config';
 import { OutboxEvent, Trip, TripRating, TripRequest } from './entities';
 import { TripController } from './trip.controller';
 import { TripService } from './trip.service';
-import { queueNamesOfTripService } from '@trip-service/constants';
-import { queueNames } from '@libs/common/constants';
 
 @Module({
   imports: [
@@ -40,10 +40,10 @@ import { queueNames } from '@libs/common/constants';
     CommonModule,
     BullModule.registerQueue(
       {
-        name: queueNamesOfTripService.tripRequest,
+        name: QueueNamesOfTripService.tripRequest,
       },
       {
-        name: queueNames.outboxEvent,
+        name: QueueNames.OUTBOX_EVENT_QUEUE,
       },
     ),
   ],

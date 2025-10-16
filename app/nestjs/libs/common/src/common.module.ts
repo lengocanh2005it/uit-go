@@ -4,9 +4,9 @@ import { Global, Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { CommonService } from './common.service';
-import { KongModule } from './kong/kong.module';
-import { RabbitMQModule } from './rabbitmq/rabbitmq.module';
-import { RedisModule } from './redis/redis.module';
+import { KongModule } from './modules/kong/kong.module';
+import { RabbitMQModule } from './modules/rabbitmq/rabbitmq.module';
+import { RedisModule } from './modules/redis/redis.module';
 
 @Global()
 @Module({

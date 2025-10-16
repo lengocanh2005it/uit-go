@@ -4,11 +4,11 @@ import { TripRequestStatusEnum, TripStatusEnum } from '@libs/common/enums';
 import { OnWorkerEvent, Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { queueNamesOfTripService } from '@trip-service/constants';
+import { QueueNamesOfTripService } from '@trip-service/constants';
 import { Job } from 'bullmq';
 import { Repository } from 'typeorm';
 
-@Processor(queueNamesOfTripService.tripRequest)
+@Processor(QueueNamesOfTripService.tripRequest)
 export class TripRequestProcessor extends WorkerHost {
   private readonly logger = new Logger(TripRequestProcessor.name);
   constructor(

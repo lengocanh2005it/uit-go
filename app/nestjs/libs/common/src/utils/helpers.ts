@@ -25,6 +25,7 @@ export function generateRmqOptions(
       urls: [url],
       queue: `${serviceName.toLowerCase()}_queue`,
       queueOptions: { durable: true },
+      noAck: false,
     },
   };
 }
@@ -59,11 +60,17 @@ export function formatCurrencyVND(amount: number): string {
   return `${amount.toLocaleString('vi-VN')} VNĐ`;
 }
 
-export const buildSearchPrefixes = (lat: number, lng: number, radiusKm: number, prefixLen = 5): string[] => {
+export const buildSearchPrefixes = (
+  lat: number,
+  lng: number,
+  radiusKm: number,
+  prefixLen = 5,
+): string[] => {
   const earthRadiusKm = 6371;
   const dLat = (radiusKm / earthRadiusKm) * (180 / Math.PI);
   const dLng =
-    (radiusKm / earthRadiusKm) * (180 / Math.PI) / Math.cos((lat * Math.PI) / 180);
+    ((radiusKm / earthRadiusKm) * (180 / Math.PI)) /
+    Math.cos((lat * Math.PI) / 180);
 
   const minLat = lat - dLat;
   const maxLat = lat + dLat;
@@ -72,4 +79,4 @@ export const buildSearchPrefixes = (lat: number, lng: number, radiusKm: number, 
 
   const boxes = ngeohash.bboxes(minLat, minLng, maxLat, maxLng, prefixLen);
   return Array.from(new Set(boxes.map((gh) => gh.substring(0, prefixLen))));
-}
+};
