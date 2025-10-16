@@ -1,3 +1,5 @@
+import { PATTERNS } from '@libs/common/constants';
+
 export const RABBITMQ_SERVCE_TOKEN = Symbol('RABBITMQ_SERVICE');
 export const REDIS_SERVICE_TOKEN = Symbol('REDIS_SERVICE');
 export const KONG_SERVICE_TOKEN = Symbol('KONG_SERVICE');
@@ -15,3 +17,8 @@ export const SERVICES = RABBITMQ_QUEUE_SERVICES.reduce(
   },
   {} as Record<ServiceName, ServiceName>,
 );
+export const UPDATE_OUTBOX_PATTERNS: Record<string, string> = {
+  DRIVER_SERVICE: PATTERNS.DRIVER_SERVICE.UPDATE_OUTBOX,
+  TRIP_SERVICE: PATTERNS.TRIP_SERVICE.UPDATE_OUTBOX,
+  USER_SERVICE: PATTERNS.USER_SERVICE.UPDATE_OUTBOX,
+};
