@@ -17,7 +17,7 @@ import {
   Put,
   Query,
 } from '@nestjs/common';
-import { EventPattern, MessagePattern, Payload } from '@nestjs/microservices';
+import { MessagePattern, Payload } from '@nestjs/microservices';
 import { DriverService } from './driver.service';
 
 @Controller('drivers')
@@ -27,30 +27,51 @@ export class DriverController {
     private readonly commonService: CommonService,
   ) {}
 
-  @EventPattern(patterns.driverService.updateDriverStatus)
+  @MessagePattern(patterns.driverService.updateDriverStatus)
   async updateDriverStatus(
     @Payload('driverId', ParseUUIDPipe) driverId: string,
     @Payload('status') status: DriverStatusEnum,
+    @Payload('eventId', ParseUUIDPipe) eventId?: string,
   ) {
-    return this.driverService.updateDriverStatus(driverId, status);
+    try {
+      return this.driverService.updateDriverStatus(driverId, status, eventId);
+    } catch (error) {
+      console.error(error);
+    }
   }
 
   @MessagePattern(patterns.driverService.getDriverInfo)
   async getDriverInfo(@Payload('userId', ParseUUIDPipe) userId: string) {
-    return this.driverService.getDriverInfo(userId);
+    try {
+      return this.driverService.getDriverInfo(userId);
+    } catch (error) {
+      console.error(error);
+    }
   }
-  @EventPattern(patterns.driverService.createDriver)
+  @MessagePattern(patterns.driverService.createDriver)
   async handleCreateDriver(
     @Payload('createDriverDto') createDriverDto: CreateDriverDto,
     @Payload('userId', ParseUUIDPipe) userId: string,
   ) {
-    return this.driverService.createDriver(createDriverDto, userId);
+    try {
+      return this.driverService.createDriver(createDriverDto, userId);
+    } catch (error) {
+      console.error(error);
+    }
   }
   @MessagePattern(patterns.driverService.getDriverApprovalStatus)
-  async handleGetDriverApprovalStatus(
-    @Payload('userId', ParseUUIDPipe) userId: string,
-  ) {
-    return this.driverService.getDriverApprovalStatusByUserId(userId);
+  async handleGetDriverApprovalStatus(@Payload() data: { userId: string }) {
+    try {
+      const { userId } = data;
+      if (!userId) {
+        throw new Error('userId is missing');
+      }
+      const driverApproval =
+        await this.driverService.getDriverApprovalStatusByUserId(userId);
+      return driverApproval;
+    } catch (error) {
+      console.error(error);
+    }
   }
 
   @Patch(':id/status')
