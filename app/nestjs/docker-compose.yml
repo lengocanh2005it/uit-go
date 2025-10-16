@@ -66,6 +66,8 @@ services:
       - user-db
       - rabbitmq
       - redis
+      - kong
+      - kong-database
     networks:
       - backend
 
@@ -85,6 +87,8 @@ services:
       - driver-db
       - rabbitmq
       - redis
+      - kong
+      - kong-database
     networks:
       - backend
 
@@ -104,6 +108,8 @@ services:
       - trip-db
       - rabbitmq
       - redis
+      - kong
+      - kong-database
     networks:
       - backend
 

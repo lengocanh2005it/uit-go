@@ -1,2 +1,1 @@
 export * from './outbox-event.producer';
-export * from './trip-requet.producer';
