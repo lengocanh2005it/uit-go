@@ -1,5 +1,10 @@
 import { GetDriversApprovalQueryDto } from '@driver-service/dto';
-import { CommonService, type TUserSession } from '@libs/common';
+import {
+  CommonService,
+  type UpdateDriverStatusMetadata,
+  type ServiceName,
+  type TUserSession,
+} from '@libs/common';
 import { PATTERNS } from '@libs/common/constants';
 import { UserSession } from '@libs/common/decorators';
 import { GetTripsOfDriverQueryDto } from '@libs/common/dto';
@@ -21,7 +26,13 @@ import {
   Put,
   Query,
 } from '@nestjs/common';
-import { MessagePattern, Payload } from '@nestjs/microservices';
+import {
+  Ctx,
+  EventPattern,
+  MessagePattern,
+  Payload,
+  RmqContext,
+} from '@nestjs/microservices';
 import { DriverService } from './driver.service';
 
 @Controller('drivers')
@@ -31,13 +42,13 @@ export class DriverController {
     private readonly commonService: CommonService,
   ) {}
 
-  @MessagePattern(PATTERNS.DRIVER_SERVICE.UPDATE_STATUS)
+  @EventPattern(PATTERNS.DRIVER_SERVICE.UPDATE_STATUS)
   async updateDriverStatus(
     @Payload('driverId', ParseUUIDPipe) driverId: string,
     @Payload('status') status: DriverStatusEnum,
-    @Payload('eventId', ParseUUIDPipe) eventId?: string,
+    @Payload('metadata') metadata: UpdateDriverStatusMetadata,
   ) {
-    return this.driverService.updateDriverStatus(driverId, status, eventId);
+    await this.driverService.updateDriverStatus(driverId, status, metadata);
   }
 
   @MessagePattern(PATTERNS.DRIVER_SERVICE.GET_INFO)
