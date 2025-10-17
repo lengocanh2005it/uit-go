@@ -1,9 +1,6 @@
 import type { TUserSession } from '@libs/common';
-import { PATTERNS } from '@libs/common/constants';
 import { UserSession } from '@libs/common/decorators';
-import { UpdateOutboxEventDto } from '@libs/common/dto';
 import { Body, Controller, Get, Param, Post, Put } from '@nestjs/common';
-import { Ctx, EventPattern, Payload, RmqContext } from '@nestjs/microservices';
 import {
   CreateUserDto,
   LoginUserDto,
@@ -36,12 +33,5 @@ export class UserController {
     @Body() updateProfileDto: UpdateProfileDto,
   ) {
     return this.userService.updateProfile(id, updateProfileDto);
-  }
-
-  @EventPattern(PATTERNS.USER_SERVICE.UPDATE_OUTBOX)
-  async updateOutboxEvent(
-    @Payload() updateOutboxEventDto: UpdateOutboxEventDto,
-  ) {
-    await this.userService.updateOutboxEvent(updateOutboxEventDto);
   }
 }

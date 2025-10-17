@@ -60,10 +60,3 @@ export type FindAvailableDriversResponse = {
     distanceKm: number;
   }[];
 };
-
-export type UpdateDriverStatusMetadata = {
-  serviceName: ServiceName;
-  eventId: string;
-  retryCount: number;
-  errorMessage?: string;
-};
