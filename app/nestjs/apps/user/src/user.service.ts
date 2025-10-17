@@ -4,7 +4,7 @@ import {
   InjectKongService,
   InjectRabbitMqService,
 } from '@libs/common/decorators';
-import { CreateOutboxDto, UpdateOutboxEventDto } from '@libs/common/dto';
+import { CreateOutboxDto } from '@libs/common/dto';
 import { DriverApprovalStatusEnum, DriverStatusEnum } from '@libs/common/enums';
 import { KongService } from '@libs/common/modules/kong/kong.service';
 import { RabbitMQService } from '@libs/common/modules/rabbitmq/rabbitmq.service';
@@ -41,8 +41,6 @@ export class UserService {
     @InjectKongService() private readonly kongService: KongService,
     @InjectRabbitMqService() private readonly rabbitMqService: RabbitMQService,
     @InjectDataSource() private readonly dataSource: DataSource,
-    @InjectRepository(OutboxEvent)
-    private readonly outboxEventRepository: Repository<OutboxEvent>,
   ) {}
 
   public register = async (createUserDto: CreateUserDto) => {
@@ -206,21 +204,4 @@ export class UserService {
     const newOutbox = outboxRepo.create(createOutboxDto);
     return outboxRepo.save(newOutbox);
   };
-
-  async updateOutboxEvent(updateOutboxEventDto: UpdateOutboxEventDto) {
-    const { eventId, status, retryCount, errorMessage } = updateOutboxEventDto;
-
-    const outboxEvent = await this.outboxEventRepository.findOne({
-      where: {
-        id: eventId,
-      },
-    });
-
-    if (!outboxEvent) return;
-
-    outboxEvent.status = status || outboxEvent.status;
-    outboxEvent.retryCount = retryCount || outboxEvent.retryCount;
-    outboxEvent.errorMessage = errorMessage;
-    await this.outboxEventRepository.save(outboxEvent);
-  }
 }

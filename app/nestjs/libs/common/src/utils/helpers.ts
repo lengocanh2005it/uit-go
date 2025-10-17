@@ -24,7 +24,7 @@ export function generateRmqOptions(
     options: {
       urls: [url],
       queue: `${serviceName.toLowerCase()}_queue`,
-      queueOptions: { durable: true },
+      queueOptions: { durable: true, deadLetterExchange: 'dlx_exchange' },
     },
   };
 }

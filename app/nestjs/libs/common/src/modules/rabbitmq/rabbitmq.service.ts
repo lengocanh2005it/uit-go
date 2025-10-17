@@ -1,7 +1,7 @@
 import { sendWithTimeout, ServiceName, SERVICES } from '@libs/common/utils';
-import { Injectable, Inject } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
-import { firstValueFrom } from 'rxjs';
+import { Observable } from 'rxjs';
 
 @Injectable()
 export class RabbitMQService {
@@ -21,13 +21,13 @@ export class RabbitMQService {
     return sendWithTimeout<T>(client, pattern, data, ms);
   }
 
-  public async emit<T = any>(
+  public emit<T = any>(
     service: ServiceName,
     pattern: string,
-    data: any,
-  ): Promise<void> {
+    data: Record<string, any>,
+  ): Observable<T> {
     const client = this.getClient(service);
-    client.emit<T>(pattern, data);
+    return client.emit<T>(pattern, data);
   }
 
   private getClient(service: ServiceName): ClientProxy {

@@ -8,7 +8,6 @@ import {
   CreateTripDto,
   CreateTripRequestDto,
   GetTripsOfDriverQueryDto,
-  UpdateOutboxEventDto,
   UpdateTripDto,
   UpdateTripRequestStatusDto,
 } from '@libs/common/dto';
@@ -45,8 +44,6 @@ export class TripService {
     private readonly tripRequestProducer: TripRequestProducer,
     private readonly commonService: CommonService,
     @InjectDataSource() private readonly dataSource: DataSource,
-    @InjectRepository(OutboxEvent)
-    private readonly outboxEventRepository: Repository<OutboxEvent>,
   ) {}
 
   public getTrip = async (tripId: string) => {
@@ -344,22 +341,5 @@ export class TripService {
     return {
       estimateFare: formatCurrencyVND(estimateFare),
     };
-  }
-
-  async updateOutboxEvent(updateOutboxEventDto: UpdateOutboxEventDto) {
-    const { eventId, status, retryCount, errorMessage } = updateOutboxEventDto;
-
-    const outboxEvent = await this.outboxEventRepository.findOne({
-      where: {
-        id: eventId,
-      },
-    });
-
-    if (!outboxEvent) return;
-
-    outboxEvent.status = status || outboxEvent.status;
-    outboxEvent.retryCount = retryCount || outboxEvent.retryCount;
-    outboxEvent.errorMessage = errorMessage;
-    await this.outboxEventRepository.save(outboxEvent);
   }
 }
