@@ -1,0 +1,12 @@
+variable "container_name" { type = string }
+variable "container_image" { type = string }
+variable "container_port" { type = number }
+variable "environment" { type = string }
+variable "cluster_id" { type = string }
+variable "task_role_arn" { type = string }
+variable "subnet_ids" { type = list(string) }
+variable "security_group_ids" { type = list(string) }
+variable "desired_count" { type = number }
+variable "redis_endpoint" { type = string }
+variable "rabbitmq_host" { type = string }
+variable "kong_ip" { type = string }
