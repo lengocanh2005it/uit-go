@@ -27,6 +27,7 @@ import { InjectRabbitMqService } from '@libs/common/decorators';
 import { GetTripsOfDriverQueryDto } from '@libs/common/dto';
 import { CreateDriverDto } from '@libs/common/dto/driver/create-driver.dto';
 import { UpdateDriverApprovalDto } from '@libs/common/dto/driver/update-driver-approval.dto';
+import { UpdateDriverRateDto } from '@libs/common/dto/driver/update-driver-rate.dto';
 import { DriverApprovalStatusEnum, DriverStatusEnum } from '@libs/common/enums';
 import { RabbitMQService } from '@libs/common/modules/rabbitmq/rabbitmq.service';
 import {
@@ -69,7 +70,7 @@ export class DriverService {
     >,
     private readonly configService: ConfigService,
     private readonly commonService: CommonService,
-  ) {}
+  ) { }
 
   async getAllTripsOfDriver(
     userSession: TUserSession,
@@ -508,4 +509,48 @@ export class DriverService {
   async getProcessedEvent(eventId: string) {
     return this.processedEventModel.get({ eventId });
   }
+
+  async handleDriverRatedEvent(updateDriveRateDto: UpdateDriverRateDto) {
+    const { driverId, rating, eventId } = updateDriveRateDto;
+
+    const processed = await this.getProcessedEvent(eventId);
+    if (processed) {
+      this.logger.warn(`Duplicate driver rating event skipped: ${eventId}`);
+      return;
+    }
+
+    const driver = await this.driverModel.get({ driverId });
+    if (!driver) {
+      this.logger.error(`Driver not found: ${driverId}`);
+      throw new NotFoundException('Driver not found.');
+    }
+
+    const driverData = driver.toJSON();
+    const currentRating = driverData.rating ?? 0;
+    const totalTrip = driverData.totalTrip ?? 0;
+
+    const newAverage =
+      totalTrip === 0
+        ? rating
+        : (currentRating * totalTrip + rating) / (totalTrip + 1);
+
+    await this.driverModel.update(
+      { driverId },
+      {
+        rating: Number(newAverage.toFixed(2)),
+        totalTrip: totalTrip + 1,
+        updatedAt: new Date(),
+      },
+    );
+
+    await this.processedEventModel.create({
+      eventId,
+      createdAt: new Date(),
+    });
+
+    this.logger.log(
+      `Updated driver ${driverId} rating: ${newAverage.toFixed(2)} (from ${totalTrip + 1} trips)`,
+    );
+  }
+
 }
