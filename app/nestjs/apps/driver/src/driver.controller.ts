@@ -23,13 +23,14 @@ import {
 } from '@nestjs/common';
 import { EventPattern, MessagePattern, Payload } from '@nestjs/microservices';
 import { DriverService } from './driver.service';
+import { UpdateDriverRateDto } from '@libs/common/dto/driver/update-driver-rate.dto';
 
 @Controller('drivers')
 export class DriverController {
   constructor(
     private readonly driverService: DriverService,
     private readonly commonService: CommonService,
-  ) {}
+  ) { }
 
   @EventPattern(PATTERNS.DRIVER_SERVICE.UPDATE_STATUS)
   async updateDriverStatus(
@@ -38,6 +39,10 @@ export class DriverController {
     @Payload('eventId') eventId: string,
   ) {
     await this.driverService.updateDriverStatus(driverId, status, eventId);
+  }
+  @EventPattern(PATTERNS.DRIVER_SERVICE.UPDATE_RATE)
+  async handleDriverRated(@Payload() updateDriverRateDto: UpdateDriverRateDto) {
+    await this.driverService.handleDriverRatedEvent(updateDriverRateDto);
   }
 
   @MessagePattern(PATTERNS.DRIVER_SERVICE.GET_INFO)
