@@ -6,6 +6,7 @@ import {
   GetTripsOfDriverQueryDto,
   UpdateTripDto,
   UpdateTripRequestStatusDto,
+  CreateTripRatingDto
 } from '@libs/common/dto';
 import {
   Body,
@@ -23,7 +24,7 @@ import { TripService } from './trip.service';
 
 @Controller('trips')
 export class TripController {
-  constructor(private readonly tripService: TripService) {}
+  constructor(private readonly tripService: TripService) { }
 
   @Get(':id')
   async getTrip(@Param('id', ParseUUIDPipe) tripId: string) {
@@ -78,4 +79,13 @@ export class TripController {
   async estimateFare(@Body() estimateFareDto: EstimateFareDto) {
     return this.tripService.estimateFare(estimateFareDto);
   }
+  @Post(':tripId/rating')
+  async rateTrip(
+    @Param('tripId', ParseUUIDPipe) tripId: string,
+    @Body() createTripRatingDto: CreateTripRatingDto,
+    @UserSession() userSession: TUserSession,
+  ) {
+    return this.tripService.rateTrip(tripId, createTripRatingDto, userSession);
+  }
 }
+

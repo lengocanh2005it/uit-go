@@ -2,7 +2,7 @@ import { EstimateFareDto } from '@/trip/src/dto';
 import { TripRequestProducer } from '@/trip/src/producers';
 import { CommonService, ForbiddenTripStatus } from '@libs/common';
 import { AggregateTypes, EventTypes, PATTERNS } from '@libs/common/constants';
-import { InjectRabbitMqService } from '@libs/common/decorators';
+import { InjectRabbitMqService, InjectRedisService } from '@libs/common/decorators';
 import {
   CreateOutboxDto,
   CreateTripDto,
@@ -10,6 +10,7 @@ import {
   GetTripsOfDriverQueryDto,
   UpdateTripDto,
   UpdateTripRequestStatusDto,
+  CreateTripRatingDto
 } from '@libs/common/dto';
 import {
   DriverStatusEnum,
@@ -32,7 +33,7 @@ import {
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, Repository } from 'typeorm';
 import { buildPaginator } from 'typeorm-cursor-pagination';
-import { OutboxEvent, Trip, TripRequest } from './entities';
+import { OutboxEvent, Trip, TripRating, TripRequest } from './entities';
 
 @Injectable()
 export class TripService {
@@ -40,11 +41,13 @@ export class TripService {
     @InjectRepository(Trip) private readonly tripRepository: Repository<Trip>,
     @InjectRepository(TripRequest)
     private readonly tripRequestRepository: Repository<TripRequest>,
+    @InjectRepository(TripRating)
+    private readonly tripRatingRepository: Repository<TripRating>,
     @InjectRabbitMqService() private readonly rabbitMqService: RabbitMQService,
     private readonly tripRequestProducer: TripRequestProducer,
     private readonly commonService: CommonService,
     @InjectDataSource() private readonly dataSource: DataSource,
-  ) {}
+  ) { }
 
   public getTrip = async (tripId: string) => {
     return this.findTripById(tripId);
@@ -342,4 +345,55 @@ export class TripService {
       estimateFare: formatCurrencyVND(estimateFare),
     };
   }
+
+  public async rateTrip(
+    tripId: string,
+    createTripRatingDto: CreateTripRatingDto,
+    userSession: TUserSession,
+  ) {
+    const { sub } = userSession;
+    const { rating, comment } = createTripRatingDto;
+
+    const trip = await this.tripRepository.findOne({
+      where: { id: tripId },
+      relations: ['rating'],
+    });
+
+    if (!trip) throw new NotFoundException('Trip not found.');
+    if (trip.passengerId !== sub)
+      throw new ForbiddenException('You are not the passenger of this trip.');
+    if (trip.status !== TripStatusEnum.COMPLETED)
+      throw new ForbiddenException('You can only rate a completed trip.');
+    if (trip.rating)
+      throw new ForbiddenException('Trip has already been rated.');
+
+    const tripRating = this.tripRatingRepository.create({
+      rating,
+      comment,
+      trip,
+      reviewerId: sub,
+    });
+    await this.tripRatingRepository.save(tripRating);
+
+    await this.rabbitMqService.emit(SERVICES.DRIVER_SERVICE, PATTERNS.DRIVER_SERVICE.UPDATE_RATE, {
+      driverId: trip.driverId,
+      rating,
+      tripId: trip.id,
+      reviewerId: sub,
+      comment,
+      eventId: crypto.randomUUID()
+    });
+
+    return {
+      success: true,
+      message: 'Trip rated successfully.',
+      data: {
+        tripId: trip.id,
+        driverId: trip.driverId,
+        rating,
+        comment,
+      },
+    };
+  }
+
 }
