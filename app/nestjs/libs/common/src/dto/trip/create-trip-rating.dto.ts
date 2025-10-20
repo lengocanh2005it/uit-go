@@ -1,11 +1,11 @@
 import { IsInt, IsString, Max, Min } from 'class-validator';
 
 export class CreateTripRatingDto {
-    @IsInt()
-    @Min(1)
-    @Max(5)
-    rating: number;
+  @IsInt()
+  @Min(1)
+  @Max(5)
+  rating: number;
 
-    @IsString()
-    comment: string;
+  @IsString()
+  comment: string;
 }

@@ -30,7 +30,7 @@ export class DriverController {
   constructor(
     private readonly driverService: DriverService,
     private readonly commonService: CommonService,
-  ) { }
+  ) {}
 
   @EventPattern(PATTERNS.DRIVER_SERVICE.UPDATE_STATUS)
   async updateDriverStatus(

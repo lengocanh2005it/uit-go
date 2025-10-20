@@ -2,7 +2,10 @@ import { EstimateFareDto } from '@/trip/src/dto';
 import { TripRequestProducer } from '@/trip/src/producers';
 import { CommonService, ForbiddenTripStatus } from '@libs/common';
 import { AggregateTypes, EventTypes, PATTERNS } from '@libs/common/constants';
-import { InjectRabbitMqService, InjectRedisService } from '@libs/common/decorators';
+import {
+  InjectRabbitMqService,
+  InjectRedisService,
+} from '@libs/common/decorators';
 import {
   CreateOutboxDto,
   CreateTripDto,
@@ -10,7 +13,7 @@ import {
   GetTripsOfDriverQueryDto,
   UpdateTripDto,
   UpdateTripRequestStatusDto,
-  CreateTripRatingDto
+  CreateTripRatingDto,
 } from '@libs/common/dto';
 import {
   DriverStatusEnum,
@@ -47,7 +50,7 @@ export class TripService {
     private readonly tripRequestProducer: TripRequestProducer,
     private readonly commonService: CommonService,
     @InjectDataSource() private readonly dataSource: DataSource,
-  ) { }
+  ) {}
 
   public getTrip = async (tripId: string) => {
     return this.findTripById(tripId);
@@ -375,14 +378,18 @@ export class TripService {
     });
     await this.tripRatingRepository.save(tripRating);
 
-    await this.rabbitMqService.emit(SERVICES.DRIVER_SERVICE, PATTERNS.DRIVER_SERVICE.UPDATE_RATE, {
-      driverId: trip.driverId,
-      rating,
-      tripId: trip.id,
-      reviewerId: sub,
-      comment,
-      eventId: crypto.randomUUID()
-    });
+    await this.rabbitMqService.emit(
+      SERVICES.DRIVER_SERVICE,
+      PATTERNS.DRIVER_SERVICE.UPDATE_RATE,
+      {
+        driverId: trip.driverId,
+        rating,
+        tripId: trip.id,
+        reviewerId: sub,
+        comment,
+        eventId: crypto.randomUUID(),
+      },
+    );
 
     return {
       success: true,
@@ -395,5 +402,4 @@ export class TripService {
       },
     };
   }
-
 }
