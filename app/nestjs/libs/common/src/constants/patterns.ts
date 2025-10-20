@@ -8,6 +8,6 @@ export const PATTERNS = {
     GET_APPROVAL_STATUS: 'driver.get-approval-status',
     CREATE: 'driver.create',
     FIND_AVAILABLE: 'driver.find-available',
-    UPDATE_RATE: 'driver.rated'
+    UPDATE_RATE: 'driver.rated',
   },
 };

@@ -70,7 +70,7 @@ export class DriverService {
     >,
     private readonly configService: ConfigService,
     private readonly commonService: CommonService,
-  ) { }
+  ) {}
 
   async getAllTripsOfDriver(
     userSession: TUserSession,
@@ -552,5 +552,4 @@ export class DriverService {
       `Updated driver ${driverId} rating: ${newAverage.toFixed(2)} (from ${totalTrip + 1} trips)`,
     );
   }
-
 }
