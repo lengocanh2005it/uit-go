@@ -63,11 +63,16 @@ services:
     secrets:
       - dotenv_user_key
     depends_on:
-      - user-db
-      - rabbitmq
-      - redis
-      - kong
-      - kong-database
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      kong:
+        condition: service_started
+      kong-database:
+        condition: service_healthy
+      user-db:
+        condition: service_started
     networks:
       - backend
 
@@ -84,11 +89,16 @@ services:
     ports:
       - "3003:3003"
     depends_on:
-      - driver-db
-      - rabbitmq
-      - redis
-      - kong
-      - kong-database
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      kong:
+        condition: service_started
+      kong-database:
+        condition: service_healthy
+      user-db:
+        condition: service_started
     networks:
       - backend
 
@@ -105,11 +115,16 @@ services:
     ports:
       - "3002:3002"
     depends_on:
-      - trip-db
-      - rabbitmq
-      - redis
-      - kong
-      - kong-database
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      kong:
+        condition: service_started
+      kong-database:
+        condition: service_healthy
+      user-db:
+        condition: service_started
     networks:
       - backend
 
@@ -166,6 +181,12 @@ services:
       - "15672:15672"
     networks:
       - backend
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_running"]
+      interval: 5s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
 
   redis:
     image: redis:6.2
