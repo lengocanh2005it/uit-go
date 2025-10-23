@@ -1,3 +1,4 @@
 export const EventTypes = {
   UPDATE_DRIVER_STATUS: 'UPDATE_DRIVER_STATUS',
+  UPDATE_RATE: 'UPDATE_RATE',
 };

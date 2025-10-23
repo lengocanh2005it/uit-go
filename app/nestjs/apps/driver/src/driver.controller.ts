@@ -41,8 +41,14 @@ export class DriverController {
     await this.driverService.updateDriverStatus(driverId, status, eventId);
   }
   @EventPattern(PATTERNS.DRIVER_SERVICE.UPDATE_RATE)
-  async handleDriverRated(@Payload() updateDriverRateDto: UpdateDriverRateDto) {
-    await this.driverService.handleDriverRatedEvent(updateDriverRateDto);
+  async handleDriverRated(
+    @Payload('updateDriverRateDto') updateDriverRateDto: UpdateDriverRateDto,
+    @Payload('eventId', ParseUUIDPipe) eventId: string,
+  ) {
+    await this.driverService.handleDriverRatedEvent(
+      updateDriverRateDto,
+      eventId,
+    );
   }
 
   @MessagePattern(PATTERNS.DRIVER_SERVICE.GET_INFO)

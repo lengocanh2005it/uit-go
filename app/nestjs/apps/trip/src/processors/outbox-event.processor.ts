@@ -1,4 +1,4 @@
-import { MAX_RETRY } from '@libs/common';
+import { MAX_RETRY, payloadIsObject } from '@libs/common';
 import { EventRoutingMap } from '@libs/common/configs';
 import { QueueNames } from '@libs/common/constants';
 import { InjectRabbitMqService } from '@libs/common/decorators';
@@ -36,7 +36,9 @@ export class OutbotEventProcessor extends WorkerHost {
       try {
         await lastValueFrom(
           this.rabbitMqService.emit(route.service, route.pattern, {
-            ...event.payload,
+            ...(payloadIsObject(event.payload)
+              ? event.payload
+              : { payload: event.payload }),
             eventId: event.id,
           }),
         );
