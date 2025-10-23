@@ -510,8 +510,11 @@ export class DriverService {
     return this.processedEventModel.get({ eventId });
   }
 
-  async handleDriverRatedEvent(updateDriveRateDto: UpdateDriverRateDto) {
-    const { driverId, rating, eventId } = updateDriveRateDto;
+  async handleDriverRatedEvent(
+    updateDriveRateDto: UpdateDriverRateDto,
+    eventId: string,
+  ) {
+    const { driverId, rating } = updateDriveRateDto;
 
     const processed = await this.getProcessedEvent(eventId);
     if (processed) {

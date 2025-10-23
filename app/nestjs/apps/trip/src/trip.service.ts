@@ -354,52 +354,61 @@ export class TripService {
     createTripRatingDto: CreateTripRatingDto,
     userSession: TUserSession,
   ) {
-    const { sub } = userSession;
-    const { rating, comment } = createTripRatingDto;
+    return this.dataSource.transaction(async (manager) => {
+      const { sub } = userSession;
+      const tripRepo = manager.getRepository(Trip);
+      const tripRatingRepo = manager.getRepository(TripRating);
+      const { rating, comment } = createTripRatingDto;
 
-    const trip = await this.tripRepository.findOne({
-      where: { id: tripId },
-      relations: ['rating'],
-    });
+      const trip = await tripRepo.findOne({
+        where: { id: tripId },
+        relations: ['rating'],
+      });
 
-    if (!trip) throw new NotFoundException('Trip not found.');
-    if (trip.passengerId !== sub)
-      throw new ForbiddenException('You are not the passenger of this trip.');
-    if (trip.status !== TripStatusEnum.COMPLETED)
-      throw new ForbiddenException('You can only rate a completed trip.');
-    if (trip.rating)
-      throw new ForbiddenException('Trip has already been rated.');
+      if (!trip) throw new NotFoundException('Trip not found.');
+      if (trip.passengerId !== sub)
+        throw new ForbiddenException('You are not the passenger of this trip.');
+      if (trip.status !== TripStatusEnum.COMPLETED)
+        throw new ForbiddenException('You can only rate a completed trip.');
+      if (trip.rating)
+        throw new ForbiddenException('Trip has already been rated.');
 
-    const tripRating = this.tripRatingRepository.create({
-      rating,
-      comment,
-      trip,
-      reviewerId: sub,
-    });
-    await this.tripRatingRepository.save(tripRating);
-
-    await this.rabbitMqService.emit(
-      SERVICES.DRIVER_SERVICE,
-      PATTERNS.DRIVER_SERVICE.UPDATE_RATE,
-      {
-        driverId: trip.driverId,
+      const tripRating = tripRatingRepo.create({
         rating,
-        tripId: trip.id,
+        comment,
+        trip,
         reviewerId: sub,
-        comment,
-        eventId: crypto.randomUUID(),
-      },
-    );
+      });
+      await tripRatingRepo.save(tripRating);
 
-    return {
-      success: true,
-      message: 'Trip rated successfully.',
-      data: {
-        tripId: trip.id,
-        driverId: trip.driverId,
-        rating,
-        comment,
-      },
-    };
+      await this.createNewOutboxEvent(
+        {
+          eventType: EventTypes.UPDATE_RATE,
+          payload: {
+            updateDriverRateDto: {
+              driverId: trip.driverId,
+              rating,
+              tripId: trip.id,
+              reviewerId: sub,
+              comment,
+            },
+          },
+          aggregateId: tripId,
+          aggregateType: AggregateTypes.TRIP,
+        },
+        manager,
+      );
+
+      return {
+        success: true,
+        message: 'Trip rated successfully.',
+        data: {
+          tripId: trip.id,
+          driverId: trip.driverId,
+          rating,
+          comment,
+        },
+      };
+    });
   }
 }

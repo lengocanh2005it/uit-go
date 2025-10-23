@@ -79,3 +79,7 @@ export const buildSearchPrefixes = (
   const boxes = ngeohash.bboxes(minLat, minLng, maxLat, maxLng, prefixLen);
   return Array.from(new Set(boxes.map((gh) => gh.substring(0, prefixLen))));
 };
+
+export function payloadIsObject(value: any): value is Record<string, any> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}

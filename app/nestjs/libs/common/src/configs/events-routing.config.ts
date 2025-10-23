@@ -9,4 +9,8 @@ export const EventRoutingMap: Record<
     service: SERVICES.DRIVER_SERVICE,
     pattern: PATTERNS.DRIVER_SERVICE.UPDATE_STATUS,
   },
+  UPDATE_RATE: {
+    service: SERVICES.DRIVER_SERVICE,
+    pattern: PATTERNS.DRIVER_SERVICE.UPDATE_RATE,
+  },
 };

@@ -1,10 +1,10 @@
 import {
-  IsUUID,
   IsNumber,
-  Min,
-  Max,
   IsOptional,
   IsString,
+  IsUUID,
+  Max,
+  Min,
 } from 'class-validator';
 
 export class UpdateDriverRateDto {
@@ -25,7 +25,4 @@ export class UpdateDriverRateDto {
   @IsOptional()
   @IsString()
   comment?: string;
-
-  @IsUUID()
-  eventId: string;
 }
