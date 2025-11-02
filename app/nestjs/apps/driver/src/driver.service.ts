@@ -40,11 +40,17 @@ import {
 import { ConfigService } from '@nestjs/config';
 import type { Model } from 'nestjs-dynamoose';
 import { InjectModel } from 'nestjs-dynamoose';
+import CircuitBreaker from 'opossum';
 import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
 export class DriverService {
   private readonly logger = new Logger(DriverService.name);
+  private getTripsBreaker: CircuitBreaker<
+    [getTripsOfDriverQueryDto: GetTripsOfDriverQueryDto, driverId: string],
+    GetTripsOfDriverResponse
+  >;
+
   constructor(
     @InjectModel('Driver')
     private readonly driverModel: Model<Driver, DriverKey>,
@@ -70,7 +76,28 @@ export class DriverService {
     >,
     private readonly configService: ConfigService,
     private readonly commonService: CommonService,
-  ) {}
+  ) {
+    this.getTripsBreaker = new CircuitBreaker(
+      (getTripsOfDriverQueryDto, driverId) =>
+        this.rabbitMqService.send<GetTripsOfDriverResponse>(
+          SERVICES.DRIVER_SERVICE,
+          PATTERNS.DRIVER_SERVICE.GET_TRIPS,
+          {
+            getTripsOfDriverQueryDto,
+            driverId,
+          },
+        ),
+      {
+        errorThresholdPercentage: 50,
+        resetTimeout: 10000,
+      },
+    );
+
+    this.getTripsBreaker.fallback(() => ({
+      data: [],
+      afterCursor: null,
+    }));
+  }
 
   async getAllTripsOfDriver(
     userSession: TUserSession,
@@ -81,14 +108,7 @@ export class DriverService {
     if (driverId !== sub)
       throw new ForbiddenException('You can only view your own trip list.');
 
-    return this.rabbitMqService.send<GetTripsOfDriverResponse>(
-      SERVICES.DRIVER_SERVICE,
-      PATTERNS.DRIVER_SERVICE.GET_TRIPS,
-      {
-        getTripsOfDriverQueryDto,
-        driverId,
-      },
-    );
+    return this.getTripsBreaker.fire(getTripsOfDriverQueryDto, driverId);
   }
 
   async updateDriverStatus(

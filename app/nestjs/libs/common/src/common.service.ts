@@ -1,77 +1,84 @@
-import { GetServerLocationResponse } from '@libs/common/utils';
+import { Coordinates, GetServerLocationResponse } from '@libs/common/utils';
 import { HttpService } from '@nestjs/axios';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { getDistance } from 'geolib';
+import CircuitBreaker from 'opossum';
 import { firstValueFrom } from 'rxjs';
 
 @Injectable()
 export class CommonService {
+  private geoApiBreaker: CircuitBreaker<[address: string], Coordinates>;
+  private serverLocationBreaker: CircuitBreaker<[], GetServerLocationResponse>;
+
   constructor(
     private readonly configService: ConfigService,
     private readonly httpService: HttpService,
-  ) {}
+  ) {
+    this.geoApiBreaker = new CircuitBreaker(
+      (address: string) =>
+        firstValueFrom(
+          this.httpService.get(
+            this.configService.get<string>('geoapify.url', ''),
+            {
+              params: {
+                text: address,
+                apiKey: this.configService.get<string>('geoapify.api_key', ''),
+              },
+            },
+          ),
+        ).then((res) => {
+          const results = res.data.features;
+          if (!results || results.length === 0) return { lat: 0, lon: 0 };
+          const { lat, lon } = results[0].properties;
+          return { lat, lon };
+        }),
+      {
+        errorThresholdPercentage: 50,
+        resetTimeout: 15000,
+      },
+    );
 
-  async getServerLocation(): Promise<GetServerLocationResponse> {
-    try {
-      const res = await firstValueFrom(
-        this.httpService.get<Record<string, any>>(
-          this.configService.get<string>('ipwho_url', ''),
-        ),
-      );
-      return {
-        latitude: res.data.latitude,
-        longitude: res.data.longitude,
-        city: res.data.city,
-        country: res.data.country,
-      };
-    } catch (error) {
-      console.error('Error get server location: ', error);
-      return {
-        latitude: 0,
-        longitude: 0,
-        city: 'HCM',
-        country: 'Viet Nam',
-      };
-    }
+    this.serverLocationBreaker = new CircuitBreaker(
+      () =>
+        firstValueFrom(
+          this.httpService.get<Record<string, any>>(
+            this.configService.get<string>('ipwho_url', ''),
+          ),
+        ).then((res) => {
+          const { latitude, longitude, city, country } = res.data;
+          return {
+            latitude,
+            longitude,
+            city,
+            country,
+          };
+        }),
+      {
+        errorThresholdPercentage: 50,
+        resetTimeout: 15000,
+      },
+    );
+
+    this.geoApiBreaker.fallback(() => ({
+      lat: 0,
+      lon: 0,
+    }));
+
+    this.serverLocationBreaker.fallback(() => ({
+      latitude: 0,
+      longitude: 0,
+      city: 'HCM',
+      country: 'Viet Nam',
+    }));
   }
 
-  async getCoordinates(address: string): Promise<{
-    lat: number;
-    lon: number;
-  }> {
-    try {
-      const response = await firstValueFrom(
-        this.httpService.get(
-          this.configService.get<string>('geoapify.url', ''),
-          {
-            params: {
-              text: address,
-              apiKey: this.configService.get<string>('geoapify.api_key', ''),
-            },
-          },
-        ),
-      );
+  async getServerLocation(): Promise<GetServerLocationResponse> {
+    return this.serverLocationBreaker.fire();
+  }
 
-      const results = response.data.features;
-
-      if (results.length === 0) {
-        console.log('Address not found.');
-        return { lat: 0, lon: 0 };
-      }
-
-      const { lat, lon } = results[0].properties;
-      return { lat, lon };
-    } catch (error) {
-      console.error(
-        'Error get coordinates:',
-        error.response?.data || error.message || error,
-      );
-      return {
-        lat: 0,
-        lon: 0,
-      };
-    }
+  async getCoordinates(address: string): Promise<Coordinates> {
+    return this.geoApiBreaker.fire(address);
   }
 
   async getEstimatedFare(

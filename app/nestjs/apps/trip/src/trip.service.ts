@@ -2,18 +2,15 @@ import { EstimateFareDto } from '@/trip/src/dto';
 import { TripRequestProducer } from '@/trip/src/producers';
 import { CommonService, ForbiddenTripStatus } from '@libs/common';
 import { AggregateTypes, EventTypes, PATTERNS } from '@libs/common/constants';
-import {
-  InjectRabbitMqService,
-  InjectRedisService,
-} from '@libs/common/decorators';
+import { InjectRabbitMqService } from '@libs/common/decorators';
 import {
   CreateOutboxDto,
   CreateTripDto,
+  CreateTripRatingDto,
   CreateTripRequestDto,
   GetTripsOfDriverQueryDto,
   UpdateTripDto,
   UpdateTripRequestStatusDto,
-  CreateTripRatingDto,
 } from '@libs/common/dto';
 import {
   DriverStatusEnum,
@@ -34,23 +31,45 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
+import CircuitBreaker from 'opossum';
 import { DataSource, EntityManager, Repository } from 'typeorm';
 import { buildPaginator } from 'typeorm-cursor-pagination';
 import { OutboxEvent, Trip, TripRating, TripRequest } from './entities';
 
 @Injectable()
 export class TripService {
+  private findDriversBreaker: CircuitBreaker<
+    [payload: { lat: number; lng: number }],
+    FindAvailableDriversResponse
+  >;
+
   constructor(
     @InjectRepository(Trip) private readonly tripRepository: Repository<Trip>,
     @InjectRepository(TripRequest)
     private readonly tripRequestRepository: Repository<TripRequest>,
-    @InjectRepository(TripRating)
-    private readonly tripRatingRepository: Repository<TripRating>,
     @InjectRabbitMqService() private readonly rabbitMqService: RabbitMQService,
     private readonly tripRequestProducer: TripRequestProducer,
     private readonly commonService: CommonService,
     @InjectDataSource() private readonly dataSource: DataSource,
-  ) {}
+  ) {
+    this.findDriversBreaker = new CircuitBreaker(
+      (payload) =>
+        this.rabbitMqService.send(
+          SERVICES.DRIVER_SERVICE,
+          PATTERNS.DRIVER_SERVICE.FIND_AVAILABLE,
+          payload,
+        ),
+      {
+        errorThresholdPercentage: 50,
+        resetTimeout: 10000,
+      },
+    );
+
+    this.findDriversBreaker.fallback(() => ({
+      count: 0,
+      drivers: [],
+    }));
+  }
 
   public getTrip = async (tripId: string) => {
     return this.findTripById(tripId);
@@ -69,15 +88,10 @@ export class TripService {
     const destinationAddressGeoCode =
       await this.commonService.getCoordinates(destinationAddress);
 
-    const availableDrivers =
-      await this.rabbitMqService.send<FindAvailableDriversResponse>(
-        SERVICES.DRIVER_SERVICE,
-        PATTERNS.DRIVER_SERVICE.FIND_AVAILABLE,
-        {
-          lat: originAddressGeoCode?.lat ?? 0,
-          lng: originAddressGeoCode?.lon ?? 0,
-        },
-      );
+    const availableDrivers = await this.findDriversBreaker.fire({
+      lat: originAddressGeoCode.lat,
+      lng: originAddressGeoCode.lon,
+    });
 
     if (availableDrivers.count === 0) {
       throw new NotFoundException('No available drivers found nearby.');
