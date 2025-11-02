@@ -4,7 +4,7 @@ import {
   InjectKongService,
   InjectRabbitMqService,
 } from '@libs/common/decorators';
-import { CreateOutboxDto } from '@libs/common/dto';
+import { CreateDriverDto, CreateOutboxDto } from '@libs/common/dto';
 import { DriverApprovalStatusEnum, DriverStatusEnum } from '@libs/common/enums';
 import { KongService } from '@libs/common/modules/kong/kong.service';
 import { RabbitMQService } from '@libs/common/modules/rabbitmq/rabbitmq.service';
@@ -27,11 +27,25 @@ import { UserRole } from '@user-service/enums';
 import * as bcrypt from 'bcryptjs';
 import { omit } from 'lodash';
 import { ObjectType } from 'nestjs-dynamoose';
+import CircuitBreaker from 'opossum';
 import { DataSource, EntityManager, Repository } from 'typeorm';
 import { OutboxEvent, User, UserProfile } from './entities';
 
 @Injectable()
 export class UserService {
+  private getDriverApprovalStatusBreaker: CircuitBreaker<
+    [userId: string],
+    ObjectType | undefined
+  >;
+  private getDriverInfoBreaker: CircuitBreaker<[userId: string], ObjectType>;
+  private createDriverBreaker: CircuitBreaker<
+    [createDriverDto: CreateDriverDto, userId: string],
+    | {
+        message: string;
+      }
+    | undefined
+  >;
+
   constructor(
     @InjectRepository(User) private readonly userRepo: Repository<User>,
     @InjectRepository(UserProfile)
@@ -41,7 +55,66 @@ export class UserService {
     @InjectKongService() private readonly kongService: KongService,
     @InjectRabbitMqService() private readonly rabbitMqService: RabbitMQService,
     @InjectDataSource() private readonly dataSource: DataSource,
-  ) {}
+  ) {
+    this.getDriverApprovalStatusBreaker = new CircuitBreaker(
+      (userId) =>
+        this.rabbitMqService.send(
+          SERVICES.DRIVER_SERVICE,
+          PATTERNS.DRIVER_SERVICE.GET_APPROVAL_STATUS,
+          { userId },
+        ),
+      {
+        errorThresholdPercentage: 50,
+        resetTimeout: 10000,
+      },
+    );
+
+    this.getDriverInfoBreaker = new CircuitBreaker(
+      (userId) =>
+        this.rabbitMqService.send(
+          SERVICES.DRIVER_SERVICE,
+          PATTERNS.DRIVER_SERVICE.GET_INFO,
+          { userId },
+        ),
+      {
+        errorThresholdPercentage: 50,
+        resetTimeout: 10000,
+      },
+    );
+
+    this.createDriverBreaker = new CircuitBreaker(
+      (createDriverDto, userId) =>
+        this.rabbitMqService.send(
+          SERVICES.DRIVER_SERVICE,
+          PATTERNS.DRIVER_SERVICE.CREATE,
+          {
+            createDriverDto,
+            userId,
+          },
+        ),
+      {
+        errorThresholdPercentage: 50,
+        resetTimeout: 10000,
+      },
+    );
+
+    this.getDriverApprovalStatusBreaker.fallback(() => ({
+      status: DriverApprovalStatusEnum.PENDING,
+    }));
+
+    this.getDriverInfoBreaker.fallback(() => ({
+      driverId: '',
+      userId: '',
+      rating: 0,
+      totalTrip: 0,
+      licenseNumber: '',
+      licenseExpiry: '',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }));
+
+    this.createDriverBreaker.fallback(() => undefined);
+  }
 
   public register = async (createUserDto: CreateUserDto) => {
     const { email, password, role, createDriverDto, ...res } = createUserDto;
@@ -71,13 +144,9 @@ export class UserService {
       createDriverDto &&
       Object.keys(createDriverDto)?.length > 0
     ) {
-      const driverInfo = await this.rabbitMqService.send(
-        SERVICES.DRIVER_SERVICE,
-        PATTERNS.DRIVER_SERVICE.CREATE,
-        {
-          createDriverDto,
-          userId: user.id,
-        },
+      const driverInfo = await this.createDriverBreaker.fire(
+        createDriverDto,
+        user.id,
       );
 
       if (!driverInfo)
@@ -98,10 +167,8 @@ export class UserService {
       if (!isMatch) throw new UnauthorizedException('Invalid credentials');
 
       if (user.role === UserRole.DRIVER) {
-        const driverApproval = await this.rabbitMqService.send(
-          SERVICES.DRIVER_SERVICE,
-          PATTERNS.DRIVER_SERVICE.GET_APPROVAL_STATUS,
-          { userId: user.id },
+        const driverApproval = await this.getDriverApprovalStatusBreaker.fire(
+          user.id,
         );
 
         if (!driverApproval) {
@@ -131,11 +198,7 @@ export class UserService {
       });
 
       if (user.role === UserRole.DRIVER) {
-        const driverInfo = await this.rabbitMqService.send(
-          SERVICES.DRIVER_SERVICE,
-          PATTERNS.DRIVER_SERVICE.GET_INFO,
-          { userId: user.id },
-        );
+        const driverInfo = await this.getDriverInfoBreaker.fire(user.id);
 
         await this.createNewOutbox(
           {
@@ -170,13 +233,7 @@ export class UserService {
     let formattedUser: any = omit(user, ['password']);
 
     if (user.role === UserRole.DRIVER) {
-      formattedUser.driverInfo = await this.rabbitMqService.send<ObjectType>(
-        SERVICES.DRIVER_SERVICE,
-        PATTERNS.DRIVER_SERVICE.GET_INFO,
-        {
-          userId: user.id,
-        },
-      );
+      formattedUser.driverInfo = await this.getDriverInfoBreaker.fire(user.id);
     }
 
     return formattedUser;

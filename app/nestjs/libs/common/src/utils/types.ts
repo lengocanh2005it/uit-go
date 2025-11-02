@@ -60,3 +60,8 @@ export type FindAvailableDriversResponse = {
     distanceKm: number;
   }[];
 };
+
+export interface Coordinates {
+  lat: number;
+  lon: number;
+}
