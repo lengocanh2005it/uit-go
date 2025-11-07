@@ -2,8 +2,8 @@
 
 **Status:** Accepted  
 **Date:** November 2025  
-**Decision Makers:** Lê Ngọc Anh, Lê Văn Bảo, Nguyễn Bá Tuấn Anh
-**Module Context:** Module A - Architectural Design for Scalability and Performance
+**Decision Makers:** Lê Ngọc Anh, Lê Văn Bảo, Nguyễn Bá Tuấn Anh  
+**Module Context:** ***Module A*** - Architectural Design for Scalability and Performance
 
 ---
 
