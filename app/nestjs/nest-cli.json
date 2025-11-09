@@ -28,13 +28,13 @@
         "tsConfigPath": "apps/driver/tsconfig.app.json"
       }
     },
-    "location": {
+    "notification": {
       "type": "application",
-      "root": "apps/location",
+      "root": "apps/notification",
       "entryFile": "main",
-      "sourceRoot": "apps/location/src",
+      "sourceRoot": "apps/notification/src",
       "compilerOptions": {
-        "tsConfigPath": "apps/location/tsconfig.app.json"
+        "tsConfigPath": "apps/notification/tsconfig.app.json"
       }
     },
     "trip": {
