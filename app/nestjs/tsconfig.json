@@ -25,20 +25,20 @@
       "@/*": [
         "apps/*"
       ],
+      "@driver-service/*": [
+        "apps/driver/src/*"
+      ],
       "@libs/common": [
         "libs/common/src"
       ],
       "@libs/common/*": [
         "libs/common/src/*"
       ],
-      "@user-service/*": [
-        "apps/user/src/*"
-      ],
       "@trip-service/*": [
         "apps/trip/src/*"
       ],
-      "@driver-service/*": [
-        "apps/driver/src/*"
+      "@user-service/*": [
+        "apps/user/src/*"
       ]
     }
   }
