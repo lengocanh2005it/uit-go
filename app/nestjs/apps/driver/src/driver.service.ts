@@ -12,24 +12,28 @@ import {
   Vehicle,
   VehicleKey,
 } from '@/driver/src/interfaces';
-import { GetDriversApprovalQueryDto } from '@driver-service/dto';
+import { status } from '@grpc/grpc-js';
 import {
   buildGeoLocation,
   buildSearchPrefixes,
   CommonService,
+  driverApprovalStatusMapping,
   FindAvailableDriversResponse,
   SERVICES,
+  TGrpcUser,
   type GetTripsOfDriverResponse,
-  type TUserSession,
 } from '@libs/common';
 import { PATTERNS } from '@libs/common/constants';
 import { InjectRabbitMqService } from '@libs/common/decorators';
 import { GetTripsOfDriverQueryDto } from '@libs/common/dto';
-import { CreateDriverDto } from '@libs/common/dto/driver/create-driver.dto';
-import { UpdateDriverApprovalDto } from '@libs/common/dto/driver/update-driver-approval.dto';
 import { UpdateDriverRateDto } from '@libs/common/dto/driver/update-driver-rate.dto';
 import { DriverApprovalStatusEnum, DriverStatusEnum } from '@libs/common/enums';
 import { RabbitMQService } from '@libs/common/modules/rabbitmq/rabbitmq.service';
+import {
+  GetDriverApprovalsRequest,
+  UpdateDriverApprovalRequest,
+} from '@libs/common/proto/driver';
+import { CreateDriverRequest } from '@libs/common/proto/user';
 import {
   BadRequestException,
   ForbiddenException,
@@ -38,6 +42,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { RpcException } from '@nestjs/microservices';
 import type { Model } from 'nestjs-dynamoose';
 import { InjectModel } from 'nestjs-dynamoose';
 import CircuitBreaker from 'opossum';
@@ -100,7 +105,7 @@ export class DriverService {
   }
 
   async getAllTripsOfDriver(
-    userSession: TUserSession,
+    userSession: TGrpcUser,
     driverId: string,
     getTripsOfDriverQueryDto: GetTripsOfDriverQueryDto,
   ) {
@@ -113,7 +118,7 @@ export class DriverService {
 
   async updateDriverStatus(
     driverId: string,
-    status: DriverStatusEnum,
+    statusData: DriverStatusEnum,
     eventId?: string,
   ) {
     if (eventId?.trim()) {
@@ -123,10 +128,14 @@ export class DriverService {
         return;
       }
     }
+
     const findDriver = await this.driverModel.get({ driverId });
 
     if (!findDriver) {
-      throw new NotFoundException('Driver info not found.');
+      throw new RpcException({
+        code: status.NOT_FOUND,
+        message: 'Driver info not found.',
+      });
     }
 
     const findDriverStatusRecord = await this.driverStatusModel.get({
@@ -134,10 +143,13 @@ export class DriverService {
     });
 
     if (!findDriverStatusRecord?.toJSON()) {
-      throw new NotFoundException('Driver status info not found.');
+      throw new RpcException({
+        code: status.NOT_FOUND,
+        message: 'Driver status info not found.',
+      });
     }
 
-    await this.driverStatusModel.update({ driverId }, { status });
+    await this.driverStatusModel.update({ driverId }, { status: statusData });
 
     if (eventId?.trim()) {
       await this.processedEventModel.create({
@@ -211,7 +223,7 @@ export class DriverService {
     }
   }
 
-  async createDriver(data: CreateDriverDto, userId: string) {
+  async createDriver(data: CreateDriverRequest, userId: string) {
     const existed = await this.driverModel.query('userId').eq(userId).exec();
     if (existed.length > 0) {
       throw new BadRequestException('Driver already exists.');
@@ -227,7 +239,7 @@ export class DriverService {
       rating: 0,
       totalTrip: 0,
       licenseNumber: data.licenseNumber,
-      licenseExpiry: new Date(data.licenseExpiry),
+      licenseExpiry: data.licenseExpiry ?? new Date(),
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -267,9 +279,10 @@ export class DriverService {
     };
   }
   async updateDriverApprovalStatus(
-    updateDriverApprovalDto: UpdateDriverApprovalDto,
+    updateDriverApprovalRequest: UpdateDriverApprovalRequest,
+    driverId: string,
   ) {
-    const { driverId, status, note } = updateDriverApprovalDto;
+    const { status: statusData, note } = updateDriverApprovalRequest;
 
     const driverApproval = await this.driverApprovalModel
       .query('driverId')
@@ -277,21 +290,24 @@ export class DriverService {
       .exec();
 
     if (driverApproval.length === 0) {
-      throw new NotFoundException('Driver approval record not found.');
+      throw new RpcException({
+        code: status.NOT_FOUND,
+        message: 'Driver approval record not found.',
+      });
     }
 
     const approvalRecord = driverApproval[0];
     const updated = await this.driverApprovalModel.update(
       { driverApprovalId: approvalRecord.driverApprovalId },
       {
-        status,
+        status: driverApprovalStatusMapping[statusData],
         note,
         reviewedDate: new Date(),
         updatedAt: new Date(),
       },
     );
     return {
-      message: `Driver approval updated to ${status}`,
+      message: `Driver approval updated to ${driverApprovalStatusMapping[statusData]}`,
       data: updated,
     };
   }
@@ -469,16 +485,16 @@ export class DriverService {
   }
 
   async getDriversApproval(
-    getDriversApprovalQueryDto: GetDriversApprovalQueryDto,
+    getDriverApprovalRequest: GetDriverApprovalsRequest,
   ) {
-    const { status } = getDriversApprovalQueryDto;
+    const { status } = getDriverApprovalRequest;
 
     let driversApproval: any[];
 
     if (status) {
       driversApproval = await this.driverApprovalModel
         .scan('status')
-        .eq(status)
+        .eq(driverApprovalStatusMapping[status])
         .exec();
     } else {
       driversApproval = await this.driverApprovalModel.scan().exec();
@@ -518,7 +534,7 @@ export class DriverService {
     if (!vehicle.length) throw new NotFoundException('Vehicle info not found.');
 
     return {
-      ...driverInfo,
+      ...driverInfo.toJSON(),
       driverStatus: driverStatus.toJSON(),
       driverApproval: driverApproval[0].toJSON(),
       driverLocation: driverLocation[0].toJSON(),

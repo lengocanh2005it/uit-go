@@ -1,6 +1,5 @@
 import { Trip } from '@/trip/src/entities';
 import { TripStatusEnum } from '@libs/common/enums';
-import { ServiceName } from '@libs/common/utils/contants';
 
 export interface AWSQueueMessage<T = any> {
   queueName: string;
@@ -8,7 +7,7 @@ export interface AWSQueueMessage<T = any> {
   replyTo: string;
 }
 
-export type TUserSession = {
+export type TGrpcUser = {
   sub: string;
   role: string;
 };
@@ -30,7 +29,7 @@ export type GetGeocodeResponse = {
   latitude: number;
 };
 
-export type JwtPayload = TUserSession & {
+export type JwtPayload = TGrpcUser & {
   iat: number;
   exp: number;
 };

@@ -8,6 +8,7 @@ RUN npm install
 
 COPY apps/trip ./apps/trip
 COPY libs ./libs
+COPY proto/trip.proto ./proto/trip.proto
 COPY ./apps/trip/.env ./.env
 COPY tsconfig*.json ./
 

@@ -21,12 +21,14 @@
     "up": "npm run build && dotenvx run -- docker compose up -d --build",
     "down": "docker compose down",
     "logs": "docker compose logs -f",
-    "ps": "docker compose ps"
+    "ps": "docker compose ps",
+    "gen:proto": "node scripts/gen-proto.js"
   },
   "dependencies": {
     "@aws-sdk/client-location": "^3.896.0",
     "@dotenvx/dotenvx": "^1.51.0",
     "@golevelup/nestjs-common": "^3.0.0",
+    "@grpc/grpc-js": "^1.14.1",
     "@nestjs/axios": "^4.0.1",
     "@nestjs/bullmq": "^11.0.4",
     "@nestjs/common": "^11.0.1",
@@ -48,6 +50,7 @@
     "decimal.js": "^10.6.0",
     "dynamoose": "^4.0.4",
     "geolib": "^3.3.4",
+    "google-protobuf": "^4.0.0",
     "ioredis": "^5.8.0",
     "jsonwebtoken": "^9.0.2",
     "lodash": "^4.17.21",
@@ -61,7 +64,8 @@
     "rxjs": "^7.8.1",
     "typeorm": "^0.3.27",
     "typeorm-cursor-pagination": "^0.10.1",
-    "typeorm-naming-strategies": "^4.1.0"
+    "typeorm-naming-strategies": "^4.1.0",
+    "uuid": "^13.0.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",
@@ -71,6 +75,7 @@
     "@nestjs/testing": "^11.0.1",
     "@types/bcryptjs": "^2.4.6",
     "@types/express": "^5.0.0",
+    "@types/google-protobuf": "^3.15.12",
     "@types/jest": "^30.0.0",
     "@types/lodash": "^4.17.20",
     "@types/ngeohash": "^0.6.8",

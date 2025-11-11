@@ -1,4 +1,6 @@
-import { generateRmqOptions } from '@libs/common';
+import { generateGrpcOptions, generateRmqOptions } from '@libs/common';
+import { TRIP_PROTO_PATH } from '@libs/common/constants';
+import { protobufPackage } from '@libs/common/proto/trip';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
@@ -16,6 +18,9 @@ async function bootstrap() {
   );
   const configService = app.get(ConfigService);
   const PORT = configService.get<number>('port', 3002);
+  app.connectMicroservice<MicroserviceOptions>(
+    generateGrpcOptions(protobufPackage, TRIP_PROTO_PATH, '0.0.0.0', 50052),
+  );
   app.connectMicroservice<MicroserviceOptions>(
     generateRmqOptions('trip_service', configService),
   );

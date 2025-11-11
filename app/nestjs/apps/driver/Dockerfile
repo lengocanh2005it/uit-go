@@ -8,6 +8,7 @@ RUN npm install
 
 COPY apps/driver ./apps/driver
 COPY libs ./libs
+COPY proto/driver.proto ./proto/driver.proto
 COPY ./apps/driver/.env ./.env
 COPY tsconfig*.json ./
 

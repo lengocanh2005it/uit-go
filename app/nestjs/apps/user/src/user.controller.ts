@@ -1,37 +1,47 @@
-import type { TUserSession } from '@libs/common';
-import { UserSession } from '@libs/common/decorators';
-import { Body, Controller, Get, Param, Post, Put } from '@nestjs/common';
+import { CreateUserDto, LoginUserDto, UpdateProfileDto } from '@/user/src/dto';
+import { TGrpcUser } from '@libs/common';
+import { GrpcBody, GrpcUser } from '@libs/common/decorators';
+import { JwtGrpcGuard } from '@libs/common/guards';
+import { GrpcValidationPipe } from '@libs/common/pipes';
 import {
-  CreateUserDto,
-  LoginUserDto,
-  UpdateProfileDto,
-} from '@user-service/dto';
+  GetMeResponse,
+  LoginResponse,
+  RegisterResponse,
+  UserServiceControllerMethods,
+} from '@libs/common/proto/user';
+import { Controller, UseGuards, UsePipes } from '@nestjs/common';
 import { UserService } from './user.service';
 
-@Controller('users')
+@Controller()
+@UserServiceControllerMethods()
 export class UserController {
   constructor(private readonly userService: UserService) {}
 
-  @Post('sign-up')
-  register(@Body() createUserDto: CreateUserDto) {
-    return this.userService.register(createUserDto);
+  @UseGuards(JwtGrpcGuard)
+  async getMe(@GrpcUser() grpcUser: TGrpcUser): Promise<GetMeResponse> {
+    return this.userService.getUser(grpcUser.sub);
   }
 
-  @Post('sign-in')
-  login(@Body() loginUserDto: LoginUserDto) {
+  @UseGuards(JwtGrpcGuard)
+  @UsePipes(GrpcValidationPipe)
+  async updateProfile(
+    @GrpcBody(UpdateProfileDto) updateProfileDto: UpdateProfileDto,
+    @GrpcUser() grpcUser: TGrpcUser,
+  ): Promise<GetMeResponse> {
+    return this.userService.updateProfile(grpcUser, updateProfileDto);
+  }
+
+  @UsePipes(GrpcValidationPipe)
+  async login(
+    @GrpcBody(LoginUserDto) loginUserDto: LoginUserDto,
+  ): Promise<LoginResponse> {
     return this.userService.login(loginUserDto);
   }
 
-  @Get('me')
-  getUser(@UserSession() userSession: TUserSession) {
-    return this.userService.getUser(userSession.sub);
-  }
-
-  @Put(':id')
-  updateProfile(
-    @Param('id') id: string,
-    @Body() updateProfileDto: UpdateProfileDto,
-  ) {
-    return this.userService.updateProfile(id, updateProfileDto);
+  @UsePipes(GrpcValidationPipe)
+  async register(
+    @GrpcBody(CreateUserDto) createUserDto: CreateUserDto,
+  ): Promise<RegisterResponse> {
+    return this.userService.register(createUserDto);
   }
 }
