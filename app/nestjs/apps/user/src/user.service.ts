@@ -1,28 +1,21 @@
-import { SERVICES, TUserSession } from '@libs/common';
+import { CreateUserDto, LoginUserDto, UpdateProfileDto } from '@/user/src/dto';
+import { status } from '@grpc/grpc-js';
+import { grpcRoleToUserRoleMapping, SERVICES, TGrpcUser } from '@libs/common';
 import { EventTypes, PATTERNS } from '@libs/common/constants';
-import {
-  InjectKongService,
-  InjectRabbitMqService,
-} from '@libs/common/decorators';
+import { InjectRabbitMqService } from '@libs/common/decorators';
 import { CreateDriverDto, CreateOutboxDto } from '@libs/common/dto';
 import { DriverApprovalStatusEnum, DriverStatusEnum } from '@libs/common/enums';
-import { KongService } from '@libs/common/modules/kong/kong.service';
 import { RabbitMQService } from '@libs/common/modules/rabbitmq/rabbitmq.service';
 import {
-  BadRequestException,
-  Injectable,
-  InternalServerErrorException,
-  NotFoundException,
-  UnauthorizedException,
-} from '@nestjs/common';
+  GetMeResponse,
+  LoginResponse,
+  RegisterResponse,
+} from '@libs/common/proto/user';
+import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
+import { RpcException } from '@nestjs/microservices';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
-import {
-  CreateUserDto,
-  LoginUserDto,
-  UpdateProfileDto,
-} from '@user-service/dto';
 import { UserRole } from '@user-service/enums';
 import * as bcrypt from 'bcryptjs';
 import { omit } from 'lodash';
@@ -39,7 +32,7 @@ export class UserService {
   >;
   private getDriverInfoBreaker: CircuitBreaker<[userId: string], ObjectType>;
   private createDriverBreaker: CircuitBreaker<
-    [createDriverDto: CreateDriverDto, userId: string],
+    [CreateDriverRequest: CreateDriverDto, userId: string],
     | {
         message: string;
       }
@@ -52,7 +45,6 @@ export class UserService {
     private readonly profileRepo: Repository<UserProfile>,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
-    @InjectKongService() private readonly kongService: KongService,
     @InjectRabbitMqService() private readonly rabbitMqService: RabbitMQService,
     @InjectDataSource() private readonly dataSource: DataSource,
   ) {
@@ -83,12 +75,12 @@ export class UserService {
     );
 
     this.createDriverBreaker = new CircuitBreaker(
-      (createDriverDto, userId) =>
+      (createDriverRequest, userId) =>
         this.rabbitMqService.send(
           SERVICES.DRIVER_SERVICE,
           PATTERNS.DRIVER_SERVICE.CREATE,
           {
-            createDriverDto,
+            createDriverRequest,
             userId,
           },
         ),
@@ -116,29 +108,36 @@ export class UserService {
     this.createDriverBreaker.fallback(() => undefined);
   }
 
-  public register = async (createUserDto: CreateUserDto) => {
-    const { email, password, role, createDriverDto, ...res } = createUserDto;
+  public register = async (
+    registerRequest: CreateUserDto,
+  ): Promise<RegisterResponse> => {
+    const { email, password, role, createDriverDto, ...res } = registerRequest;
+
     const exists = await this.userRepo.findOne({ where: { email } });
-    if (exists) throw new BadRequestException('Email has existed.');
+
+    if (exists)
+      throw new RpcException({
+        code: status.ALREADY_EXISTS,
+        message: 'Email has existed.',
+      });
+
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const user = this.userRepo.create({
       email,
       password: hashedPassword,
-      role,
+      role: grpcRoleToUserRoleMapping[role],
     });
+
     await this.userRepo.save(user);
 
     const profile = this.profileRepo.create({
       ...res,
       user,
     });
+
     await this.profileRepo.save(profile);
-    try {
-      await this.kongService.createNewConsumer(user.id);
-    } catch (err) {
-      console.error('Failed to create Kong consumer:', err.message);
-    }
+
     if (
       user.role === UserRole.DRIVER &&
       createDriverDto &&
@@ -152,19 +151,42 @@ export class UserService {
       if (!driverInfo)
         throw new InternalServerErrorException('Driver info created failed.');
     }
-    return this.getUser(user.id);
+
+    const savedUser = await this.getUser(user.id);
+
+    return {
+      message: `Your account has been created.`,
+      success: true,
+      data: {
+        sub: savedUser.id,
+        fullName: savedUser?.profile?.fullName ?? '',
+        email: savedUser.email,
+        role: savedUser.role,
+      },
+    };
   };
 
-  public login = async (loginUserDto: LoginUserDto) => {
+  public login = async (loginUserDto: LoginUserDto): Promise<LoginResponse> => {
     return this.dataSource.transaction(async (manager) => {
       const { email, password } = loginUserDto;
+
       const user = await manager
         .getRepository(User)
         .findOne({ where: { email } });
-      if (!user) throw new UnauthorizedException('Invalid credentials');
+
+      if (!user)
+        throw new RpcException({
+          code: status.UNAUTHENTICATED,
+          message: 'Invalid credentials',
+        });
 
       const isMatch = await bcrypt.compare(password, user.password);
-      if (!isMatch) throw new UnauthorizedException('Invalid credentials');
+
+      if (!isMatch)
+        throw new RpcException({
+          code: status.UNAUTHENTICATED,
+          message: 'Invalid credentials',
+        });
 
       if (user.role === UserRole.DRIVER) {
         const driverApproval = await this.getDriverApprovalStatusBreaker.fire(
@@ -172,19 +194,21 @@ export class UserService {
         );
 
         if (!driverApproval) {
-          throw new UnauthorizedException(
-            'Driver approval record not found. Please register again.',
-          );
+          throw new RpcException({
+            code: status.NOT_FOUND,
+            message: 'Driver approval record not found. Please register again.',
+          });
         }
 
         if (driverApproval.status !== DriverApprovalStatusEnum.ACCEPTED) {
-          throw new UnauthorizedException(
-            'Your driver account has not been approved yet.',
-          );
+          throw new RpcException({
+            code: status.NOT_FOUND,
+            message: 'Your driver account has not been approved yet.',
+          });
         }
       }
 
-      const payload: TUserSession = {
+      const payload: TGrpcUser = {
         sub: user.id,
         role: user.role,
       };
@@ -218,17 +242,21 @@ export class UserService {
     });
   };
 
-  public getUser = async (userId: string) => {
+  public getUser = async (sub: string): Promise<GetMeResponse> => {
     const user = await this.userRepo.findOne({
       where: {
-        id: userId,
+        id: sub,
       },
       relations: {
         profile: true,
       },
     });
 
-    if (!user) throw new NotFoundException('User not found.');
+    if (!user)
+      throw new RpcException({
+        code: status.NOT_FOUND,
+        message: 'User not found.',
+      });
 
     let formattedUser: any = omit(user, ['password']);
 
@@ -239,18 +267,27 @@ export class UserService {
     return formattedUser;
   };
 
-  async updateProfile(userId: string, updateProfileDto: UpdateProfileDto) {
+  async updateProfile(grpcUser: TGrpcUser, updateProfileDto: UpdateProfileDto) {
+    const { sub } = grpcUser;
+
     const profile = await this.profileRepo.findOne({
       where: {
         user: {
-          id: userId,
+          id: sub,
         },
       },
     });
-    if (!profile) throw new NotFoundException('Profile not found');
+
+    if (!profile)
+      throw new RpcException({
+        code: status.NOT_FOUND,
+        message: 'Profile not found',
+      });
 
     Object.assign(profile, updateProfileDto);
-    return this.profileRepo.save(profile);
+    await this.profileRepo.save(profile);
+
+    return this.getUser(sub);
   }
 
   private createNewOutbox = async (

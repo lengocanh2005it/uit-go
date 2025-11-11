@@ -1,3 +1,5 @@
+import { timestampToDate } from '@libs/common';
+import { Timestamp } from '@libs/common/proto/google/protobuf/timestamp';
 import { Transform } from 'class-transformer';
 import { IsDate, IsOptional, IsString } from 'class-validator';
 
@@ -15,7 +17,5 @@ export class UpdateProfileDto {
   address?: string;
 
   @IsOptional()
-  @Transform(({ value }) => new Date(value))
-  @IsDate()
   birthDay?: Date;
 }

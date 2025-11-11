@@ -2,65 +2,28 @@ _format_version: "3.0"
 
 services:
   - name: user-service
-    url: http://user-service:3001
+    url: grpc://user-service:50051
     routes:
-      - name: sign-up-route
+      - name: user-service-grpc
+        protocols:
+          - grpc
         paths:
-          - /users/sign-up
-        strip_path: false
-      - name: sign-in-route
-        paths:
-          - /users/sign-in
-        strip_path: false
-      - name: user-me-route
-        paths:
-          - /users/me
-        strip_path: false
-        plugins:
-          - name: jwt
-            config:
-              claims_to_verify:
-                - exp
-              key_claim_name: sub
-              secret_is_base64: false
-      - name: user-service-protected
-        paths:
-          - ~/^/users/(?!sign-(in|up)|me)([^/]+)(/.*)?$
-        strip_path: false
-        plugins:
-          - name: jwt
-            config:
-              claims_to_verify:
-                - exp
-              key_claim_name: sub
-              secret_is_base64: false
+          - /user.UserService
 
   - name: trip-service
-    url: http://trip-service:3002
+    url: grpc://trip-service:50052
     routes:
-      - name: trip-route
+      - name: trip-service-grpc
+        protocols:
+          - grpc
         paths:
-          - /trips
-        strip_path: false
-        plugins:
-          - name: jwt
-            config:
-              claims_to_verify:
-                - exp
-              key_claim_name: sub
-              secret_is_base64: false
+          - /trip.TripService
 
   - name: driver-service
-    url: http://driver-service:3003
+    url: grpc://driver-service:50053
     routes:
-      - name: driver-route
+      - name: driver-service-grpc
+        protocols:
+          - grpc
         paths:
-          - /drivers
-        strip_path: false
-        plugins:
-          - name: jwt
-            config:
-              claims_to_verify:
-                - exp
-              key_claim_name: sub
-              secret_is_base64: false
+          - /driver.DriverService

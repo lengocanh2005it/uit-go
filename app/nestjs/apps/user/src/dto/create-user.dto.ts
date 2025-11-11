@@ -1,3 +1,4 @@
+import { grpcRoleToUserRoleMapping, timestampToDate } from '@libs/common';
 import { CreateDriverDto } from '@libs/common/dto/driver';
 import { UserRole } from '@user-service/enums';
 import { Transform, Type } from 'class-transformer';
@@ -22,6 +23,9 @@ export class CreateUserDto {
   @MinLength(6)
   password: string;
 
+  @Transform(
+    ({ value }) => grpcRoleToUserRoleMapping[value] ?? UserRole.CUSTOMER,
+  )
   @IsEnum(UserRole)
   role: UserRole;
 
@@ -38,7 +42,6 @@ export class CreateUserDto {
   @IsNotEmpty()
   address!: string;
 
-  @Transform(({ value }) => new Date(value))
   @IsDate()
   birthDay!: Date;
 

@@ -1,0 +1,9 @@
+{
+  "linters": {
+    "IMPORTS_SORTED": { "level": "ERROR" },
+    "MESSAGE_NAMES_UPPER_CAMEL_CASE": { "level": "ERROR" },
+    "ENUM_NAMES_UPPER_SNAKE_CASE": { "level": "ERROR" },
+    "FIELD_NAMES_LOWER_SNAKE_CASE": { "level": "ERROR" },
+    "RPC_NAMES_UPPER_CAMEL_CASE": { "level": "ERROR" }
+  }
+}

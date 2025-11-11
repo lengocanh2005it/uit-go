@@ -1,0 +1,110 @@
+syntax = "proto3";
+
+package user;
+
+import "driver.proto";
+import "google/protobuf/timestamp.proto";
+
+service UserService {
+  rpc Login(LoginRequest) returns (LoginResponse);
+  rpc UpdateProfile(UpdateProfileRequest) returns (GetMeResponse);
+  rpc Register(RegisterRequest) returns (RegisterResponse);
+  rpc GetMe(GetMeRequest) returns (GetMeResponse);
+}
+
+message User {
+  string id = 1;
+  string email = 2;
+  string password = 3;
+  UserRole role = 4;
+  google.protobuf.Timestamp created_at = 5;
+  google.protobuf.Timestamp updated_at = 6;
+}
+
+message UserProfile {
+  string id = 1;
+  string full_name = 2;
+  string phone_number = 3;
+  string address = 4;
+  google.protobuf.Timestamp birth_day = 5;
+  optional User user = 6;
+}
+
+message GetMeRequest {
+
+}
+
+message GetMeResponse {
+  string id = 1;
+  string email = 2;
+  string role = 3;
+  google.protobuf.Timestamp created_at = 4;
+  google.protobuf.Timestamp updated_at = 5;
+  optional driver.DriverInfo driver_info = 6;
+  UserProfile profile = 7;
+}
+
+enum UserRole {
+  USER_ROLE_UNSPECIFIED = 0;
+  USER_ROLE_CUSTOMER = 1;
+  USER_ROLE_DRIVER = 2;
+  USER_ROLE_ADMIN = 3;
+}
+
+message UpdateProfileRequest {
+  optional string full_name = 1;
+  optional string phone_number = 2;
+  optional string address = 3;
+  google.protobuf.Timestamp birth_day = 4;
+}
+
+message UpdateProfileResponse {
+  string id = 1;
+  string full_name = 2;
+  string phone_number = 3;
+  string address = 4;
+  google.protobuf.Timestamp birth_day = 5;
+}
+
+message LoginRequest {
+  string email = 1;
+  string password = 2;
+}
+
+message CreateDriverRequest {
+  string license_number = 1;
+  google.protobuf.Timestamp license_expiry = 2;
+  string plate_number = 3;
+  string brand = 4;
+  string model = 5;
+  string color = 6;
+}
+
+message RegisterRequest {
+  string email = 1;
+  string password = 2;
+  UserRole role = 3;
+  string full_name = 4;
+  string phone_number = 5;
+  string phone_address = 6;
+  google.protobuf.Timestamp birth_day = 7;
+  CreateDriverRequest create_driver_request = 8;
+  string address = 9;
+}
+
+message UserData {
+  string sub = 1;
+  string full_name = 2;
+  string email = 3;
+  string role = 4;
+}
+
+message RegisterResponse {
+  string message = 1;
+  bool success = 2;
+  UserData data = 3;
+}
+
+message LoginResponse {
+  string access_token = 1;
+}

@@ -1,35 +1,39 @@
-import { EstimateFareDto } from '@/trip/src/dto';
 import { TripRequestProducer } from '@/trip/src/producers';
+import { status } from '@grpc/grpc-js';
 import { CommonService, ForbiddenTripStatus } from '@libs/common';
 import { AggregateTypes, EventTypes, PATTERNS } from '@libs/common/constants';
 import { InjectRabbitMqService } from '@libs/common/decorators';
 import {
   CreateOutboxDto,
-  CreateTripDto,
-  CreateTripRatingDto,
   CreateTripRequestDto,
   GetTripsOfDriverQueryDto,
-  UpdateTripDto,
-  UpdateTripRequestStatusDto,
 } from '@libs/common/dto';
-import {
-  DriverStatusEnum,
-  TripRequestStatusEnum,
-  TripStatusEnum,
-} from '@libs/common/enums';
+import { DriverStatusEnum, TripStatusEnum } from '@libs/common/enums';
 import { RabbitMQService } from '@libs/common/modules/rabbitmq/rabbitmq.service';
+import {
+  CreateTripRequest,
+  GetEstimateRequest,
+  RateTripRequest,
+  TripRequestStatus,
+  TripStatus,
+  UpdateTripRequest,
+  UpdateTripRequestStatusRequest,
+} from '@libs/common/proto/trip';
 import {
   FindAvailableDriversResponse,
   formatCurrencyVND,
   GetTripsOfDriverResponse,
   SERVICES,
-  TUserSession,
+  TGrpcUser,
+  tripRequestStatusMapping,
+  tripStatusMapping,
 } from '@libs/common/utils';
 import {
   ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { RpcException } from '@nestjs/microservices';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import CircuitBreaker from 'opossum';
 import { DataSource, EntityManager, Repository } from 'typeorm';
@@ -76,11 +80,11 @@ export class TripService {
   };
 
   public createTrip = async (
-    createTripDto: CreateTripDto,
-    userSession: TUserSession,
+    createTripRequest: CreateTripRequest,
+    userSession: TGrpcUser,
   ) => {
     const { sub } = userSession;
-    const { destinationAddress, originAddress } = createTripDto;
+    const { destinationAddress, originAddress, note } = createTripRequest;
 
     const originAddressGeoCode =
       await this.commonService.getCoordinates(originAddress);
@@ -94,7 +98,10 @@ export class TripService {
     });
 
     if (availableDrivers.count === 0) {
-      throw new NotFoundException('No available drivers found nearby.');
+      throw new RpcException({
+        code: status.NOT_FOUND,
+        message: 'No available drivers found nearby.',
+      });
     }
 
     const driver = availableDrivers.drivers[0];
@@ -115,6 +122,7 @@ export class TripService {
       fareFinal: fareEstimate,
       driverId: driver.driverId,
       passengerId: sub,
+      note,
     });
 
     await this.tripRepository.save(newTrip);
@@ -167,7 +175,10 @@ export class TripService {
     };
   };
 
-  public updateTrip = async (tripId: string, updateTripDto: UpdateTripDto) => {
+  public updateTrip = async (
+    tripId: string,
+    updateTripDto: UpdateTripRequest,
+  ) => {
     return this.dataSource.transaction(async (manager) => {
       const tripRepo = manager.getRepository(Trip);
       const trip = await tripRepo.findOne({
@@ -176,22 +187,34 @@ export class TripService {
         },
       });
 
-      if (!trip) throw new NotFoundException('Trip not found.');
+      if (!trip)
+        throw new RpcException({
+          code: status.NOT_FOUND,
+          message: 'Trip not found.',
+        });
 
-      const { destinationAddress, status, note, fareFinal } = updateTripDto;
+      const {
+        destinationAddress,
+        status: statusDto,
+        note,
+        fareFinal,
+      } = updateTripDto;
 
       if (
         trip.status === TripStatusEnum.CANCELLED ||
         trip.status === TripStatusEnum.COMPLETED
       )
-        throw new ForbiddenException(
-          `Trip has been ${trip.status === TripStatusEnum.CANCELLED ? 'cancelled' : 'completed'} and cannot be modified.`,
-        );
+        throw new RpcException({
+          code: status.PERMISSION_DENIED,
+          message: `Trip has been ${trip.status === TripStatusEnum.CANCELLED ? 'cancelled' : 'completed'} and cannot be modified.`,
+        });
 
       if (trip.status === TripStatusEnum.ONGOING && destinationAddress) {
-        throw new ForbiddenException(
-          'Destination address cannot be changed while the trip is ongoing.',
-        );
+        throw new RpcException({
+          code: status.PERMISSION_DENIED,
+          message:
+            'Destination address cannot be changed while the trip is ongoing.',
+        });
       }
 
       if (destinationAddress) {
@@ -210,14 +233,14 @@ export class TripService {
         trip.fareFinal = newEstimateFare || trip.fareEstimate;
       }
 
-      trip.status = status || trip.status;
+      trip.status = statusDto ? tripStatusMapping[statusDto] : trip.status;
       trip.note = note || trip.note;
       trip.destinationAddress = destinationAddress || trip.destinationAddress;
       if (!destinationAddress) trip.fareFinal = fareFinal || trip.fareFinal;
 
       await this.tripRepository.save(trip);
 
-      if (status === TripStatusEnum.COMPLETED) {
+      if (statusDto === TripStatus.TRIP_STATUS_COMPLETED) {
         await this.createNewOutboxEvent(
           {
             eventType: EventTypes.UPDATE_DRIVER_STATUS,
@@ -258,7 +281,7 @@ export class TripService {
 
   public updateTripRequestStatus = async (
     tripRequestId: string,
-    updateTripRequestStatusDto: UpdateTripRequestStatusDto,
+    updateTripRequestStatusRequest: UpdateTripRequestStatusRequest,
   ) => {
     return this.dataSource.transaction(async (manager) => {
       const tripRequestRepo = manager.getRepository(TripRequest);
@@ -271,12 +294,18 @@ export class TripService {
         },
       });
 
-      if (!tripRequest) throw new NotFoundException('Trip request not found.');
+      if (!tripRequest)
+        throw new RpcException({
+          code: status.NOT_FOUND,
+          message: 'Trip request not found.',
+        });
 
-      const { status } = updateTripRequestStatusDto;
-      tripRequest.status = status;
+      const { status: statusRequest } = updateTripRequestStatusRequest;
+
+      tripRequest.status = tripRequestStatusMapping[statusRequest];
       await tripRequestRepo.save(tripRequest);
-      if (status === TripRequestStatusEnum.ACCEPTED) {
+
+      if (statusRequest === TripRequestStatus.TRIP_REQUEST_STATUS_ACCEPTED) {
         await this.createNewOutboxEvent(
           {
             eventType: EventTypes.UPDATE_DRIVER_STATUS,
@@ -352,12 +381,14 @@ export class TripService {
     return outboxRepo.save(newOutbox);
   };
 
-  async estimateFare(estimateFareDto: EstimateFareDto) {
-    const { originAddress, destinationAddress } = estimateFareDto;
+  async estimateFare(getEstimateRequest: GetEstimateRequest) {
+    const { originAddress, destinationAddress } = getEstimateRequest;
+
     const estimateFare = await this.commonService.getEstimatedFare(
       originAddress,
       destinationAddress,
     );
+
     return {
       estimateFare: formatCurrencyVND(estimateFare),
     };
@@ -365,14 +396,14 @@ export class TripService {
 
   public async rateTrip(
     tripId: string,
-    createTripRatingDto: CreateTripRatingDto,
-    userSession: TUserSession,
+    rateTripRequest: RateTripRequest,
+    userSession: TGrpcUser,
   ) {
     return this.dataSource.transaction(async (manager) => {
       const { sub } = userSession;
       const tripRepo = manager.getRepository(Trip);
       const tripRatingRepo = manager.getRepository(TripRating);
-      const { rating, comment } = createTripRatingDto;
+      const { rating, comment } = rateTripRequest;
 
       const trip = await tripRepo.findOne({
         where: { id: tripId },

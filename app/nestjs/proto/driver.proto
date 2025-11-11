@@ -1,0 +1,139 @@
+syntax = "proto3";
+
+package driver;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/wrappers.proto";
+
+service DriverService {
+  rpc GetAllTripsOfDriver(GetAllTripsOfDriverRequest) 
+    returns (GetAllTripsOfDriverResponse);
+  rpc UpdateDriverStatusGrpc(UpdateDriverStatusGrpcRequest)
+    returns (UpdateDriverStatusGrpcResponse);
+  rpc UpdateDriverApproval(UpdateDriverApprovalRequest)
+    returns (UpdateDriverApprovalResponse);
+  rpc GetDriverApprovals(GetDriverApprovalsRequest)
+    returns (GetDriverApprovalsResponse);
+}
+
+
+enum DriverApprovalStatus {
+  DRIVER_APPROVAL_STATUS_UNSPECIFIED = 0;
+  DRIVER_APPROVAL_STATUS_PENDING = 1;
+  DRIVER_APPROVAL_STATUS_ACCEPTED = 2;
+  DRIVER_APPROVAL_STATUS_REJECTED = 3;
+}
+
+message GetDriverApprovalsRequest {
+  optional DriverApprovalStatus status = 1;
+}
+
+message GetDriverApprovalsResponse {
+  
+}
+
+message UpdateDriverApprovalRequest {
+  DriverApprovalStatus status = 1;
+  google.protobuf.StringValue note = 2;
+}
+
+message UpdateDriverApprovalResponse {
+
+}
+
+enum DriverStatus {
+  DRIVER_STATUS_UNSPECIFIED = 0;
+  DRIVER_STATUS_ONLINE = 1;
+  DRIVER_STATUS_OFFLINE = 2;
+  DRIVER_STATUS_BUSY = 3;
+}
+
+message UpdateDriverStatusGrpcRequest {
+  DriverStatus status = 1;
+}
+
+message UpdateDriverStatusGrpcResponse {
+
+}
+
+message GetAllTripsOfDriverRequest {
+  google.protobuf.StringValue after_cursor = 1;
+}
+
+message GetAllTripsOfDriverResponse {
+}
+
+message Driver {
+  string driver_id = 1;
+  string user_id = 2;
+  double rating = 3;
+  int32 total_trip = 4;
+  string license_number = 5;
+  google.protobuf.Timestamp license_expiry = 6;
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp updated_at = 8;
+}
+
+message DriverApproval {
+  string driver_approval_id = 1;
+  DriverApprovalStatus status = 2;
+  optional google.protobuf.Timestamp reviewed_date = 3;
+  google.protobuf.StringValue note = 4;
+  string driver_id = 5;
+  string vehicle_id = 6;
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp updated_at = 8;
+}
+
+message DriverLocation {
+  string hash_prefix = 1;
+  string driver_id = 2;
+  string geo_hash = 3;
+  double lat = 4;
+  double lng = 5;
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp updated_at = 8;
+}
+
+message VehicleCached {
+  string vehicle_id = 1;
+  string plate_number = 2;
+  string brand = 3;
+  string model = 4;
+}
+
+message DriverStatusModel {
+  string driver_id = 1;
+  DriverStatus status = 2;
+  google.protobuf.Timestamp last_seen_at = 3;
+  string current_trip_id = 4;
+  VehicleCached vehicle_cached = 5;
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp updated_at = 8;
+}
+
+message Vehicle {
+  string vehicle_id = 1;
+  string driver_id = 2;
+  string plate_number = 3;
+  string brand = 4;
+  string model = 5;
+  string color = 6;
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp updated_at = 8;
+}
+
+message DriverInfo {
+  string driver_id = 1;
+  string user_id = 2;
+  double rating = 3;
+  int32 total_trip = 4;
+  string license_number = 5;
+  google.protobuf.Timestamp license_expiry = 6;
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp updated_at = 8;
+  DriverStatus driver_status = 9;
+  DriverApproval driver_approval = 10;
+  DriverLocation driver_location = 11;
+  Vehicle vehicle = 12;
+}

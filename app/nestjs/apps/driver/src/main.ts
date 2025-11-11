@@ -1,9 +1,15 @@
-import { generateRmqOptions, SERVICES } from '@libs/common';
+import {
+  generateGrpcOptions,
+  generateRmqOptions,
+  SERVICES,
+} from '@libs/common';
+import { DRIVER_PROTO_PATH } from '@libs/common/constants';
+import { protobufPackage } from '@libs/common/proto/driver';
+import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { MicroserviceOptions } from '@nestjs/microservices';
 import { DriverModule } from './driver.module';
-import { ValidationPipe } from '@nestjs/common';
 
 async function bootstrap() {
   const app = await NestFactory.create(DriverModule);
@@ -16,6 +22,9 @@ async function bootstrap() {
   );
   const configService = app.get(ConfigService);
   const PORT = configService.get<number>('port', 3003);
+  app.connectMicroservice<MicroserviceOptions>(
+    generateGrpcOptions(protobufPackage, DRIVER_PROTO_PATH, '0.0.0.0', 50053),
+  );
   app.connectMicroservice<MicroserviceOptions>(
     generateRmqOptions(SERVICES.DRIVER_SERVICE.toLowerCase(), configService),
   );

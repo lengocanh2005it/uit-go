@@ -1,6 +1,15 @@
+import { Metadata, status } from '@grpc/grpc-js';
 import { RequestTimeoutException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { ClientProxy, RmqOptions, Transport } from '@nestjs/microservices';
+import {
+  ClientProxy,
+  GrpcOptions,
+  RmqOptions,
+  RpcException,
+  Transport,
+} from '@nestjs/microservices';
+import * as ngeohash from 'ngeohash';
+import { join } from 'path';
 import {
   catchError,
   firstValueFrom,
@@ -8,7 +17,7 @@ import {
   timeout,
   TimeoutError,
 } from 'rxjs';
-import * as ngeohash from 'ngeohash';
+import { validate as isUuid } from 'uuid';
 
 export function generateRmqOptions(
   serviceName: string,
@@ -82,4 +91,59 @@ export const buildSearchPrefixes = (
 
 export function payloadIsObject(value: any): value is Record<string, any> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+export function generateGrpcOptions(
+  serviceName: string,
+  protoFilePath: string,
+  host = '0.0.0.0',
+  port = 50051,
+): GrpcOptions {
+  return {
+    transport: Transport.GRPC,
+    options: {
+      package: serviceName,
+      protoPath: join(process.cwd(), protoFilePath),
+      url: `${host}:${port}`,
+    },
+  };
+}
+
+export function isValidUUID(id: string): boolean {
+  return isUuid(id);
+}
+
+export function timestampToDate(ts?: { seconds: number; nanos: number }): Date {
+  if (!ts) return new Date();
+  return new Date(ts.seconds * 1000 + ts.nanos / 1e6);
+}
+
+export function getIdFromMetadata(
+  metadata: Metadata,
+  key: string,
+  checkValidUUId = false,
+): string {
+  const rawValue = metadata.get(key)?.[0];
+
+  const id =
+    typeof rawValue === 'string'
+      ? rawValue
+      : rawValue instanceof Buffer
+        ? rawValue.toString('utf-8')
+        : undefined;
+
+  if (!id) {
+    throw new RpcException({
+      code: status.INVALID_ARGUMENT,
+      message: `Missing ${key} in metadata`,
+    });
+  }
+
+  if (checkValidUUId && !isValidUUID(id))
+    throw new RpcException({
+      code: status.INVALID_ARGUMENT,
+      message: `Invalid ${key}`,
+    });
+
+  return id;
 }
