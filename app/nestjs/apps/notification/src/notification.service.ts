@@ -1,8 +1,95 @@
+import { GetNotificationsOfUserDto } from '@/notification/src/dto';
+import {
+  Notification,
+  NotificationDocument,
+  UserNotification,
+  UserNotificationDocument,
+} from '@/notification/src/schemas';
+import { TGrpcUser } from '@libs/common';
+import { CreateNotificationDto } from '@libs/common/dto/notification';
+import { NotificationTypeEnum } from '@libs/common/enums/notification';
+import { GetNotificationsOfUserResponse } from '@libs/common/proto/notification';
 import { Injectable } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
 
 @Injectable()
 export class NotificationService {
-  getHello(): string {
-    return 'Hello World!';
+  constructor(
+    @InjectModel(UserNotification.name)
+    private readonly userNotificationModel: Model<UserNotificationDocument>,
+    @InjectModel(Notification.name)
+    private readonly notificationModel: Model<NotificationDocument>,
+  ) {}
+
+  async createNotification(
+    createNotificationDto: CreateNotificationDto,
+    userId: string,
+    data?: Record<string, any>,
+  ) {
+    const { type, title, message } = createNotificationDto;
+    const notification = await this.createNewNotification(title, type);
+
+    await this.userNotificationModel.create({
+      userId,
+      notification,
+      message,
+      ...(data && { data }),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+  }
+
+  async getNotificationsOfUser(
+    getNotificationsOfUserDto: GetNotificationsOfUserDto,
+    grpcUser: TGrpcUser,
+  ): Promise<GetNotificationsOfUserResponse> {
+    const { read } = getNotificationsOfUserDto;
+    const userId = grpcUser.sub;
+    const query: any = { userId };
+
+    if (read !== undefined) {
+      query.read = read;
+    }
+
+    const userNotifications = await this.userNotificationModel
+      .find(query)
+      .populate<{ notification: NotificationDocument }>('notification')
+      .sort({ createdAt: -1 })
+      .exec();
+
+    return {
+      notifications: userNotifications.map((un) => ({
+        id: un._id.toString(),
+        read: un.read,
+        readAt: un.readAt,
+        data: un.data ?? {},
+        createdAt: un.createdAt,
+        message: un.message,
+        notification: {
+          id: un.notification._id.toString(),
+          title: un.notification.title,
+          type: un.notification.type,
+        },
+      })),
+    };
+  }
+
+  private async createNewNotification(
+    title: string,
+    type: NotificationTypeEnum,
+  ) {
+    const existed = await this.notificationModel.findOne({
+      type,
+    });
+
+    if (existed) return existed;
+
+    return this.notificationModel.create({
+      title,
+      type,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
   }
 }

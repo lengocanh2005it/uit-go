@@ -68,7 +68,7 @@ services:
         condition: service_started
       kong:
         condition: service_started
-      user-db:
+      driver-db:
         condition: service_started
     networks:
       - backend
@@ -92,7 +92,31 @@ services:
         condition: service_started
       kong:
         condition: service_started
-      user-db:
+      trip-db:
+        condition: service_started
+    networks:
+      - backend
+
+  notification-service:
+    build:
+      context: .
+      dockerfile: ./apps/notification/Dockerfile
+      secrets:
+          - dotenv_notification_key
+    image: uit_go-notification_service
+    container_name: notification-service
+    secrets:
+      - dotenv_notification_key
+    ports:
+      - "3004:3004"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      kong:
+        condition: service_started
+      notification-db:
         condition: service_started
     networks:
       - backend
@@ -138,6 +162,23 @@ services:
       - dotenv_trip_key
     volumes:
       - trip-db-data:/var/lib/mysql
+    
+  notification-db:
+    build:
+      context: ./apps/notification
+      dockerfile: Dockerfile.db
+    secrets:
+      - dotenv_notification_key
+      - mongo_root_password
+    container_name: notification-db
+    ports:
+      - "27017:27017"
+    networks:
+      - backend
+    environment:
+      MONGO_INITDB_ROOT_PASSWORD_FILE: /run/secrets/mongo_root_password
+    volumes:
+      - notification-db-data:/data/db
 
   rabbitmq:
     image: rabbitmq:3-management
@@ -176,8 +217,13 @@ secrets:
     file: ./secrets/dotenv_driver_key.txt
   dotenv_trip_key:
     file: ./secrets/dotenv_trip_key.txt
+  dotenv_notification_key:
+    file: ./secrets/dotenv_notification_key.txt
+  mongo_root_password:
+    file: ./secrets/mongo_root_password.txt
 
 volumes:
   user-db-data:
   trip-db-data:
   driver-db-data:
+  notification-db-data:

@@ -19,15 +19,21 @@ import {
   CommonService,
   driverApprovalStatusMapping,
   FindAvailableDriversResponse,
+  generateNotificationContent,
+  NotificationParams,
   SERVICES,
   TGrpcUser,
   type GetTripsOfDriverResponse,
 } from '@libs/common';
 import { PATTERNS } from '@libs/common/constants';
 import { InjectRabbitMqService } from '@libs/common/decorators';
-import { GetTripsOfDriverQueryDto } from '@libs/common/dto';
+import {
+  GetTripsOfDriverQueryDto,
+  UpdateDriverApprovalDto,
+} from '@libs/common/dto';
 import { UpdateDriverRateDto } from '@libs/common/dto/driver/update-driver-rate.dto';
 import { DriverApprovalStatusEnum, DriverStatusEnum } from '@libs/common/enums';
+import { NotificationTypeEnum } from '@libs/common/enums/notification';
 import { RabbitMQService } from '@libs/common/modules/rabbitmq/rabbitmq.service';
 import {
   GetDriverApprovalsRequest,
@@ -165,6 +171,16 @@ export class DriverService {
     return existed[0].toJSON();
   }
 
+  async getDriverInfoById(driverId: string) {
+    const existed = await this.driverModel.get({ driverId });
+    if (!existed)
+      throw new RpcException({
+        code: status.NOT_FOUND,
+        message: `Driver info not found.`,
+      });
+    return existed.toJSON();
+  }
+
   async getDriverApprovalStatusByUserId(userId: string) {
     const driverRecords = await this.driverModel
       .query('userId')
@@ -279,10 +295,10 @@ export class DriverService {
     };
   }
   async updateDriverApprovalStatus(
-    updateDriverApprovalRequest: UpdateDriverApprovalRequest,
+    updateDriverApprovalDto: UpdateDriverApprovalDto,
     driverId: string,
   ) {
-    const { status: statusData, note } = updateDriverApprovalRequest;
+    const { status: statusData, note } = updateDriverApprovalDto;
 
     const driverApproval = await this.driverApprovalModel
       .query('driverId')
@@ -300,14 +316,52 @@ export class DriverService {
     const updated = await this.driverApprovalModel.update(
       { driverApprovalId: approvalRecord.driverApprovalId },
       {
-        status: driverApprovalStatusMapping[statusData],
+        status: statusData,
         note,
         reviewedDate: new Date(),
         updatedAt: new Date(),
       },
     );
+
+    const driver: any = await this.getDriverInfoDetailById(
+      approvalRecord.driverId,
+    );
+
+    let typeNotif: NotificationTypeEnum | null = null;
+    let params: NotificationParams = {};
+
+    if (
+      statusData === DriverApprovalStatusEnum.ACCEPTED ||
+      statusData === DriverApprovalStatusEnum.REJECTED
+    ) {
+      typeNotif =
+        statusData === DriverApprovalStatusEnum.ACCEPTED
+          ? NotificationTypeEnum.DRIVER_APPROVED
+          : NotificationTypeEnum.DRIVER_REJECTED;
+
+      const { message: messageNotif, title: titleNotif } =
+        generateNotificationContent(typeNotif, params);
+
+      this.rabbitMqService.emit(
+        SERVICES.NOTIFICATION_SERVICE,
+        PATTERNS.NOTIFICATION_SERVICE.CREATE_NOTIFICATION,
+        {
+          userId: driver.userId,
+          createNotificationDto: {
+            type: typeNotif,
+            message: messageNotif,
+            title: titleNotif,
+          },
+          data: {
+            driverId: approvalRecord.driverId,
+            userId: driver.userId,
+          },
+        },
+      );
+    }
+
     return {
-      message: `Driver approval updated to ${driverApprovalStatusMapping[statusData]}`,
+      message: `Driver approval updated to ${statusData}`,
       data: updated,
     };
   }

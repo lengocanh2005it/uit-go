@@ -27,3 +27,12 @@ services:
           - grpc
         paths:
           - /driver.DriverService
+
+  - name: notification-service
+    url: grpc://notification-service:50054
+    routes:
+      - name: notification-service-grpc
+        protocols:
+          - grpc
+        paths:
+          - /notification.NotificationService

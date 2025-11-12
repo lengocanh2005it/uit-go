@@ -1,0 +1,15 @@
+export enum NotificationTypeEnum {
+  TRIP_REQUESTED = 'trip_requested',
+  TRIP_ACCEPTED = 'trip_accepted',
+  TRIP_ARRIVING = 'trip_arriving',
+  TRIP_STARTED = 'trip_started',
+  TRIP_COMPLETED = 'trip_completed',
+  TRIP_CANCELED_BY_DRIVER = 'trip_canceled_by_driver',
+  TRIP_CANCELED_BY_USER = 'trip_canceled_by_user',
+  SYSTEM_ANNOUNCEMENT = 'system_announcement',
+  ACCOUNT_CREATED = 'account_created',
+  DRIVER_SUBMITTED_DOCUMENTS = 'driver_submitted_documents',
+  DRIVER_APPROVED = 'driver_approved',
+  DRIVER_REJECTED = 'driver_rejected',
+  DRIVER_REQUEST_TIMEOUT = 'driver_request_timeout',
+}

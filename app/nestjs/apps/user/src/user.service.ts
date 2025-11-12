@@ -1,6 +1,12 @@
 import { CreateUserDto, LoginUserDto, UpdateProfileDto } from '@/user/src/dto';
 import { status } from '@grpc/grpc-js';
-import { grpcRoleToUserRoleMapping, SERVICES, TGrpcUser } from '@libs/common';
+import {
+  generateNotificationContent,
+  grpcRoleToUserRoleMapping,
+  NotificationParams,
+  SERVICES,
+  TGrpcUser,
+} from '@libs/common';
 import { EventTypes, PATTERNS } from '@libs/common/constants';
 import { InjectRabbitMqService } from '@libs/common/decorators';
 import { CreateDriverDto, CreateOutboxDto } from '@libs/common/dto';
@@ -23,6 +29,7 @@ import { ObjectType } from 'nestjs-dynamoose';
 import CircuitBreaker from 'opossum';
 import { DataSource, EntityManager, Repository } from 'typeorm';
 import { OutboxEvent, User, UserProfile } from './entities';
+import { NotificationTypeEnum } from '@libs/common/enums/notification';
 
 @Injectable()
 export class UserService {
@@ -154,8 +161,58 @@ export class UserService {
 
     const savedUser = await this.getUser(user.id);
 
+    let typeNotif: NotificationTypeEnum | null = null;
+    let params: NotificationParams = {};
+    let messageNotif: string = '';
+    let titleNotif: string = '';
+    let userIdNotif: string = '';
+
+    if (role === UserRole.CUSTOMER) {
+      typeNotif = NotificationTypeEnum.ACCOUNT_CREATED;
+      params = {
+        userName: savedUser.profile?.fullName ?? '',
+      };
+
+      const { message, title } = generateNotificationContent(typeNotif, params);
+
+      messageNotif = message;
+      titleNotif = title;
+      userIdNotif = savedUser.id;
+    } else if (role === UserRole.DRIVER) {
+      const admin = await this.findAminUser();
+
+      typeNotif = NotificationTypeEnum.DRIVER_SUBMITTED_DOCUMENTS;
+      params = {
+        driverName: savedUser.profile?.fullName ?? '',
+      };
+
+      const { message, title } = generateNotificationContent(typeNotif, params);
+
+      messageNotif = message;
+      titleNotif = title;
+      userIdNotif = admin.id;
+    }
+
+    this.rabbitMqService.emit(
+      SERVICES.NOTIFICATION_SERVICE,
+      PATTERNS.NOTIFICATION_SERVICE.CREATE_NOTIFICATION,
+      {
+        userId: userIdNotif,
+        createNotificationDto: {
+          type: typeNotif,
+          message: messageNotif,
+          title: titleNotif,
+        },
+      },
+    );
+
+    const message =
+      savedUser.role === UserRole.CUSTOMER
+        ? 'Your account has been created.'
+        : 'Your documents have been submitted for admin review. Please wait for approval.';
+
     return {
-      message: `Your account has been created.`,
+      message,
       success: true,
       data: {
         sub: savedUser.id,
@@ -298,4 +355,39 @@ export class UserService {
     const newOutbox = outboxRepo.create(createOutboxDto);
     return outboxRepo.save(newOutbox);
   };
+
+  private async findAminUser() {
+    const admin = await this.userRepo.findOne({
+      where: {
+        role: UserRole.ADMIN,
+      },
+    });
+
+    if (!admin)
+      throw new RpcException({
+        code: status.NOT_FOUND,
+        message: `Admin user not found.`,
+      });
+
+    return admin;
+  }
+
+  async getProfileByUserId(userId: string) {
+    const user = await this.userRepo.findOne({
+      where: {
+        id: userId,
+      },
+      relations: {
+        profile: true,
+      },
+    });
+
+    if (!user)
+      throw new RpcException({
+        code: status.NOT_FOUND,
+        message: `User ${userId} not found`,
+      });
+
+    return user;
+  }
 }

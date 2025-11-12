@@ -7,8 +7,14 @@ import {
   CreateOutboxDto,
   CreateTripRequestDto,
   GetTripsOfDriverQueryDto,
+  UpdateTripDto,
+  UpdateTripRequestStatusDto,
 } from '@libs/common/dto';
-import { DriverStatusEnum, TripStatusEnum } from '@libs/common/enums';
+import {
+  DriverStatusEnum,
+  TripRequestStatusEnum,
+  TripStatusEnum,
+} from '@libs/common/enums';
 import { RabbitMQService } from '@libs/common/modules/rabbitmq/rabbitmq.service';
 import {
   CreateTripRequest,
@@ -22,7 +28,9 @@ import {
 import {
   FindAvailableDriversResponse,
   formatCurrencyVND,
+  generateNotificationContent,
   GetTripsOfDriverResponse,
+  NotificationParams,
   SERVICES,
   TGrpcUser,
   tripRequestStatusMapping,
@@ -39,6 +47,9 @@ import CircuitBreaker from 'opossum';
 import { DataSource, EntityManager, Repository } from 'typeorm';
 import { buildPaginator } from 'typeorm-cursor-pagination';
 import { OutboxEvent, Trip, TripRating, TripRequest } from './entities';
+import { NotificationTypeEnum } from '@libs/common/enums/notification';
+import { ObjectType } from 'nestjs-dynamoose';
+import { UserRole } from '@/user/src/enums';
 
 @Injectable()
 export class TripService {
@@ -142,8 +153,43 @@ export class TripService {
     await this.tripRequestProducer.processTripRequest(
       {
         tripRequestId: newTripRequesst.id,
+        sub,
       },
       15000,
+    );
+
+    const { message, title } = generateNotificationContent(
+      NotificationTypeEnum.TRIP_REQUESTED,
+      {
+        pickupLocation: originAddress,
+        dropoffLocation: destinationAddress,
+      },
+    );
+
+    const driverInfo = await this.rabbitMqService.send<ObjectType>(
+      SERVICES.DRIVER_SERVICE,
+      PATTERNS.DRIVER_SERVICE.GET_BY_ID,
+      {
+        driverId: driver.driverId,
+      },
+    );
+
+    this.rabbitMqService.emit(
+      SERVICES.NOTIFICATION_SERVICE,
+      PATTERNS.NOTIFICATION_SERVICE.CREATE_NOTIFICATION,
+      {
+        userId: driverInfo.userId,
+        createNotificationDto: {
+          type: NotificationTypeEnum.TRIP_REQUESTED,
+          message,
+          title,
+        },
+        data: {
+          tripId: newTrip.id,
+          passengerId: sub,
+          driverId: driver.driverId,
+        },
+      },
     );
 
     return {
@@ -175,11 +221,10 @@ export class TripService {
     };
   };
 
-  public updateTrip = async (
-    tripId: string,
-    updateTripDto: UpdateTripRequest,
-  ) => {
+  public updateTrip = async (updateTripDto: UpdateTripDto) => {
     return this.dataSource.transaction(async (manager) => {
+      const { tripId } = updateTripDto;
+
       const tripRepo = manager.getRepository(Trip);
       const trip = await tripRepo.findOne({
         where: {
@@ -233,14 +278,38 @@ export class TripService {
         trip.fareFinal = newEstimateFare || trip.fareEstimate;
       }
 
-      trip.status = statusDto ? tripStatusMapping[statusDto] : trip.status;
+      trip.status = statusDto || trip.status;
       trip.note = note || trip.note;
       trip.destinationAddress = destinationAddress || trip.destinationAddress;
       if (!destinationAddress) trip.fareFinal = fareFinal || trip.fareFinal;
 
       await this.tripRepository.save(trip);
 
-      if (statusDto === TripStatus.TRIP_STATUS_COMPLETED) {
+      if (statusDto === TripStatusEnum.ACCEPTED) {
+        const { message, title } = generateNotificationContent(
+          NotificationTypeEnum.TRIP_COMPLETED,
+          {
+            pickupLocation: trip.originAddress,
+            dropoffLocation: trip.destinationAddress,
+          },
+        );
+
+        this.rabbitMqService.emit(
+          SERVICES.NOTIFICATION_SERVICE,
+          PATTERNS.NOTIFICATION_SERVICE.CREATE_NOTIFICATION,
+          {
+            userId: trip.passengerId,
+            createNotificationDto: {
+              type: NotificationTypeEnum.TRIP_COMPLETED,
+              message,
+              title,
+            },
+            data: {
+              tripId: trip.id,
+            },
+          },
+        );
+
         await this.createNewOutboxEvent(
           {
             eventType: EventTypes.UPDATE_DRIVER_STATUS,
@@ -255,11 +324,12 @@ export class TripService {
         );
       }
 
-      return trip;
+      return this.getTrip(trip.id);
     });
   };
 
-  public cancelTrip = async (tripId: string) => {
+  public cancelTrip = async (tripId: string, grpcUser: TGrpcUser) => {
+    const { role, sub } = grpcUser;
     const trip = await this.findTripById(tripId);
 
     const forbiddenMessages: Record<ForbiddenTripStatus, string> = {
@@ -270,20 +340,74 @@ export class TripService {
     };
 
     if (forbiddenMessages[trip.status as ForbiddenTripStatus]) {
-      throw new ForbiddenException(
-        forbiddenMessages[trip.status as ForbiddenTripStatus],
-      );
+      throw new RpcException({
+        code: status.PERMISSION_DENIED,
+        message: forbiddenMessages[trip.status as ForbiddenTripStatus],
+      });
     }
 
     trip.status = TripStatusEnum.CANCELLED;
     await this.tripRepository.save(trip);
+
+    const isCustomer = role === UserRole.CUSTOMER;
+    const userInfo: ObjectType = await this.rabbitMqService.send(
+      SERVICES.USER_SERVICE,
+      PATTERNS.USER_SERVICE.GET_PROFILE_BY_USER_ID,
+      {
+        userId: sub,
+      },
+    );
+    let driverInfo: ObjectType = {};
+
+    const typeNotif = isCustomer
+      ? NotificationTypeEnum.TRIP_CANCELED_BY_USER
+      : NotificationTypeEnum.TRIP_CANCELED_BY_DRIVER;
+
+    const params: NotificationParams = isCustomer
+      ? {
+          userName: userInfo.profile.fullName ?? '',
+        }
+      : {
+          driverName: userInfo.profile.fullName ?? '',
+        };
+
+    const { message, title } = generateNotificationContent(typeNotif, params);
+
+    if (!isCustomer) {
+      driverInfo = await this.rabbitMqService.send<ObjectType>(
+        SERVICES.DRIVER_SERVICE,
+        PATTERNS.DRIVER_SERVICE.GET_BY_ID,
+        {
+          driverId: trip.driverId,
+        },
+      );
+    }
+
+    this.rabbitMqService.emit(
+      SERVICES.NOTIFICATION_SERVICE,
+      PATTERNS.NOTIFICATION_SERVICE.CREATE_NOTIFICATION,
+      {
+        userId: isCustomer
+          ? (driverInfo.userId ?? trip.driverId)
+          : trip.passengerId,
+        createNotificationDto: {
+          type: typeNotif,
+          message,
+          title,
+        },
+      },
+    );
   };
 
   public updateTripRequestStatus = async (
-    tripRequestId: string,
-    updateTripRequestStatusRequest: UpdateTripRequestStatusRequest,
+    updateTripRequestStatusDto: UpdateTripRequestStatusDto,
+    grpcUser: TGrpcUser,
   ) => {
     return this.dataSource.transaction(async (manager) => {
+      const { sub } = grpcUser;
+      const { status: statusRequest, tripRequestId } =
+        updateTripRequestStatusDto;
+
       const tripRequestRepo = manager.getRepository(TripRequest);
       const tripRequest = await tripRequestRepo.findOne({
         where: {
@@ -300,12 +424,55 @@ export class TripService {
           message: 'Trip request not found.',
         });
 
-      const { status: statusRequest } = updateTripRequestStatusRequest;
-
-      tripRequest.status = tripRequestStatusMapping[statusRequest];
+      tripRequest.status = statusRequest;
       await tripRequestRepo.save(tripRequest);
 
-      if (statusRequest === TripRequestStatus.TRIP_REQUEST_STATUS_ACCEPTED) {
+      if (
+        statusRequest === TripRequestStatusEnum.ACCEPTED ||
+        statusRequest === TripRequestStatusEnum.REJECTED
+      ) {
+        const userInfo = await this.rabbitMqService.send<ObjectType>(
+          SERVICES.USER_SERVICE,
+          PATTERNS.USER_SERVICE.GET_PROFILE_BY_USER_ID,
+          {
+            userId: sub,
+          },
+        );
+
+        const isAccepted = statusRequest === TripRequestStatusEnum.ACCEPTED;
+
+        const typeNotif = isAccepted
+          ? NotificationTypeEnum.TRIP_ACCEPTED
+          : NotificationTypeEnum.TRIP_CANCELED_BY_DRIVER;
+        const params: NotificationParams = {
+          driverName: userInfo.profile.fullName ?? '',
+        };
+
+        const { message, title } = generateNotificationContent(
+          typeNotif,
+          params,
+        );
+
+        this.rabbitMqService.emit(
+          SERVICES.NOTIFICATION_SERVICE,
+          PATTERNS.NOTIFICATION_SERVICE.CREATE_NOTIFICATION,
+          {
+            userId: tripRequest.trip.passengerId,
+            createNotificationDto: {
+              type: typeNotif,
+              message,
+              title,
+            },
+            data: {
+              tripId: tripRequest.trip.id,
+              driverId: tripRequest.trip.driverId,
+              passengerId: tripRequest.trip.passengerId,
+            },
+          },
+        );
+      }
+
+      if (statusRequest === TripRequestStatusEnum.ACCEPTED) {
         await this.createNewOutboxEvent(
           {
             eventType: EventTypes.UPDATE_DRIVER_STATUS,
