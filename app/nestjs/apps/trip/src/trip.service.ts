@@ -1,3 +1,4 @@
+import { GetEstimateDto, RateTripDto } from '@/trip/src/dto';
 import { TripRequestProducer, TripStatusProducer } from '@/trip/src/producers';
 import { UserRole } from '@/user/src/enums';
 import { status } from '@grpc/grpc-js';
@@ -6,8 +7,9 @@ import { AggregateTypes, EventTypes, PATTERNS } from '@libs/common/constants';
 import { InjectRabbitMqService } from '@libs/common/decorators';
 import {
   CreateOutboxDto,
+  CreateTripDto,
   CreateTripRequestDto,
-  GetTripsOfDriverQueryDto,
+  GetAllTripsOfDriverDto,
   UpdateTripDto,
   UpdateTripRequestStatusDto,
 } from '@libs/common/dto';
@@ -18,16 +20,19 @@ import {
 } from '@libs/common/enums';
 import { NotificationTypeEnum } from '@libs/common/enums/notification';
 import { RabbitMQService } from '@libs/common/modules/rabbitmq/rabbitmq.service';
+import { GetAllTripsOfDriverResponse } from '@libs/common/proto/driver';
 import {
-  CreateTripRequest,
-  GetEstimateRequest,
+  CreateTripResponse,
+  GetEstimateResponse,
+  GetTripResponse,
   RateTripRequest,
+  RateTripResponse,
 } from '@libs/common/proto/trip';
 import {
+  driverStatusMapping,
   FindAvailableDriversResponse,
   formatCurrencyVND,
   generateNotificationContent,
-  GetTripsOfDriverResponse,
   NotificationParams,
   SERVICES,
   TGrpcUser,
@@ -81,16 +86,16 @@ export class TripService {
     }));
   }
 
-  public getTrip = async (tripId: string) => {
+  public getTrip = async (tripId: string): Promise<GetTripResponse> => {
     return this.findTripById(tripId);
   };
 
   public createTrip = async (
-    createTripRequest: CreateTripRequest,
+    createTripDto: CreateTripDto,
     userSession: TGrpcUser,
-  ) => {
+  ): Promise<CreateTripResponse> => {
     const { sub } = userSession;
-    const { destinationAddress, originAddress, note } = createTripRequest;
+    const { destinationAddress, originAddress, note } = createTripDto;
 
     const originAddressGeoCode =
       await this.commonService.getCoordinates(originAddress);
@@ -206,12 +211,12 @@ export class TripService {
           lat: destinationAddressGeoCode.lat,
           lon: destinationAddressGeoCode.lon,
         },
-        distance_km: await this.commonService.getDistance(
+        distanceKm: await this.commonService.getDistance(
           originAddress,
           destinationAddress,
         ),
-        estimated_price: formatCurrencyVND(fareEstimate),
-        created_at: newTrip.createdAt,
+        estimatedPrice: formatCurrencyVND(fareEstimate),
+        createdAt: newTrip.createdAt,
       },
     };
   };
@@ -530,10 +535,11 @@ export class TripService {
   };
 
   public getTripsOfDriver = async (
+    getAllTripsOfDriverDto: GetAllTripsOfDriverDto,
     driverId: string,
-    getTripsOfDriverQueryDto: GetTripsOfDriverQueryDto,
-  ): Promise<GetTripsOfDriverResponse> => {
-    const { afterCursor } = getTripsOfDriverQueryDto;
+  ): Promise<GetAllTripsOfDriverResponse> => {
+    const { afterCursor } = getAllTripsOfDriverDto;
+
     const paginator = buildPaginator({
       entity: Trip,
       alias: 'trip',
@@ -552,8 +558,11 @@ export class TripService {
     const { data, cursor } = await paginator.paginate(qb);
 
     return {
-      data,
-      afterCursor: cursor?.afterCursor ?? null,
+      data: data.map((d) => ({
+        ...d,
+        status: driverStatusMapping[d.status],
+      })),
+      afterCursor: cursor?.afterCursor ?? undefined,
     };
   };
 
@@ -574,7 +583,11 @@ export class TripService {
       },
     });
 
-    if (!trip) throw new NotFoundException('Trip not found.');
+    if (!trip)
+      throw new RpcException({
+        code: status.NOT_FOUND,
+        message: 'Trip not found.',
+      });
 
     return trip;
   };
@@ -588,8 +601,10 @@ export class TripService {
     return outboxRepo.save(newOutbox);
   };
 
-  async estimateFare(getEstimateRequest: GetEstimateRequest) {
-    const { originAddress, destinationAddress } = getEstimateRequest;
+  async estimateFare(
+    getEstimateDto: GetEstimateDto,
+  ): Promise<GetEstimateResponse> {
+    const { originAddress, destinationAddress } = getEstimateDto;
 
     const estimateFare = await this.commonService.getEstimatedFare(
       originAddress,
@@ -602,35 +617,54 @@ export class TripService {
   }
 
   public async rateTrip(
-    tripId: string,
-    rateTripRequest: RateTripRequest,
+    rateTripDto: RateTripDto,
     userSession: TGrpcUser,
-  ) {
+  ): Promise<RateTripResponse> {
     return this.dataSource.transaction(async (manager) => {
       const { sub } = userSession;
       const tripRepo = manager.getRepository(Trip);
       const tripRatingRepo = manager.getRepository(TripRating);
-      const { rating, comment } = rateTripRequest;
+      const { rating, comment, tripId } = rateTripDto;
 
       const trip = await tripRepo.findOne({
         where: { id: tripId },
-        relations: ['rating'],
+        relations: {
+          rating: true,
+        },
       });
 
-      if (!trip) throw new NotFoundException('Trip not found.');
+      if (!trip)
+        throw new RpcException({
+          code: status.NOT_FOUND,
+          message: 'Trip not found.',
+        });
+
       if (trip.passengerId !== sub)
-        throw new ForbiddenException('You are not the passenger of this trip.');
+        throw new RpcException({
+          code: status.PERMISSION_DENIED,
+          message: 'You are not the passenger of this trip.',
+        });
+
       if (trip.status !== TripStatusEnum.COMPLETED)
-        throw new ForbiddenException('You can only rate a completed trip.');
+        throw new RpcException({
+          code: status.PERMISSION_DENIED,
+          message: 'You can only rate a completed trip.',
+        });
+
       if (trip.rating)
-        throw new ForbiddenException('Trip has already been rated.');
+        throw new RpcException({
+          code: status.PERMISSION_DENIED,
+          message: `Trip has already been rated.`,
+        });
 
       const tripRating = tripRatingRepo.create({
         rating,
         comment,
         trip,
         reviewerId: sub,
+        createdAt: new Date(),
       });
+
       await tripRatingRepo.save(tripRating);
 
       await this.createNewOutboxEvent(
@@ -651,6 +685,40 @@ export class TripService {
         manager,
       );
 
+      const { message, title } = generateNotificationContent(
+        NotificationTypeEnum.TRIP_RATED,
+        {
+          rating,
+          comment,
+        },
+      );
+
+      const driverInfo = await this.rabbitMqService.send<ObjectType>(
+        SERVICES.DRIVER_SERVICE,
+        PATTERNS.DRIVER_SERVICE.GET_BY_ID,
+        {
+          driverId: trip.driverId,
+        },
+      );
+
+      this.rabbitMqService.emit(
+        SERVICES.NOTIFICATION_SERVICE,
+        PATTERNS.NOTIFICATION_SERVICE.CREATE_NOTIFICATION,
+        {
+          userId: driverInfo.userId,
+          createNotificationDto: {
+            type: NotificationTypeEnum.TRIP_RATED,
+            message,
+            title,
+          },
+          data: {
+            tripId: trip.id,
+            rating,
+            ...(comment?.trim() && { comment }),
+          },
+        },
+      );
+
       return {
         success: true,
         message: 'Trip rated successfully.',
@@ -658,7 +726,7 @@ export class TripService {
           tripId: trip.id,
           driverId: trip.driverId,
           rating,
-          comment,
+          ...(comment && { comment }),
         },
       };
     });

@@ -1,22 +1,24 @@
-import { Metadata } from '@grpc/grpc-js';
 import {
-  CommonService,
-  driverStatusMapping,
-  getIdFromMetadata,
-  TGrpcUser,
-} from '@libs/common';
+  GetDriverApprovalsDto,
+  GetDriverInfoDetailByIdDto,
+  GetLocationOfDriverDto,
+} from '@/driver/src/dto';
+import { Metadata } from '@grpc/grpc-js';
+import { CommonService, getIdFromMetadata, TGrpcUser } from '@libs/common';
 import { GRPC_METHODS, PATTERNS } from '@libs/common/constants';
 import { GrpcBody, GrpcUser } from '@libs/common/decorators';
+import {
+  GetAllTripsOfDriverDto,
+  UpdateDriverApprovalDto,
+  UpdateDriverStatusDto,
+} from '@libs/common/dto';
 import { UpdateDriverRateDto } from '@libs/common/dto/driver/update-driver-rate.dto';
 import { DriverStatusEnum } from '@libs/common/enums';
 import { JwtGrpcGuard } from '@libs/common/guards';
+import { GrpcValidationPipe } from '@libs/common/pipes';
 import {
   DRIVER_SERVICE_NAME,
-  DriverStatus,
-  GetAllTripsOfDriverRequest,
-  GetDriverApprovalsRequest,
-  UpdateDriverApprovalRequest,
-  UpdateDriverStatusGrpcRequest,
+  UpdateDriverStatusGrpcResponse,
 } from '@libs/common/proto/driver';
 import { CreateDriverRequest } from '@libs/common/proto/user';
 import {
@@ -33,8 +35,6 @@ import {
   Payload,
 } from '@nestjs/microservices';
 import { DriverService } from './driver.service';
-import { UpdateDriverApprovalDto } from '@libs/common/dto';
-import { GrpcValidationPipe } from '@libs/common/pipes';
 
 @Controller()
 export class DriverController {
@@ -103,18 +103,15 @@ export class DriverController {
     GRPC_METHODS.DRIVER_SERVICE.UPDATE_DRIVER_STATUS_GRPC,
   )
   @UseGuards(JwtGrpcGuard)
+  @UsePipes(GrpcValidationPipe)
   async updateDriverStatusGrpc(
-    updateDriverStatusGrpcRequest: UpdateDriverStatusGrpcRequest,
-    metadata: Metadata,
-  ) {
-    const driverId = getIdFromMetadata(metadata, 'driver-id', true);
-    const { status } = updateDriverStatusGrpcRequest;
-    await this.driverService.updateDriverStatus(
-      driverId,
-      driverStatusMapping[status],
-    );
+    @GrpcBody(UpdateDriverStatusDto)
+    updateDriverStatusDto: UpdateDriverStatusDto,
+  ): Promise<UpdateDriverStatusGrpcResponse> {
+    const { status, driverId } = updateDriverStatusDto;
+    await this.driverService.updateDriverStatus(driverId, status);
 
-    if (status === DriverStatus.DRIVER_STATUS_ONLINE) {
+    if (status === DriverStatusEnum.ONLINE) {
       const { latitude, longitude } =
         await this.commonService.getServerLocation();
       await this.driverService.updateLocationOfDriver(
@@ -137,16 +134,16 @@ export class DriverController {
     DRIVER_SERVICE_NAME,
     GRPC_METHODS.DRIVER_SERVICE.GET_ALL_TRIPS_OF_DRIVER,
   )
+  @UseGuards(JwtGrpcGuard)
+  @UsePipes(GrpcValidationPipe)
   async getAllTripsOfDriver(
-    getAllTripsOfDriverRequest: GetAllTripsOfDriverRequest,
+    @GrpcBody(GetAllTripsOfDriverDto)
+    getAllTripsOfDriverDto: GetAllTripsOfDriverDto,
     @GrpcUser() grpcUser: TGrpcUser,
-    metadata: Metadata,
   ) {
-    const driverId = getIdFromMetadata(metadata, 'driver-id', true);
     return this.driverService.getAllTripsOfDriver(
       grpcUser,
-      driverId,
-      getAllTripsOfDriverRequest,
+      getAllTripsOfDriverDto,
     );
   }
 
@@ -180,27 +177,37 @@ export class DriverController {
     DRIVER_SERVICE_NAME,
     GRPC_METHODS.DRIVER_SERVICE.GET_LOCATION_OF_DRIVER,
   )
-  async getLocationOfDriver(metadata: Metadata) {
-    const driverId = getIdFromMetadata(metadata, 'driver-id', true);
-    return this.driverService.getLocationOfDriver(driverId);
+  @UseGuards(JwtGrpcGuard)
+  @UsePipes(GrpcValidationPipe)
+  async getLocationOfDriver(
+    @GrpcBody(GetLocationOfDriverDto)
+    getLocationOfDriverDto: GetLocationOfDriverDto,
+  ) {
+    return this.driverService.getLocationOfDriver(getLocationOfDriverDto);
   }
 
   @GrpcMethod(
     DRIVER_SERVICE_NAME,
     GRPC_METHODS.DRIVER_SERVICE.GET_DRIVER_APPROVALS,
   )
+  @UseGuards(JwtGrpcGuard)
+  @UsePipes(GrpcValidationPipe)
   async getDriverApprovals(
-    getDriverApprovalRequest: GetDriverApprovalsRequest,
+    @GrpcBody(GetDriverApprovalsDto)
+    getDriverApprovalsDto: GetDriverApprovalsDto,
   ) {
-    return this.driverService.getDriversApproval(getDriverApprovalRequest);
+    return this.driverService.getDriversApproval(getDriverApprovalsDto);
   }
 
   @GrpcMethod(
     DRIVER_SERVICE_NAME,
     GRPC_METHODS.DRIVER_SERVICE.GET_DRIVER_INFO_DETAIL_BY_ID,
   )
-  async getDriverInfoDetailById(metadata: Metadata) {
-    const driverId = getIdFromMetadata(metadata, 'driver-id', true);
-    return this.driverService.getDriverInfoDetailById(driverId);
+  @UseGuards(JwtGrpcGuard)
+  @UsePipes(GrpcValidationPipe)
+  async getDriverInfoDetailById(
+    @GrpcBody(GetDriverInfoDetailByIdDto) dto: GetDriverInfoDetailByIdDto,
+  ) {
+    return this.driverService.getDriverInfoDetailById(dto);
   }
 }

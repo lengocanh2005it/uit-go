@@ -4,8 +4,6 @@
 //   protoc               v6.33.0
 // source: google/protobuf/empty.proto
 
-/* eslint-disable */
-
 export const protobufPackage = 'google.protobuf';
 
 /**

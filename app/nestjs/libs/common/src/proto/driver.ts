@@ -8,6 +8,8 @@
 import { GrpcMethod, GrpcStreamMethod } from '@nestjs/microservices';
 import { wrappers } from 'protobufjs';
 import { Observable } from 'rxjs';
+import { Struct } from './google/protobuf/struct';
+import { Trip } from './trip';
 
 export const protobufPackage = 'driver';
 
@@ -27,11 +29,30 @@ export enum DriverStatus {
   UNRECOGNIZED = -1,
 }
 
+export interface GetDriverInfoDetailByIdRequest {
+  driverId: string;
+}
+
+export interface GetLocationOfDriverRequest {
+  driverId: string;
+}
+
+export interface GetLocationOfDriverRespose {}
+
 export interface GetDriverApprovalsRequest {
   status?: DriverApprovalStatus | undefined;
 }
 
-export interface GetDriverApprovalsResponse {}
+export interface GetDriverApprovalsResponse {
+  driverApprovalId: string;
+  status: string;
+  reviewedDate?: Date | undefined;
+  note: string | undefined;
+  driverId: string;
+  vehicleId: string;
+  createdAt: Date | undefined;
+  updatedAt: Date | undefined;
+}
 
 export interface UpdateDriverApprovalRequest {
   status: DriverApprovalStatus;
@@ -42,15 +63,22 @@ export interface UpdateDriverApprovalResponse {}
 
 export interface UpdateDriverStatusGrpcRequest {
   status: DriverStatus;
+  driverId: string;
 }
 
-export interface UpdateDriverStatusGrpcResponse {}
+export interface UpdateDriverStatusGrpcResponse {
+  message: string;
+  data: { [key: string]: any } | undefined;
+}
 
 export interface GetAllTripsOfDriverRequest {
   afterCursor: string | undefined;
 }
 
-export interface GetAllTripsOfDriverResponse {}
+export interface GetAllTripsOfDriverResponse {
+  afterCursor: string | undefined;
+  data: Trip[];
+}
 
 export interface Driver {
   driverId: string;
@@ -121,7 +149,7 @@ export interface DriverInfo {
   licenseExpiry: Date | undefined;
   createdAt: Date | undefined;
   updatedAt: Date | undefined;
-  driverStatus: DriverStatus;
+  driverStatus: DriverStatusModel | undefined;
   driverApproval: DriverApproval | undefined;
   driverLocation: DriverLocation | undefined;
   vehicle: Vehicle | undefined;
@@ -141,6 +169,11 @@ wrappers['.google.protobuf.Timestamp'] = {
   },
 } as any;
 
+wrappers['.google.protobuf.Struct'] = {
+  fromObject: Struct.wrap,
+  toObject: Struct.unwrap,
+} as any;
+
 export interface DriverServiceClient {
   getAllTripsOfDriver(
     request: GetAllTripsOfDriverRequest,
@@ -157,6 +190,14 @@ export interface DriverServiceClient {
   getDriverApprovals(
     request: GetDriverApprovalsRequest,
   ): Observable<GetDriverApprovalsResponse>;
+
+  getLocationOfDriver(
+    request: GetLocationOfDriverRequest,
+  ): Observable<DriverLocation>;
+
+  getDriverInfoDetailById(
+    request: GetDriverInfoDetailByIdRequest,
+  ): Observable<DriverInfo>;
 }
 
 export interface DriverServiceController {
@@ -187,6 +228,14 @@ export interface DriverServiceController {
     | Promise<GetDriverApprovalsResponse>
     | Observable<GetDriverApprovalsResponse>
     | GetDriverApprovalsResponse;
+
+  getLocationOfDriver(
+    request: GetLocationOfDriverRequest,
+  ): Promise<DriverLocation> | Observable<DriverLocation> | DriverLocation;
+
+  getDriverInfoDetailById(
+    request: GetDriverInfoDetailByIdRequest,
+  ): Promise<DriverInfo> | Observable<DriverInfo> | DriverInfo;
 }
 
 export function DriverServiceControllerMethods() {
@@ -196,6 +245,8 @@ export function DriverServiceControllerMethods() {
       'updateDriverStatusGrpc',
       'updateDriverApproval',
       'getDriverApprovals',
+      'getLocationOfDriver',
+      'getDriverInfoDetailById',
     ];
     for (const method of grpcMethods) {
       const descriptor: any = Reflect.getOwnPropertyDescriptor(

@@ -52,6 +52,8 @@ export const tripStatusMapping: Record<TripStatus, TripStatusEnum> = {
   [TripStatus.TRIP_STATUS_COMPLETED]: TripStatusEnum.COMPLETED,
   [TripStatus.TRIP_STATUS_CANCELLED]: TripStatusEnum.CANCELLED,
   [TripStatus.UNRECOGNIZED]: TripStatusEnum.SEARCHING,
+  [TripStatus.TRIP_STATUS_ARRIVING]: TripStatusEnum.ARRIVING,
+  [TripStatus.TRIP_STATUS_STARTED]: TripStatusEnum.STARTED,
 };
 export const grpcRoleToUserRoleMapping: Record<UseerRoleProto, UserRole> = {
   [UseerRoleProto.USER_ROLE_CUSTOMER]: UserRole.CUSTOMER,
