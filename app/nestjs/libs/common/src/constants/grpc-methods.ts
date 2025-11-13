@@ -24,5 +24,7 @@ export const GRPC_METHODS = {
   },
   NOTIFICATION_SERVICE: {
     GET_NOTIFICATIONS_OF_USER: 'getNotificationsOfUser',
+    DELETE_NOTIFICATION_OF_USER: 'deleteNotificationOfUser',
+    MARK_AS_READ: 'markAsRead',
   },
 };

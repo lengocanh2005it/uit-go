@@ -12,10 +12,27 @@ import { Struct } from './google/protobuf/struct';
 
 export const protobufPackage = 'notification';
 
+export interface MarkAsReadRequest {
+  notificationId: string;
+}
+
+export interface MarkAsReadResponse {}
+
+export interface DeleteNotificationOfUserRequest {
+  notificationId: string;
+}
+
+export interface DeleteNotificationOfUserResponse {
+  message: string;
+  success: boolean;
+}
+
 export interface Notification {
   id: string;
   title: string;
   type: string;
+  createdAt: Date | undefined;
+  updatedAt: Date | undefined;
 }
 
 export interface UserNotification {
@@ -25,6 +42,8 @@ export interface UserNotification {
   read: boolean;
   readAt: Date | undefined;
   data?: { [key: string]: any } | undefined;
+  userId: string;
+  updatedAt: Date | undefined;
 }
 
 export interface GetNotificationsOfUserRequest {
@@ -58,6 +77,12 @@ export interface NotificationServiceClient {
   getNotificationsOfUser(
     request: GetNotificationsOfUserRequest,
   ): Observable<GetNotificationsOfUserResponse>;
+
+  deleteNotificationOfUser(
+    request: DeleteNotificationOfUserRequest,
+  ): Observable<DeleteNotificationOfUserResponse>;
+
+  markAsRead(request: MarkAsReadRequest): Observable<MarkAsReadResponse>;
 }
 
 export interface NotificationServiceController {
@@ -67,11 +92,29 @@ export interface NotificationServiceController {
     | Promise<GetNotificationsOfUserResponse>
     | Observable<GetNotificationsOfUserResponse>
     | GetNotificationsOfUserResponse;
+
+  deleteNotificationOfUser(
+    request: DeleteNotificationOfUserRequest,
+  ):
+    | Promise<DeleteNotificationOfUserResponse>
+    | Observable<DeleteNotificationOfUserResponse>
+    | DeleteNotificationOfUserResponse;
+
+  markAsRead(
+    request: MarkAsReadRequest,
+  ):
+    | Promise<MarkAsReadResponse>
+    | Observable<MarkAsReadResponse>
+    | MarkAsReadResponse;
 }
 
 export function NotificationServiceControllerMethods() {
   return function (constructor: Function) {
-    const grpcMethods: string[] = ['getNotificationsOfUser'];
+    const grpcMethods: string[] = [
+      'getNotificationsOfUser',
+      'deleteNotificationOfUser',
+      'markAsRead',
+    ];
     for (const method of grpcMethods) {
       const descriptor: any = Reflect.getOwnPropertyDescriptor(
         constructor.prototype,

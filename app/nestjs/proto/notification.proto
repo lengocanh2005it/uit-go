@@ -8,12 +8,34 @@ import "google/protobuf/timestamp.proto";
 service NotificationService {
   rpc GetNotificationsOfUser(GetNotificationsOfUserRequest) 
     returns (GetNotificationsOfUserResponse);
+  rpc DeleteNotificationOfUser(DeleteNotificationOfUserRequest)
+    returns (DeleteNotificationOfUserResponse);
+  rpc MarkAsRead(MarkAsReadRequest) returns (MarkAsReadResponse);
+}
+
+message MarkAsReadRequest {
+  string notification_id = 1;
+}
+
+message MarkAsReadResponse {
+
+}
+
+message DeleteNotificationOfUserRequest {
+  string notification_id = 1;
+}
+
+message DeleteNotificationOfUserResponse {
+  string message = 1;
+  bool success = 2;
 }
 
 message Notification {
   string id = 1;
   string title = 2;
   string type = 3;
+  google.protobuf.Timestamp created_at = 4;
+  google.protobuf.Timestamp updated_at = 5;
 }
 
 message UserNotification {
@@ -23,6 +45,8 @@ message UserNotification {
   bool read = 3;
   google.protobuf.Timestamp read_at = 4;
   optional google.protobuf.Struct data = 6;
+  string user_id = 7;
+  google.protobuf.Timestamp updated_at = 8;
 }
 
 message GetNotificationsOfUserRequest {
