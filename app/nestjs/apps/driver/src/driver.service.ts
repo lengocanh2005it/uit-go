@@ -29,7 +29,10 @@ import {
   TGrpcUser,
 } from '@libs/common';
 import { PATTERNS } from '@libs/common/constants';
-import { InjectRabbitMqService } from '@libs/common/decorators';
+import {
+  InjectRabbitMqService,
+  InjectRedisService,
+} from '@libs/common/decorators';
 import {
   GetAllTripsOfDriverDto,
   UpdateDriverApprovalDto,
@@ -38,6 +41,7 @@ import { UpdateDriverRateDto } from '@libs/common/dto/driver/update-driver-rate.
 import { DriverApprovalStatusEnum, DriverStatusEnum } from '@libs/common/enums';
 import { NotificationTypeEnum } from '@libs/common/enums/notification';
 import { RabbitMQService } from '@libs/common/modules/rabbitmq/rabbitmq.service';
+import { RedisService } from '@libs/common/modules/redis/redis.service';
 import {
   DriverInfo,
   GetAllTripsOfDriverResponse,
@@ -91,6 +95,7 @@ export class DriverService {
     >,
     private readonly configService: ConfigService,
     private readonly commonService: CommonService,
+    @InjectRedisService() private readonly redisService: RedisService,
   ) {
     this.getTripsBreaker = new CircuitBreaker(
       (getAllTripsOfDriverDto, driverId) =>
@@ -375,119 +380,92 @@ export class DriverService {
     locations: DriverLocation[],
   ): Record<string, DriverLocation> {
     const byDriver: Record<string, DriverLocation> = {};
+
     for (const location of locations) {
       const key = location.driverId;
       const prevLocation = byDriver[key];
       const currentUpdated = new Date(
         location.updatedAt ?? Date.now(),
       ).getTime();
+
       const prevUpdated = prevLocation
         ? new Date(prevLocation.updatedAt ?? 0).getTime()
         : -1;
+
       if (!prevLocation || currentUpdated > prevUpdated) {
         byDriver[key] = location;
       }
     }
+
     return byDriver;
   }
 
-  async findNearbyDrivers(
-    lat: number,
-    lng: number,
-    radiusKm = 3,
-  ): Promise<FindAvailableDriversResponse> {
-    try {
-      const prefixes = buildSearchPrefixes(lat, lng, radiusKm, 5);
-      if (prefixes.length === 0) {
-        return { count: 0, drivers: [] };
-      }
+  async findNearbyDrivers(lat: number, lng: number, radiusKm = 3) {
+    const cacheKey = `available_drivers:${lat.toFixed(4)}:${lng.toFixed(4)}:${radiusKm}`;
+    const cached = await this.redisService.get(cacheKey);
 
-      this.logger.debug(`Searching with ${prefixes.length} geo prefixes`);
+    if (cached) {
+      return JSON.parse(cached);
+    }
 
-      const locationResponses = await Promise.all(
-        prefixes.map((prefix) =>
-          this.driverLocationModel.query('hashPrefix').eq(prefix).exec(),
-        ),
-      );
+    const prefixes = buildSearchPrefixes(lat, lng, radiusKm, 5);
 
-      if (locationResponses.length === 0) {
-        return { count: 0, drivers: [] };
-      }
+    if (prefixes.length === 0) {
+      return { count: 0, drivers: [] };
+    }
 
-      const locations = locationResponses
-        .flat()
-        .map((item) => item?.toJSON?.() as DriverLocation | undefined)
-        .filter((item) => item !== undefined);
+    const locationResponses: DriverLocation[][] = await Promise.all(
+      prefixes.map(
+        (prefix) =>
+          this.driverLocationModel
+            .query('hashPrefix')
+            .eq(prefix)
+            .exec() as Promise<DriverLocation[]>,
+      ),
+    );
 
-      if (locations.length === 0) {
-        return { count: 0, drivers: [] };
-      }
+    const locations: DriverLocation[] = locationResponses.flat();
+    const latestByDriver = this.pickLatestLocationPerDriver(locations);
 
-      const latestByDriver = this.pickLatestLocationPerDriver(locations);
+    const entries = await Promise.all(
+      Object.values(latestByDriver).map(async (location) => {
+        try {
+          const distance = await this.commonService.getDistanceWithCoordinates(
+            { lat, lon: lng },
+            { lat: location.lat, lon: location.lng },
+          );
 
-      this.logger.debug(
-        `Found ${Object.keys(latestByDriver).length} drivers with locations`,
-      );
+          const statusDoc = await this.driverStatusModel.get({
+            driverId: location.driverId,
+          });
 
-      const entries = await Promise.all(
-        Object.values(latestByDriver).map(async (location) => {
-          try {
-            const distance =
-              await this.commonService.getDistanceWithCoordinates(
-                { lat, lon: lng },
-                { lat: location.lat, lon: location.lng },
-              );
+          const status = statusDoc?.toJSON()?.status;
+
+          if (status === DriverStatusEnum.ONLINE && distance <= radiusKm) {
             return {
               driverId: location.driverId,
               lat: location.lat,
               lng: location.lng,
               distanceKm: distance,
             };
-          } catch (error) {
-            this.logger.error(
-              `Error calculating distance for driver ${location.driverId}:`,
-              error,
-            );
-            return null;
           }
-        }),
-      );
 
-      const noNullEntries = entries.filter((e) => e !== null);
-      const withinRadiusEntries = noNullEntries.filter(
-        (e) => e.distanceKm <= radiusKm,
-      );
-
-      const filtered: typeof withinRadiusEntries = [];
-      for (const e of withinRadiusEntries) {
-        try {
-          const statusDoc = await this.driverStatusModel.get({
-            driverId: e.driverId,
-          });
-          const status = statusDoc?.toJSON()?.status as
-            | DriverStatusEnum
-            | undefined;
-          if (status === DriverStatusEnum.ONLINE) {
-            filtered.push(e);
-          }
+          return null;
         } catch (error) {
-          this.logger.error(
-            `Error fetching status for driver ${e.driverId}:`,
-            error,
-          );
+          return null;
         }
-      }
+      }),
+    );
 
-      filtered.sort((a, b) => a.distanceKm - b.distanceKm);
+    const filtered = entries.filter(Boolean);
 
-      return {
-        count: filtered.length,
-        drivers: filtered,
-      };
-    } catch (error) {
-      this.logger.error('Error in findNearbyDrivers:', error);
-      throw error;
-    }
+    await this.redisService.set(
+      cacheKey,
+      JSON.stringify({ count: filtered.length, drivers: filtered }),
+      10,
+    );
+
+    return { count: filtered.length, drivers: filtered };
   }
 
   async findAvailableDrivers(
