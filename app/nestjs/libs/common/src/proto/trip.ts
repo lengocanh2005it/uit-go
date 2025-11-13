@@ -5,10 +5,10 @@
 // source: trip.proto
 
 /* eslint-disable */
-import { GrpcMethod, GrpcStreamMethod } from "@nestjs/microservices";
-import { Observable } from "rxjs";
+import { GrpcMethod, GrpcStreamMethod } from '@nestjs/microservices';
+import { Observable } from 'rxjs';
 
-export const protobufPackage = "trip";
+export const protobufPackage = 'trip';
 
 export enum TripStatus {
   TRIP_STATUS_UNSPECIFIED = 0,
@@ -29,38 +29,42 @@ export enum TripRequestStatus {
   UNRECOGNIZED = -1,
 }
 
+export interface CancelTripRequest {
+  tripId: string;
+}
+
+export interface CancelTripResponse {}
+
 export interface RateTripRequest {
   rating: number;
   comment: string;
 }
 
-export interface RateTripResponse {
-}
+export interface RateTripResponse {}
 
 export interface GetEstimateRequest {
   originAddress: string;
   destinationAddress: string;
 }
 
-export interface GetEstimateResponse {
-}
+export interface GetEstimateResponse {}
 
 export interface UpdateTripRequestStatusRequest {
   status: TripRequestStatus;
+  tripId: string;
 }
 
-export interface UpdateTripRequestStatusResponse {
-}
+export interface UpdateTripRequestStatusResponse {}
 
 export interface UpdateTripRequest {
   status?: TripStatus | undefined;
   note: string | undefined;
   destinationAddress: string | undefined;
   fareFinal?: number | undefined;
+  tripId: string;
 }
 
-export interface UpdateTripResponse {
-}
+export interface UpdateTripResponse {}
 
 export interface CreateTripRequest {
   originAddress: string;
@@ -68,16 +72,13 @@ export interface CreateTripRequest {
   note: string | undefined;
 }
 
-export interface CreateTripResponse {
-}
+export interface CreateTripResponse {}
 
-export interface GetTripRequest {
-}
+export interface GetTripRequest {}
 
-export interface GetTripResponse {
-}
+export interface GetTripResponse {}
 
-export const TRIP_PACKAGE_NAME = "trip";
+export const TRIP_PACKAGE_NAME = 'trip';
 
 export interface TripServiceClient {
   getTrip(request: GetTripRequest): Observable<GetTripResponse>;
@@ -86,23 +87,35 @@ export interface TripServiceClient {
 
   updateTrip(request: UpdateTripRequest): Observable<UpdateTripResponse>;
 
-  updateTripRequestStatus(request: UpdateTripRequestStatusRequest): Observable<UpdateTripRequestStatusResponse>;
+  updateTripRequestStatus(
+    request: UpdateTripRequestStatusRequest,
+  ): Observable<UpdateTripRequestStatusResponse>;
 
   getEstimate(request: GetEstimateRequest): Observable<GetEstimateResponse>;
 
   rateTrip(request: RateTripRequest): Observable<RateTripResponse>;
+
+  cancelTrip(request: CancelTripRequest): Observable<CancelTripResponse>;
 }
 
 export interface TripServiceController {
-  getTrip(request: GetTripRequest): Promise<GetTripResponse> | Observable<GetTripResponse> | GetTripResponse;
+  getTrip(
+    request: GetTripRequest,
+  ): Promise<GetTripResponse> | Observable<GetTripResponse> | GetTripResponse;
 
   createTrip(
     request: CreateTripRequest,
-  ): Promise<CreateTripResponse> | Observable<CreateTripResponse> | CreateTripResponse;
+  ):
+    | Promise<CreateTripResponse>
+    | Observable<CreateTripResponse>
+    | CreateTripResponse;
 
   updateTrip(
     request: UpdateTripRequest,
-  ): Promise<UpdateTripResponse> | Observable<UpdateTripResponse> | UpdateTripResponse;
+  ):
+    | Promise<UpdateTripResponse>
+    | Observable<UpdateTripResponse>
+    | UpdateTripResponse;
 
   updateTripRequestStatus(
     request: UpdateTripRequestStatusRequest,
@@ -113,31 +126,61 @@ export interface TripServiceController {
 
   getEstimate(
     request: GetEstimateRequest,
-  ): Promise<GetEstimateResponse> | Observable<GetEstimateResponse> | GetEstimateResponse;
+  ):
+    | Promise<GetEstimateResponse>
+    | Observable<GetEstimateResponse>
+    | GetEstimateResponse;
 
-  rateTrip(request: RateTripRequest): Promise<RateTripResponse> | Observable<RateTripResponse> | RateTripResponse;
+  rateTrip(
+    request: RateTripRequest,
+  ):
+    | Promise<RateTripResponse>
+    | Observable<RateTripResponse>
+    | RateTripResponse;
+
+  cancelTrip(
+    request: CancelTripRequest,
+  ):
+    | Promise<CancelTripResponse>
+    | Observable<CancelTripResponse>
+    | CancelTripResponse;
 }
 
 export function TripServiceControllerMethods() {
   return function (constructor: Function) {
     const grpcMethods: string[] = [
-      "getTrip",
-      "createTrip",
-      "updateTrip",
-      "updateTripRequestStatus",
-      "getEstimate",
-      "rateTrip",
+      'getTrip',
+      'createTrip',
+      'updateTrip',
+      'updateTripRequestStatus',
+      'getEstimate',
+      'rateTrip',
+      'cancelTrip',
     ];
     for (const method of grpcMethods) {
-      const descriptor: any = Reflect.getOwnPropertyDescriptor(constructor.prototype, method);
-      GrpcMethod("TripService", method)(constructor.prototype[method], method, descriptor);
+      const descriptor: any = Reflect.getOwnPropertyDescriptor(
+        constructor.prototype,
+        method,
+      );
+      GrpcMethod('TripService', method)(
+        constructor.prototype[method],
+        method,
+        descriptor,
+      );
     }
     const grpcStreamMethods: string[] = [];
     for (const method of grpcStreamMethods) {
-      const descriptor: any = Reflect.getOwnPropertyDescriptor(constructor.prototype, method);
-      GrpcStreamMethod("TripService", method)(constructor.prototype[method], method, descriptor);
+      const descriptor: any = Reflect.getOwnPropertyDescriptor(
+        constructor.prototype,
+        method,
+      );
+      GrpcStreamMethod('TripService', method)(
+        constructor.prototype[method],
+        method,
+        descriptor,
+      );
     }
   };
 }
 
-export const TRIP_SERVICE_NAME = "TripService";
+export const TRIP_SERVICE_NAME = 'TripService';

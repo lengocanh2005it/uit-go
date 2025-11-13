@@ -1,5 +1,7 @@
 export const PATTERNS = {
-  USER_SERVICE: {},
+  USER_SERVICE: {
+    GET_PROFILE_BY_USER_ID: 'user.get-profile-by-user-id',
+  },
   TRIP_SERVICE: {},
   DRIVER_SERVICE: {
     GET_TRIPS: 'driver.get-trips',
@@ -9,5 +11,9 @@ export const PATTERNS = {
     CREATE: 'driver.create',
     FIND_AVAILABLE: 'driver.find-available',
     UPDATE_RATE: 'driver.rated',
+    GET_BY_ID: 'driver.get-by-id',
+  },
+  NOTIFICATION_SERVICE: {
+    CREATE_NOTIFICATION: 'notification.create-notification',
   },
 };

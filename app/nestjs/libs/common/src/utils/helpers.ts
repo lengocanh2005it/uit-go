@@ -1,4 +1,9 @@
 import { Metadata, status } from '@grpc/grpc-js';
+import { NotificationTypeEnum } from '@libs/common/enums/notification';
+import {
+  NotificationContent,
+  NotificationParams,
+} from '@libs/common/utils/types';
 import { RequestTimeoutException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
@@ -146,4 +151,82 @@ export function getIdFromMetadata(
     });
 
   return id;
+}
+
+export function generateNotificationContent(
+  type: NotificationTypeEnum,
+  params: NotificationParams,
+): NotificationContent {
+  switch (type) {
+    case NotificationTypeEnum.TRIP_REQUESTED:
+      return {
+        title: 'New Trip Request',
+        message: `New trip requested from ${params.pickupLocation} to ${params.dropoffLocation}.`,
+      };
+    case NotificationTypeEnum.TRIP_ACCEPTED:
+      return {
+        title: 'Trip Accepted',
+        message: `Driver ${params.driverName} has accepted your trip.`,
+      };
+    case NotificationTypeEnum.TRIP_ARRIVING:
+      return {
+        title: 'Driver Arriving',
+        message: `Driver ${params.driverName} is arriving at ${params.pickupLocation}.`,
+      };
+    case NotificationTypeEnum.TRIP_STARTED:
+      return {
+        title: 'Trip Started',
+        message: `Your trip from ${params.pickupLocation} to ${params.dropoffLocation} has started.`,
+      };
+    case NotificationTypeEnum.TRIP_COMPLETED:
+      return {
+        title: 'Trip Completed',
+        message: `Your trip from ${params.pickupLocation} to ${params.dropoffLocation} has been completed.`,
+      };
+    case NotificationTypeEnum.TRIP_CANCELED_BY_DRIVER:
+      return {
+        title: 'Trip Canceled',
+        message: `Driver ${params.driverName} has canceled the trip.`,
+      };
+    case NotificationTypeEnum.TRIP_CANCELED_BY_USER:
+      return {
+        title: 'Trip Canceled',
+        message: `User ${params.userName} has canceled the trip.`,
+      };
+    case NotificationTypeEnum.SYSTEM_ANNOUNCEMENT:
+      return {
+        title: 'System Announcement',
+        message: `System announcement: ${params.userName || ''}`,
+      };
+    case NotificationTypeEnum.ACCOUNT_CREATED:
+      return {
+        title: 'Welcome!',
+        message: `Welcome ${params.userName} to the app!`,
+      };
+    case NotificationTypeEnum.DRIVER_SUBMITTED_DOCUMENTS:
+      return {
+        title: 'Documents Submitted',
+        message: `Driver ${params.driverName} has submitted documents for review.`,
+      };
+    case NotificationTypeEnum.DRIVER_APPROVED:
+      return {
+        title: 'Documents Approved',
+        message: `Your documents have been approved by the admin.`,
+      };
+    case NotificationTypeEnum.DRIVER_REJECTED:
+      return {
+        title: 'Documents Rejected',
+        message: `Your documents have been rejected by the admin.`,
+      };
+    case NotificationTypeEnum.DRIVER_REQUEST_TIMEOUT:
+      return {
+        title: 'Request Timed Out',
+        message: `You did not respond to the trip request from ${params.userName} within 15 seconds. The request has been sent to another driver.`,
+      };
+    default:
+      return {
+        title: 'New Notification',
+        message: 'You have a new notification.',
+      };
+  }
 }

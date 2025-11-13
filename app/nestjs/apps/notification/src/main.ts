@@ -1,8 +1,14 @@
-import { generateRmqOptions, SERVICES } from '@libs/common';
+import {
+  generateGrpcOptions,
+  generateRmqOptions,
+  SERVICES,
+} from '@libs/common';
+import { NOTIFICATION_PROTO_PATH } from '@libs/common/constants';
+import { protobufPackage } from '@libs/common/proto/notification';
+import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { MicroserviceOptions } from '@nestjs/microservices';
-import { ValidationPipe } from '@nestjs/common';
 import { NotificationModule } from './notification.module';
 
 async function bootstrap() {
@@ -17,11 +23,22 @@ async function bootstrap() {
   const configService = app.get(ConfigService);
   const PORT = configService.get<number>('port', 3004);
   app.connectMicroservice<MicroserviceOptions>(
-    generateRmqOptions(SERVICES.USER_SERVICE.toLowerCase(), configService),
+    generateGrpcOptions(
+      protobufPackage,
+      NOTIFICATION_PROTO_PATH,
+      '0.0.0.0',
+      50054,
+    ),
+  );
+  app.connectMicroservice<MicroserviceOptions>(
+    generateRmqOptions(
+      SERVICES.NOTIFICATION_SERVICE.toLowerCase(),
+      configService,
+    ),
   );
   await app.startAllMicroservices();
   await app.listen(PORT, () => {
-    console.log(`UserService is running.`);
+    console.log(`NotificationService is running.`);
   });
 }
 bootstrap();

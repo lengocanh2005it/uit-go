@@ -1,6 +1,7 @@
+import { status } from '@grpc/grpc-js';
 import { sendWithTimeout, ServiceName, SERVICES } from '@libs/common/utils';
 import { Inject, Injectable } from '@nestjs/common';
-import { ClientProxy } from '@nestjs/microservices';
+import { ClientProxy, RpcException } from '@nestjs/microservices';
 import { Observable } from 'rxjs';
 
 @Injectable()
@@ -9,6 +10,8 @@ export class RabbitMQService {
     @Inject(SERVICES.USER_SERVICE) private readonly userClient: ClientProxy,
     @Inject(SERVICES.TRIP_SERVICE) private readonly tripClient: ClientProxy,
     @Inject(SERVICES.DRIVER_SERVICE) private readonly driverClient: ClientProxy,
+    @Inject(SERVICES.NOTIFICATION_SERVICE)
+    private readonly notificationClient: ClientProxy,
   ) {}
 
   public send<T = any>(
@@ -38,8 +41,13 @@ export class RabbitMQService {
         return this.tripClient;
       case SERVICES.DRIVER_SERVICE:
         return this.driverClient;
+      case SERVICES.NOTIFICATION_SERVICE:
+        return this.notificationClient;
       default:
-        throw new Error(`Unknown service ${service}`);
+        throw new RpcException({
+          code: status.UNAVAILABLE,
+          message: `Unknown service ${service}`,
+        });
     }
   }
 }

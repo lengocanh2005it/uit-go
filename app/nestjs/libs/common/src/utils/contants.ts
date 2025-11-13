@@ -16,6 +16,7 @@ export const RABBITMQ_QUEUE_SERVICES = [
   'USER_SERVICE',
   'TRIP_SERVICE',
   'DRIVER_SERVICE',
+  'NOTIFICATION_SERVICE',
 ] as const;
 export type ServiceName = (typeof RABBITMQ_QUEUE_SERVICES)[number];
 export const SERVICES = RABBITMQ_QUEUE_SERVICES.reduce(

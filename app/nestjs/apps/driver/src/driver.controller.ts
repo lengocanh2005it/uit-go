@@ -6,7 +6,7 @@ import {
   TGrpcUser,
 } from '@libs/common';
 import { GRPC_METHODS, PATTERNS } from '@libs/common/constants';
-import { GrpcUser } from '@libs/common/decorators';
+import { GrpcBody, GrpcUser } from '@libs/common/decorators';
 import { UpdateDriverRateDto } from '@libs/common/dto/driver/update-driver-rate.dto';
 import { DriverStatusEnum } from '@libs/common/enums';
 import { JwtGrpcGuard } from '@libs/common/guards';
@@ -24,6 +24,7 @@ import {
   ParseFloatPipe,
   ParseUUIDPipe,
   UseGuards,
+  UsePipes,
 } from '@nestjs/common';
 import {
   EventPattern,
@@ -32,6 +33,8 @@ import {
   Payload,
 } from '@nestjs/microservices';
 import { DriverService } from './driver.service';
+import { UpdateDriverApprovalDto } from '@libs/common/dto';
+import { GrpcValidationPipe } from '@libs/common/pipes';
 
 @Controller()
 export class DriverController {
@@ -63,6 +66,13 @@ export class DriverController {
   @MessagePattern(PATTERNS.DRIVER_SERVICE.GET_INFO)
   async getDriverInfo(@Payload('userId', ParseUUIDPipe) userId: string) {
     return this.driverService.getDriverInfo(userId);
+  }
+
+  @MessagePattern(PATTERNS.DRIVER_SERVICE.GET_BY_ID)
+  async getDriverInfoById(
+    @Payload('driverId', ParseUUIDPipe) driverId: string,
+  ) {
+    return this.driverService.getDriverInfoById(driverId);
   }
 
   @MessagePattern(PATTERNS.DRIVER_SERVICE.CREATE)
@@ -145,13 +155,15 @@ export class DriverController {
     GRPC_METHODS.DRIVER_SERVICE.UPDATE_DRIVER_APPROVAL,
   )
   @UseGuards(JwtGrpcGuard)
+  @UsePipes(GrpcValidationPipe)
   async updateDriverApproval(
-    updateDriverApprovalRequest: UpdateDriverApprovalRequest,
+    @GrpcBody(UpdateDriverApprovalDto)
+    updateDriverApprovalDto: UpdateDriverApprovalDto,
     metadata: Metadata,
   ) {
     const driverId = getIdFromMetadata(metadata, 'driver-id', true);
     return this.driverService.updateDriverApprovalStatus(
-      updateDriverApprovalRequest,
+      updateDriverApprovalDto,
       driverId,
     );
   }

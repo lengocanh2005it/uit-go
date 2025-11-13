@@ -48,6 +48,13 @@ export interface GetServerLocationResponse {
 
 export type ProcessTripRequestDto = {
   tripRequestId: string;
+  sub: string;
+};
+
+export type UpdateTripStatusDto = {
+  tripId: string;
+  sub: string;
+  status: TripStatusEnum;
 };
 
 export type FindAvailableDriversResponse = {
@@ -63,4 +70,18 @@ export type FindAvailableDriversResponse = {
 export interface Coordinates {
   lat: number;
   lon: number;
+}
+
+export interface NotificationParams {
+  userName?: string;
+  driverName?: string;
+  tripId?: string;
+  pickupLocation?: string;
+  dropoffLocation?: string;
+  amount?: number;
+}
+
+export interface NotificationContent {
+  title: string;
+  message: string;
 }

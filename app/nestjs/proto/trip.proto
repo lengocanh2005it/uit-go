@@ -12,6 +12,15 @@ service TripService {
     returns (UpdateTripRequestStatusResponse);
   rpc GetEstimate(GetEstimateRequest) returns (GetEstimateResponse);
   rpc RateTrip(RateTripRequest) returns (RateTripResponse);
+  rpc CancelTrip(CancelTripRequest) returns (CancelTripResponse);
+}
+
+message CancelTripRequest {
+  string trip_id = 1;
+}
+
+message CancelTripResponse {
+
 }
 
 message RateTripRequest {
@@ -51,6 +60,7 @@ enum TripRequestStatus {
 
 message UpdateTripRequestStatusRequest {
   TripRequestStatus status = 1;
+  string trip_id = 2;
 }
 
 message UpdateTripRequestStatusResponse {
@@ -62,6 +72,7 @@ message UpdateTripRequest {
   google.protobuf.StringValue note = 2;
   google.protobuf.StringValue destination_address = 3;
   optional float fare_final = 4;
+  string trip_id = 5;
 }
 
 message UpdateTripResponse {

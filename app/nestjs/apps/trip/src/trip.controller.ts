@@ -1,18 +1,28 @@
+import { CancelTripDto } from '@/trip/src/dto';
 import { Metadata } from '@grpc/grpc-js';
 import { getIdFromMetadata, TGrpcUser } from '@libs/common';
 import { GRPC_METHODS, PATTERNS } from '@libs/common/constants';
-import { GrpcUser } from '@libs/common/decorators';
-import { GetTripsOfDriverQueryDto } from '@libs/common/dto';
+import { GrpcBody, GrpcUser } from '@libs/common/decorators';
+import {
+  GetTripsOfDriverQueryDto,
+  UpdateTripDto,
+  UpdateTripRequestStatusDto,
+} from '@libs/common/dto';
 import { JwtGrpcGuard } from '@libs/common/guards';
+import { GrpcValidationPipe } from '@libs/common/pipes';
 import {
   CreateTripRequest,
   GetEstimateRequest,
   RateTripRequest,
   TRIP_SERVICE_NAME,
-  UpdateTripRequest,
-  UpdateTripRequestStatusRequest,
 } from '@libs/common/proto/trip';
-import { Controller, ParseUUIDPipe, Post, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  ParseUUIDPipe,
+  Post,
+  UseGuards,
+  UsePipes,
+} from '@nestjs/common';
 import { GrpcMethod, MessagePattern, Payload } from '@nestjs/microservices';
 import { TripService } from './trip.service';
 
@@ -39,16 +49,23 @@ export class TripController {
 
   @GrpcMethod(TRIP_SERVICE_NAME, GRPC_METHODS.TRIP_SERVICE.UPDATE_TRIP)
   @UseGuards(JwtGrpcGuard)
-  async updateTrip(updateTripRequest: UpdateTripRequest, metadata: Metadata) {
-    const tripId = getIdFromMetadata(metadata, 'trip-id', true);
-    return this.tripService.updateTrip(tripId, updateTripRequest);
+  @UsePipes(GrpcValidationPipe)
+  async updateTrip(
+    @GrpcBody(UpdateTripDto)
+    updateTripDto: UpdateTripDto,
+    @GrpcUser() grpcUser: TGrpcUser,
+  ) {
+    return this.tripService.updateTrip(updateTripDto, grpcUser);
   }
 
-  @GrpcMethod(TRIP_SERVICE_NAME, GRPC_METHODS.TRIP_SERVICE.DELETE_TRIP)
+  @GrpcMethod(TRIP_SERVICE_NAME, GRPC_METHODS.TRIP_SERVICE.CANCEL_TRIP)
   @UseGuards(JwtGrpcGuard)
-  async cancelTrip(metadata: Metadata) {
-    const tripId = getIdFromMetadata(metadata, 'trip-id', true);
-    return this.tripService.cancelTrip(tripId);
+  async cancelTrip(
+    @GrpcBody(CancelTripDto) cancelTripDto: CancelTripDto,
+    @GrpcUser() grpcUser: TGrpcUser,
+  ) {
+    const { tripId } = cancelTripDto;
+    return this.tripService.cancelTrip(tripId, grpcUser);
   }
 
   @GrpcMethod(
@@ -57,13 +74,13 @@ export class TripController {
   )
   @UseGuards(JwtGrpcGuard)
   async updateTripRequestStatus(
-    updateTripRequestStatusRequest: UpdateTripRequestStatusRequest,
-    metadata: Metadata,
+    @GrpcBody(UpdateTripRequestStatusDto)
+    updateTripRequestStatusDto: UpdateTripRequestStatusDto,
+    @GrpcUser() grpcUser: TGrpcUser,
   ) {
-    const tripRequestId = getIdFromMetadata(metadata, 'trip-request-id', true);
     return this.tripService.updateTripRequestStatus(
-      tripRequestId,
-      updateTripRequestStatusRequest,
+      updateTripRequestStatusDto,
+      grpcUser,
     );
   }
 
