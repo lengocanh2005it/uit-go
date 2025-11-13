@@ -4,4 +4,6 @@ export enum TripStatusEnum {
   ONGOING = 'ongoing',
   COMPLETED = 'completed',
   CANCELLED = 'cancelled',
+  ARRIVING = 'arriving',
+  STARTED = 'started',
 }

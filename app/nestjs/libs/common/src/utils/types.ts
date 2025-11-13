@@ -51,6 +51,12 @@ export type ProcessTripRequestDto = {
   sub: string;
 };
 
+export type UpdateTripStatusDto = {
+  tripId: string;
+  sub: string;
+  status: TripStatusEnum;
+};
+
 export type FindAvailableDriversResponse = {
   count: number;
   drivers: {

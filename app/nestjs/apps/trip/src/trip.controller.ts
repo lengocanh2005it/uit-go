@@ -53,8 +53,9 @@ export class TripController {
   async updateTrip(
     @GrpcBody(UpdateTripDto)
     updateTripDto: UpdateTripDto,
+    @GrpcUser() grpcUser: TGrpcUser,
   ) {
-    return this.tripService.updateTrip(updateTripDto);
+    return this.tripService.updateTrip(updateTripDto, grpcUser);
   }
 
   @GrpcMethod(TRIP_SERVICE_NAME, GRPC_METHODS.TRIP_SERVICE.CANCEL_TRIP)

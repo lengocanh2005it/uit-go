@@ -1,5 +1,8 @@
-import { TripRequestProcessor } from '@/trip/src/processors';
-import { TripRequestProducer } from '@/trip/src/producers';
+import {
+  TripRequestProcessor,
+  TripStatusProcessor,
+} from '@/trip/src/processors';
+import { TripRequestProducer, TripStatusProducer } from '@/trip/src/producers';
 import { CommonModule } from '@libs/common';
 import { QueueNames } from '@libs/common/constants';
 import { BullModule } from '@nestjs/bullmq';
@@ -45,9 +48,18 @@ import { TripService } from './trip.service';
       {
         name: QueueNames.OUTBOX_EVENT_QUEUE,
       },
+      {
+        name: QueueNamesOfTripService.tripStatus,
+      },
     ),
   ],
   controllers: [TripController],
-  providers: [TripService, TripRequestProcessor, TripRequestProducer],
+  providers: [
+    TripService,
+    TripRequestProcessor,
+    TripRequestProducer,
+    TripStatusProcessor,
+    TripStatusProducer,
+  ],
 })
 export class TripModule {}

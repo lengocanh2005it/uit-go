@@ -1,4 +1,5 @@
-import { TripRequestProducer } from '@/trip/src/producers';
+import { TripRequestProducer, TripStatusProducer } from '@/trip/src/producers';
+import { UserRole } from '@/user/src/enums';
 import { status } from '@grpc/grpc-js';
 import { CommonService, ForbiddenTripStatus } from '@libs/common';
 import { AggregateTypes, EventTypes, PATTERNS } from '@libs/common/constants';
@@ -15,15 +16,12 @@ import {
   TripRequestStatusEnum,
   TripStatusEnum,
 } from '@libs/common/enums';
+import { NotificationTypeEnum } from '@libs/common/enums/notification';
 import { RabbitMQService } from '@libs/common/modules/rabbitmq/rabbitmq.service';
 import {
   CreateTripRequest,
   GetEstimateRequest,
   RateTripRequest,
-  TripRequestStatus,
-  TripStatus,
-  UpdateTripRequest,
-  UpdateTripRequestStatusRequest,
 } from '@libs/common/proto/trip';
 import {
   FindAvailableDriversResponse,
@@ -33,8 +31,6 @@ import {
   NotificationParams,
   SERVICES,
   TGrpcUser,
-  tripRequestStatusMapping,
-  tripStatusMapping,
 } from '@libs/common/utils';
 import {
   ForbiddenException,
@@ -43,13 +39,11 @@ import {
 } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
+import { ObjectType } from 'nestjs-dynamoose';
 import CircuitBreaker from 'opossum';
 import { DataSource, EntityManager, Repository } from 'typeorm';
 import { buildPaginator } from 'typeorm-cursor-pagination';
 import { OutboxEvent, Trip, TripRating, TripRequest } from './entities';
-import { NotificationTypeEnum } from '@libs/common/enums/notification';
-import { ObjectType } from 'nestjs-dynamoose';
-import { UserRole } from '@/user/src/enums';
 
 @Injectable()
 export class TripService {
@@ -66,6 +60,7 @@ export class TripService {
     private readonly tripRequestProducer: TripRequestProducer,
     private readonly commonService: CommonService,
     @InjectDataSource() private readonly dataSource: DataSource,
+    private readonly tripStatusProducer: TripStatusProducer,
   ) {
     this.findDriversBreaker = new CircuitBreaker(
       (payload) =>
@@ -221,7 +216,10 @@ export class TripService {
     };
   };
 
-  public updateTrip = async (updateTripDto: UpdateTripDto) => {
+  public updateTrip = async (
+    updateTripDto: UpdateTripDto,
+    grpcUser: TGrpcUser,
+  ) => {
     return this.dataSource.transaction(async (manager) => {
       const { tripId } = updateTripDto;
 
@@ -285,7 +283,7 @@ export class TripService {
 
       await this.tripRepository.save(trip);
 
-      if (statusDto === TripStatusEnum.ACCEPTED) {
+      if (statusDto === TripStatusEnum.COMPLETED) {
         const { message, title } = generateNotificationContent(
           NotificationTypeEnum.TRIP_COMPLETED,
           {
@@ -321,6 +319,39 @@ export class TripService {
             aggregateType: AggregateTypes.TRIP,
           },
           manager,
+        );
+      } else if (statusDto === TripStatusEnum.STARTED) {
+        const { message, title } = generateNotificationContent(
+          NotificationTypeEnum.TRIP_STARTED,
+          {
+            pickupLocation: trip.originAddress,
+            dropoffLocation: trip.destinationAddress,
+          },
+        );
+
+        this.rabbitMqService.emit(
+          SERVICES.NOTIFICATION_SERVICE,
+          PATTERNS.NOTIFICATION_SERVICE.CREATE_NOTIFICATION,
+          {
+            userId: trip.passengerId,
+            createNotificationDto: {
+              type: NotificationTypeEnum.TRIP_STARTED,
+              message,
+              title,
+            },
+            data: {
+              tripId: trip.id,
+            },
+          },
+        );
+
+        this.tripStatusProducer.updateTripStatus(
+          {
+            tripId,
+            sub: grpcUser.sub,
+            status: TripStatusEnum.ONGOING,
+          },
+          2000,
         );
       }
 
@@ -484,6 +515,15 @@ export class TripService {
             aggregateType: AggregateTypes.TRIP,
           },
           manager,
+        );
+
+        await this.tripStatusProducer.updateTripStatus(
+          {
+            tripId: tripRequest.trip.id,
+            sub,
+            status: TripStatusEnum.ARRIVING,
+          },
+          3000,
         );
       }
     });
