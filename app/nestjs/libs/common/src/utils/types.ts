@@ -1,4 +1,5 @@
 import { Trip } from '@/trip/src/entities';
+import { CreateTripDto } from '@libs/common/dto';
 import { TripStatusEnum } from '@libs/common/enums';
 
 export interface AWSQueueMessage<T = any> {
@@ -55,6 +56,11 @@ export type UpdateTripStatusDto = {
   tripId: string;
   sub: string;
   status: TripStatusEnum;
+};
+
+export type AssignDriverDto = {
+  passengerId: string;
+  createTripDto: CreateTripDto;
 };
 
 export type FindAvailableDriversResponse = {

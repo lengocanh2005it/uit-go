@@ -1,5 +1,8 @@
 import { GetEstimateDto, RateTripDto } from '@/trip/src/dto';
-import { TripRequestProducer, TripStatusProducer } from '@/trip/src/producers';
+import {
+  DriverAssignmentProducer,
+  TripStatusProducer,
+} from '@/trip/src/producers';
 import { UserRole } from '@/user/src/enums';
 import { status } from '@grpc/grpc-js';
 import { CommonService, ForbiddenTripStatus } from '@libs/common';
@@ -8,7 +11,6 @@ import { InjectRabbitMqService } from '@libs/common/decorators';
 import {
   CreateOutboxDto,
   CreateTripDto,
-  CreateTripRequestDto,
   GetAllTripsOfDriverDto,
   UpdateTripDto,
   UpdateTripRequestStatusDto,
@@ -25,66 +27,34 @@ import {
   CreateTripResponse,
   GetEstimateResponse,
   GetTripResponse,
-  RateTripRequest,
   RateTripResponse,
 } from '@libs/common/proto/trip';
 import {
   driverStatusMapping,
-  FindAvailableDriversResponse,
   formatCurrencyVND,
   generateNotificationContent,
   NotificationParams,
   SERVICES,
   TGrpcUser,
 } from '@libs/common/utils';
-import {
-  ForbiddenException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { ObjectType } from 'nestjs-dynamoose';
-import CircuitBreaker from 'opossum';
 import { DataSource, EntityManager, Repository } from 'typeorm';
 import { buildPaginator } from 'typeorm-cursor-pagination';
 import { OutboxEvent, Trip, TripRating, TripRequest } from './entities';
 
 @Injectable()
 export class TripService {
-  private findDriversBreaker: CircuitBreaker<
-    [payload: { lat: number; lng: number }],
-    FindAvailableDriversResponse
-  >;
-
   constructor(
     @InjectRepository(Trip) private readonly tripRepository: Repository<Trip>,
-    @InjectRepository(TripRequest)
-    private readonly tripRequestRepository: Repository<TripRequest>,
     @InjectRabbitMqService() private readonly rabbitMqService: RabbitMQService,
-    private readonly tripRequestProducer: TripRequestProducer,
     private readonly commonService: CommonService,
     @InjectDataSource() private readonly dataSource: DataSource,
     private readonly tripStatusProducer: TripStatusProducer,
-  ) {
-    this.findDriversBreaker = new CircuitBreaker(
-      (payload) =>
-        this.rabbitMqService.send(
-          SERVICES.DRIVER_SERVICE,
-          PATTERNS.DRIVER_SERVICE.FIND_AVAILABLE,
-          payload,
-        ),
-      {
-        errorThresholdPercentage: 50,
-        resetTimeout: 10000,
-      },
-    );
-
-    this.findDriversBreaker.fallback(() => ({
-      count: 0,
-      drivers: [],
-    }));
-  }
+    private readonly driverAssignmentProducer: DriverAssignmentProducer,
+  ) {}
 
   public getTrip = async (tripId: string): Promise<GetTripResponse> => {
     return this.findTripById(tripId);
@@ -95,129 +65,15 @@ export class TripService {
     userSession: TGrpcUser,
   ): Promise<CreateTripResponse> => {
     const { sub } = userSession;
-    const { destinationAddress, originAddress, note } = createTripDto;
 
-    const originAddressGeoCode =
-      await this.commonService.getCoordinates(originAddress);
-
-    const destinationAddressGeoCode =
-      await this.commonService.getCoordinates(destinationAddress);
-
-    const availableDrivers = await this.findDriversBreaker.fire({
-      lat: originAddressGeoCode.lat,
-      lng: originAddressGeoCode.lon,
-    });
-
-    if (availableDrivers.count === 0) {
-      throw new RpcException({
-        code: status.NOT_FOUND,
-        message: 'No available drivers found nearby.',
-      });
-    }
-
-    const driver = availableDrivers.drivers[0];
-
-    const fareEstimate = await this.commonService.getEstimatedFare(
-      originAddress,
-      destinationAddress,
-    );
-
-    const newTrip = this.tripRepository.create({
-      originAddress,
-      destinationAddress,
-      originLat: originAddressGeoCode?.lat ?? 0,
-      originLng: originAddressGeoCode?.lon ?? 0,
-      destinationLat: destinationAddressGeoCode?.lat ?? 0,
-      destinationLng: destinationAddressGeoCode?.lon ?? 0,
-      fareEstimate,
-      fareFinal: fareEstimate,
-      driverId: driver.driverId,
+    await this.driverAssignmentProducer.assignDriver({
       passengerId: sub,
-      note,
+      createTripDto,
     });
-
-    await this.tripRepository.save(newTrip);
-
-    const now = new Date();
-    const expiresTime = new Date(now);
-    expiresTime.setMinutes(now.getMinutes() + 15);
-
-    const newTripRequesst = await this.createTripRequest(
-      {
-        expiresTime,
-        tripId: newTrip.id,
-      },
-      newTrip,
-    );
-
-    await this.tripRequestProducer.processTripRequest(
-      {
-        tripRequestId: newTripRequesst.id,
-        sub,
-      },
-      15000,
-    );
-
-    const { message, title } = generateNotificationContent(
-      NotificationTypeEnum.TRIP_REQUESTED,
-      {
-        pickupLocation: originAddress,
-        dropoffLocation: destinationAddress,
-      },
-    );
-
-    const driverInfo = await this.rabbitMqService.send<ObjectType>(
-      SERVICES.DRIVER_SERVICE,
-      PATTERNS.DRIVER_SERVICE.GET_BY_ID,
-      {
-        driverId: driver.driverId,
-      },
-    );
-
-    this.rabbitMqService.emit(
-      SERVICES.NOTIFICATION_SERVICE,
-      PATTERNS.NOTIFICATION_SERVICE.CREATE_NOTIFICATION,
-      {
-        userId: driverInfo.userId,
-        createNotificationDto: {
-          type: NotificationTypeEnum.TRIP_REQUESTED,
-          message,
-          title,
-        },
-        data: {
-          tripId: newTrip.id,
-          passengerId: sub,
-          driverId: driver.driverId,
-        },
-      },
-    );
 
     return {
-      success: true,
-      message: 'Trip created successfully.',
-      data: {
-        id: newTrip.id,
-        status: newTrip.status,
-        customer: {
-          id: sub,
-        },
-        origin: {
-          address: originAddress,
-          lat: originAddressGeoCode.lat,
-          lon: originAddressGeoCode.lon,
-        },
-        destination: {
-          address: destinationAddress,
-          lat: destinationAddressGeoCode.lat,
-          lon: destinationAddressGeoCode.lon,
-        },
-        distanceKm: await this.commonService.getDistance(
-          originAddress,
-          destinationAddress,
-        ),
-        estimatedPrice: formatCurrencyVND(fareEstimate),
-        createdAt: newTrip.createdAt,
-      },
+      message:
+        'Your trip request is being processed. You will receive a notification as soon as there is an update.',
     };
   };
 
@@ -564,16 +420,6 @@ export class TripService {
       })),
       afterCursor: cursor?.afterCursor ?? undefined,
     };
-  };
-
-  private createTripRequest = async (
-    createTripRequestDto: CreateTripRequestDto,
-    trip: Trip,
-  ) => {
-    const newTripRequest =
-      this.tripRequestRepository.create(createTripRequestDto);
-    newTripRequest.trip = trip;
-    return this.tripRequestRepository.save(newTripRequest);
   };
 
   private findTripById = async (tripId: string) => {

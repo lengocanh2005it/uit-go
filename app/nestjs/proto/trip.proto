@@ -143,9 +143,7 @@ message Data {
 }
 
 message CreateTripResponse {
-  bool success = 1;
-  string message = 2;
-  Data data = 3;
+  string message = 1;
 }
 
 message GetTripRequest {

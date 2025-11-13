@@ -1,8 +1,13 @@
 import {
+  DriverAssignmentProcessor,
   TripRequestProcessor,
   TripStatusProcessor,
 } from '@/trip/src/processors';
-import { TripRequestProducer, TripStatusProducer } from '@/trip/src/producers';
+import {
+  DriverAssignmentProducer,
+  TripRequestProducer,
+  TripStatusProducer,
+} from '@/trip/src/producers';
 import { CommonModule } from '@libs/common';
 import { QueueNames } from '@libs/common/constants';
 import { BullModule } from '@nestjs/bullmq';
@@ -51,6 +56,9 @@ import { TripService } from './trip.service';
       {
         name: QueueNamesOfTripService.tripStatus,
       },
+      {
+        name: QueueNamesOfTripService.driverAssigment,
+      },
     ),
   ],
   controllers: [TripController],
@@ -60,6 +68,8 @@ import { TripService } from './trip.service';
     TripRequestProducer,
     TripStatusProcessor,
     TripStatusProducer,
+    DriverAssignmentProcessor,
+    DriverAssignmentProducer,
   ],
 })
 export class TripModule {}

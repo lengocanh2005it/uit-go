@@ -134,9 +134,7 @@ export interface Data {
 }
 
 export interface CreateTripResponse {
-  success: boolean;
   message: string;
-  data: Data | undefined;
 }
 
 export interface GetTripRequest {
