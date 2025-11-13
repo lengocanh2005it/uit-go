@@ -10,6 +10,7 @@ COPY apps/user ./apps/user
 COPY libs ./libs
 COPY proto/user.proto ./proto/user.proto
 COPY proto/driver.proto ./proto/driver.proto
+COPY proto/trip.proto ./proto/trip.proto
 COPY ./apps/user/.env ./.env
 COPY tsconfig*.json ./
 

@@ -6,6 +6,7 @@
 
 /* eslint-disable */
 import { GrpcMethod, GrpcStreamMethod } from '@nestjs/microservices';
+import { wrappers } from 'protobufjs';
 import { Observable } from 'rxjs';
 
 export const protobufPackage = 'trip';
@@ -17,6 +18,8 @@ export enum TripStatus {
   TRIP_STATUS_ONGOING = 3,
   TRIP_STATUS_COMPLETED = 4,
   TRIP_STATUS_CANCELLED = 5,
+  TRIP_STATUS_ARRIVING = 6,
+  TRIP_STATUS_STARTED = 7,
   UNRECOGNIZED = -1,
 }
 
@@ -27,6 +30,24 @@ export enum TripRequestStatus {
   TRIP_REQUEST_STATUS_TIMEOUT = 3,
   TRIP_REQUEST_STATUS_PENDING = 4,
   UNRECOGNIZED = -1,
+}
+
+export interface Trip {
+  id: string;
+  originAddress: string;
+  destinationAddress: string;
+  originLat: number;
+  destinationLat: number;
+  originLng: number;
+  destinationLng: number;
+  createdAt: Date | undefined;
+  updatedAt: Date | undefined;
+  note?: string | undefined;
+  passengerId: string;
+  driverId: string;
+  fareFinal: number;
+  fareEstimate: number;
+  status: TripStatus;
 }
 
 export interface CancelTripRequest {
@@ -40,14 +61,27 @@ export interface RateTripRequest {
   comment: string;
 }
 
-export interface RateTripResponse {}
+export interface RateTripResponseData {
+  tripId: string;
+  driverId: string;
+  rating: number;
+  comment?: string | undefined;
+}
+
+export interface RateTripResponse {
+  message: string;
+  success: boolean;
+  data: RateTripResponseData | undefined;
+}
 
 export interface GetEstimateRequest {
   originAddress: string;
   destinationAddress: string;
 }
 
-export interface GetEstimateResponse {}
+export interface GetEstimateResponse {
+  estimateFare: string;
+}
 
 export interface UpdateTripRequestStatusRequest {
   status: TripRequestStatus;
@@ -72,13 +106,74 @@ export interface CreateTripRequest {
   note: string | undefined;
 }
 
-export interface CreateTripResponse {}
+export interface Customer {
+  id: string;
+}
 
-export interface GetTripRequest {}
+export interface Origin {
+  address: string;
+  lat: number;
+  lon: number;
+}
 
-export interface GetTripResponse {}
+export interface Destination {
+  address: string;
+  lat: number;
+  lon: number;
+}
+
+export interface Data {
+  id: string;
+  status: string;
+  distanceKm: number;
+  destination: Destination | undefined;
+  origin: Origin | undefined;
+  estimatedPrice: string;
+  createdAt: Date | undefined;
+  customer: Customer | undefined;
+}
+
+export interface CreateTripResponse {
+  success: boolean;
+  message: string;
+  data: Data | undefined;
+}
+
+export interface GetTripRequest {
+  tripId: string;
+}
+
+export interface GetTripResponse {
+  id: string;
+  originAddress: string;
+  destinationAddress: string;
+  originLat: number;
+  destinationLat: number;
+  originLng: number;
+  destinationLng: number;
+  createdAt: Date | undefined;
+  updatedAt: Date | undefined;
+  note?: string | undefined;
+  passengerId: string;
+  driverId: string;
+  fareFinal: number;
+  fareEstimate: number;
+  status: string;
+}
 
 export const TRIP_PACKAGE_NAME = 'trip';
+
+wrappers['.google.protobuf.Timestamp'] = {
+  fromObject(value: Date) {
+    return {
+      seconds: value.getTime() / 1000,
+      nanos: (value.getTime() % 1000) * 1e6,
+    };
+  },
+  toObject(message: { seconds: number; nanos: number }) {
+    return new Date(message.seconds * 1000 + message.nanos / 1e6);
+  },
+} as any;
 
 export interface TripServiceClient {
   getTrip(request: GetTripRequest): Observable<GetTripResponse>;

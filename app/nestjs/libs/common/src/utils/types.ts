@@ -79,6 +79,8 @@ export interface NotificationParams {
   pickupLocation?: string;
   dropoffLocation?: string;
   amount?: number;
+  rating?: number;
+  comment?: string;
 }
 
 export interface NotificationContent {

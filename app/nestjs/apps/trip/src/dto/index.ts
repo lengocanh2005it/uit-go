@@ -1,2 +1,4 @@
 export * from './cancel-trip.dto';
-export * from './estimate-fare.dto';
+export * from './get-estimate.dto';
+export * from './get-trip.dto';
+export * from './rate-trip.dto';

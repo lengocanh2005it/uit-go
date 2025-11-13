@@ -1,5 +1,5 @@
 import { CommonModule } from '@libs/common';
-import { Logger, Module } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { DynamooseModule } from 'nestjs-dynamoose';
 import envConfig from './configs/env.config';

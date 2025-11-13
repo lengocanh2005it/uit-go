@@ -2,8 +2,10 @@ syntax = "proto3";
 
 package driver;
 
+import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/wrappers.proto";
+import "trip.proto";
 
 service DriverService {
   rpc GetAllTripsOfDriver(GetAllTripsOfDriverRequest) 
@@ -14,8 +16,23 @@ service DriverService {
     returns (UpdateDriverApprovalResponse);
   rpc GetDriverApprovals(GetDriverApprovalsRequest)
     returns (GetDriverApprovalsResponse);
+  rpc GetLocationOfDriver(GetLocationOfDriverRequest)
+    returns (DriverLocation); 
+  rpc GetDriverInfoDetailById(GetDriverInfoDetailByIdRequest)
+    returns (DriverInfo);
 }
 
+message GetDriverInfoDetailByIdRequest {
+  string driver_id = 1;
+}
+
+message GetLocationOfDriverRequest {
+  string driver_id = 1;
+}
+
+message GetLocationOfDriverRespose {
+
+}
 
 enum DriverApprovalStatus {
   DRIVER_APPROVAL_STATUS_UNSPECIFIED = 0;
@@ -29,7 +46,14 @@ message GetDriverApprovalsRequest {
 }
 
 message GetDriverApprovalsResponse {
-  
+  string driver_approval_id = 1;
+  string status = 2;
+  optional google.protobuf.Timestamp reviewed_date = 3;
+  google.protobuf.StringValue note = 4;
+  string driver_id = 5;
+  string vehicle_id = 6;
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp updated_at = 8;
 }
 
 message UpdateDriverApprovalRequest {
@@ -50,10 +74,12 @@ enum DriverStatus {
 
 message UpdateDriverStatusGrpcRequest {
   DriverStatus status = 1;
+  string driver_id = 2;
 }
 
 message UpdateDriverStatusGrpcResponse {
-
+  string message = 1;
+  google.protobuf.Struct data = 2;
 }
 
 message GetAllTripsOfDriverRequest {
@@ -61,6 +87,8 @@ message GetAllTripsOfDriverRequest {
 }
 
 message GetAllTripsOfDriverResponse {
+  google.protobuf.StringValue after_cursor = 1;
+  repeated trip.Trip data = 2;
 }
 
 message Driver {
@@ -132,7 +160,7 @@ message DriverInfo {
   google.protobuf.Timestamp license_expiry = 6;
   google.protobuf.Timestamp created_at = 7;
   google.protobuf.Timestamp updated_at = 8;
-  DriverStatus driver_status = 9;
+  DriverStatusModel driver_status = 9;
   DriverApproval driver_approval = 10;
   DriverLocation driver_location = 11;
   Vehicle vehicle = 12;

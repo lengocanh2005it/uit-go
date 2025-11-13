@@ -223,6 +223,13 @@ export function generateNotificationContent(
         title: 'Request Timed Out',
         message: `You did not respond to the trip request from ${params.userName} within 15 seconds. The request has been sent to another driver.`,
       };
+    case NotificationTypeEnum.TRIP_RATED:
+      return {
+        title: 'New Trip Feedback Received',
+        message: `Your passenger rated the trip ${params.rating} stars${
+          params.comment ? ` and commented: "${params.comment}".` : '.'
+        }.`,
+      };
     default:
       return {
         title: 'New Notification',

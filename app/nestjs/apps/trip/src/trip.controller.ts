@@ -1,28 +1,22 @@
-import { CancelTripDto } from '@/trip/src/dto';
-import { Metadata } from '@grpc/grpc-js';
-import { getIdFromMetadata, TGrpcUser } from '@libs/common';
+import {
+  CancelTripDto,
+  GetEstimateDto,
+  GetTripDto,
+  RateTripDto,
+} from '@/trip/src/dto';
+import { TGrpcUser } from '@libs/common';
 import { GRPC_METHODS, PATTERNS } from '@libs/common/constants';
 import { GrpcBody, GrpcUser } from '@libs/common/decorators';
 import {
-  GetTripsOfDriverQueryDto,
+  CreateTripDto,
+  GetAllTripsOfDriverDto,
   UpdateTripDto,
   UpdateTripRequestStatusDto,
 } from '@libs/common/dto';
 import { JwtGrpcGuard } from '@libs/common/guards';
 import { GrpcValidationPipe } from '@libs/common/pipes';
-import {
-  CreateTripRequest,
-  GetEstimateRequest,
-  RateTripRequest,
-  TRIP_SERVICE_NAME,
-} from '@libs/common/proto/trip';
-import {
-  Controller,
-  ParseUUIDPipe,
-  Post,
-  UseGuards,
-  UsePipes,
-} from '@nestjs/common';
+import { TRIP_SERVICE_NAME } from '@libs/common/proto/trip';
+import { Controller, ParseUUIDPipe, UseGuards, UsePipes } from '@nestjs/common';
 import { GrpcMethod, MessagePattern, Payload } from '@nestjs/microservices';
 import { TripService } from './trip.service';
 
@@ -32,19 +26,19 @@ export class TripController {
 
   @GrpcMethod(TRIP_SERVICE_NAME, GRPC_METHODS.TRIP_SERVICE.GET_TRIP)
   @UseGuards(JwtGrpcGuard)
-  async getTrip(metadata: Metadata) {
-    const tripId = getIdFromMetadata(metadata, 'trip-id', true);
-    return this.tripService.getTrip(tripId);
+  @UsePipes(GrpcValidationPipe)
+  async getTrip(@GrpcBody(GetTripDto) getTripDto: GetTripDto) {
+    return this.tripService.getTrip(getTripDto.tripId);
   }
 
   @GrpcMethod(TRIP_SERVICE_NAME, GRPC_METHODS.TRIP_SERVICE.CREATE_TRIP)
   @UseGuards(JwtGrpcGuard)
-  @Post()
+  @UsePipes(GrpcValidationPipe)
   async createTrip(
-    createTripRequest: CreateTripRequest,
+    @GrpcBody(CreateTripDto) createTripDto: CreateTripDto,
     @GrpcUser() grpcUser: TGrpcUser,
   ) {
-    return this.tripService.createTrip(createTripRequest, grpcUser);
+    return this.tripService.createTrip(createTripDto, grpcUser);
   }
 
   @GrpcMethod(TRIP_SERVICE_NAME, GRPC_METHODS.TRIP_SERVICE.UPDATE_TRIP)
@@ -84,32 +78,29 @@ export class TripController {
     );
   }
 
-  @MessagePattern(PATTERNS.DRIVER_SERVICE.GET_TRIPS)
+  @MessagePattern(PATTERNS.TRIP_SERVICE.GET_TRIPS)
   async getTripsOfDriver(
-    @Payload('getTripsOfDriverQueryDto')
-    getTripsOfDriverQueryDto: GetTripsOfDriverQueryDto,
+    @Payload('getAllTripsOfDriverDto')
+    getAllTripsOfDriverDto: GetAllTripsOfDriverDto,
     @Payload('driverId', ParseUUIDPipe) driverId: string,
   ) {
-    return this.tripService.getTripsOfDriver(
-      driverId,
-      getTripsOfDriverQueryDto,
-    );
+    return this.tripService.getTripsOfDriver(getAllTripsOfDriverDto, driverId);
   }
 
   @GrpcMethod(TRIP_SERVICE_NAME, GRPC_METHODS.TRIP_SERVICE.GET_ESTIMATE)
   @UseGuards(JwtGrpcGuard)
-  async getEstimate(getEstimateRequest: GetEstimateRequest) {
-    return this.tripService.estimateFare(getEstimateRequest);
+  @UsePipes(GrpcValidationPipe)
+  async getEstimate(@GrpcBody(GetEstimateDto) getEstimateDto: GetEstimateDto) {
+    return this.tripService.estimateFare(getEstimateDto);
   }
 
   @GrpcMethod(TRIP_SERVICE_NAME, GRPC_METHODS.TRIP_SERVICE.RATE_TRIP)
   @UseGuards(JwtGrpcGuard)
+  @UsePipes(GrpcValidationPipe)
   async rateTrip(
-    rateTripRequest: RateTripRequest,
-    metadata: Metadata,
+    @GrpcBody(RateTripDto) rateTripDto: RateTripDto,
     @GrpcUser() grpcUser: TGrpcUser,
   ) {
-    const tripId = getIdFromMetadata(metadata, 'trip-id', true);
-    return this.tripService.rateTrip(tripId, rateTripRequest, grpcUser);
+    return this.tripService.rateTrip(rateTripDto, grpcUser);
   }
 }

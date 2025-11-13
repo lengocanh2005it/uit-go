@@ -1,4 +1,9 @@
 import {
+  GetDriverApprovalsDto,
+  GetDriverInfoDetailByIdDto,
+  GetLocationOfDriverDto,
+} from '@/driver/src/dto';
+import {
   Driver,
   DriverApproval,
   DriverApprovalKey,
@@ -17,18 +22,16 @@ import {
   buildGeoLocation,
   buildSearchPrefixes,
   CommonService,
-  driverApprovalStatusMapping,
   FindAvailableDriversResponse,
   generateNotificationContent,
   NotificationParams,
   SERVICES,
   TGrpcUser,
-  type GetTripsOfDriverResponse,
 } from '@libs/common';
 import { PATTERNS } from '@libs/common/constants';
 import { InjectRabbitMqService } from '@libs/common/decorators';
 import {
-  GetTripsOfDriverQueryDto,
+  GetAllTripsOfDriverDto,
   UpdateDriverApprovalDto,
 } from '@libs/common/dto';
 import { UpdateDriverRateDto } from '@libs/common/dto/driver/update-driver-rate.dto';
@@ -36,20 +39,21 @@ import { DriverApprovalStatusEnum, DriverStatusEnum } from '@libs/common/enums';
 import { NotificationTypeEnum } from '@libs/common/enums/notification';
 import { RabbitMQService } from '@libs/common/modules/rabbitmq/rabbitmq.service';
 import {
-  GetDriverApprovalsRequest,
-  UpdateDriverApprovalRequest,
+  DriverInfo,
+  GetAllTripsOfDriverResponse,
+  GetDriverApprovalsResponse,
+  DriverLocation as IDriverLocation,
 } from '@libs/common/proto/driver';
 import { CreateDriverRequest } from '@libs/common/proto/user';
 import {
   BadRequestException,
-  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { RpcException } from '@nestjs/microservices';
-import type { Model } from 'nestjs-dynamoose';
+import type { Item, Model } from 'nestjs-dynamoose';
 import { InjectModel } from 'nestjs-dynamoose';
 import CircuitBreaker from 'opossum';
 import { v4 as uuidv4 } from 'uuid';
@@ -58,8 +62,8 @@ import { v4 as uuidv4 } from 'uuid';
 export class DriverService {
   private readonly logger = new Logger(DriverService.name);
   private getTripsBreaker: CircuitBreaker<
-    [getTripsOfDriverQueryDto: GetTripsOfDriverQueryDto, driverId: string],
-    GetTripsOfDriverResponse
+    [getAllTripsOfDriverDto: GetAllTripsOfDriverDto, driverId: string],
+    GetAllTripsOfDriverResponse
   >;
 
   constructor(
@@ -89,12 +93,12 @@ export class DriverService {
     private readonly commonService: CommonService,
   ) {
     this.getTripsBreaker = new CircuitBreaker(
-      (getTripsOfDriverQueryDto, driverId) =>
-        this.rabbitMqService.send<GetTripsOfDriverResponse>(
-          SERVICES.DRIVER_SERVICE,
-          PATTERNS.DRIVER_SERVICE.GET_TRIPS,
+      (getAllTripsOfDriverDto, driverId) =>
+        this.rabbitMqService.send<GetAllTripsOfDriverResponse>(
+          SERVICES.TRIP_SERVICE,
+          PATTERNS.TRIP_SERVICE.GET_TRIPS,
           {
-            getTripsOfDriverQueryDto,
+            getAllTripsOfDriverDto,
             driverId,
           },
         ),
@@ -111,15 +115,12 @@ export class DriverService {
   }
 
   async getAllTripsOfDriver(
-    userSession: TGrpcUser,
-    driverId: string,
-    getTripsOfDriverQueryDto: GetTripsOfDriverQueryDto,
-  ) {
-    const { sub } = userSession;
-    if (driverId !== sub)
-      throw new ForbiddenException('You can only view your own trip list.');
-
-    return this.getTripsBreaker.fire(getTripsOfDriverQueryDto, driverId);
+    grpcUser: TGrpcUser,
+    getAllTripsOfDriverDto: GetAllTripsOfDriverDto,
+  ): Promise<GetAllTripsOfDriverResponse> {
+    const { sub } = grpcUser;
+    const driver = await this.getDriverInfo(sub);
+    return this.getTripsBreaker.fire(getAllTripsOfDriverDto, driver.driverId);
   }
 
   async updateDriverStatus(
@@ -167,7 +168,11 @@ export class DriverService {
 
   async getDriverInfo(userId: string) {
     const existed = await this.driverModel.query('userId').eq(userId).exec();
-    if (!existed.length) throw new NotFoundException('Driver info not found.');
+    if (!existed.length)
+      throw new RpcException({
+        code: status.NOT_FOUND,
+        message: 'Driver info not found.',
+      });
     return existed[0].toJSON();
   }
 
@@ -323,9 +328,9 @@ export class DriverService {
       },
     );
 
-    const driver: any = await this.getDriverInfoDetailById(
-      approvalRecord.driverId,
-    );
+    const driver: any = await this.getDriverInfoDetailById({
+      driverId: approvalRecord.driverId,
+    });
 
     let typeNotif: NotificationTypeEnum | null = null;
     let params: NotificationParams = {};
@@ -518,8 +523,12 @@ export class DriverService {
     }
   }
 
-  async getLocationOfDriver(driverId: string) {
+  async getLocationOfDriver(
+    getLocationOfDriverDto: GetLocationOfDriverDto,
+  ): Promise<IDriverLocation> {
     try {
+      const { driverId } = getLocationOfDriverDto;
+
       const locationResponses = await this.driverLocationModel
         .query('driverId')
         .eq(driverId)
@@ -534,65 +543,104 @@ export class DriverService {
 
       return location;
     } catch (error) {
-      throw error;
+      throw new RpcException({
+        code: status.INTERNAL,
+        message: error?.message || 'Intenral Server Error',
+      });
     }
   }
 
   async getDriversApproval(
-    getDriverApprovalRequest: GetDriverApprovalsRequest,
-  ) {
-    const { status } = getDriverApprovalRequest;
-
-    let driversApproval: any[];
+    getDriverApprovalsDto: GetDriverApprovalsDto,
+  ): Promise<GetDriverApprovalsResponse[]> {
+    const { status } = getDriverApprovalsDto;
+    let driversApproval: Item<DriverApproval & DriverApprovalKey>[] = [];
 
     if (status) {
       driversApproval = await this.driverApprovalModel
         .scan('status')
-        .eq(driverApprovalStatusMapping[status])
+        .eq(status)
         .exec();
     } else {
       driversApproval = await this.driverApprovalModel.scan().exec();
     }
 
-    return driversApproval.map((driver) => driver.toJSON());
+    return driversApproval.map((driver) => {
+      const toJson = driver.toJSON();
+      return {
+        driverApprovalId: toJson.driverApprovalId,
+        status: toJson.status,
+        reviewedDate: toJson.reviewedDate,
+        note: toJson.note,
+        driverId: toJson.driverId,
+        vehicleId: toJson.vehicleId,
+        createdAt: toJson.createdAt,
+        updatedAt: toJson.updatedAt,
+      };
+    });
   }
 
-  async getDriverInfoDetailById(driverId: string) {
+  async getDriverInfoDetailById(
+    dto: GetDriverInfoDetailByIdDto,
+  ): Promise<DriverInfo> {
+    const { driverId } = dto;
     const driverInfo = await this.driverModel.get({ driverId });
-    if (!driverInfo) throw new NotFoundException('Driver info not found.');
+
+    if (!driverInfo)
+      throw new RpcException({
+        code: status.NOT_FOUND,
+        message: 'Driver info not found.',
+      });
 
     const driverStatus = await this.driverStatusModel.get({
       driverId,
     });
+
     if (!driverStatus)
-      throw new NotFoundException('Driver status info not found.');
+      throw new RpcException({
+        code: status.NOT_FOUND,
+        message: 'Driver status info not found.',
+      });
 
     const driverApproval = await this.driverApprovalModel
       .query('driverId')
       .eq(driverId)
       .exec();
+
     if (!driverApproval.length)
-      throw new NotFoundException('Driver approval info not found.');
+      throw new RpcException({
+        code: status.NOT_FOUND,
+        message: 'Driver approval info not found.',
+      });
 
     const driverLocation = await this.driverLocationModel
       .query('driverId')
       .eq(driverId)
       .exec();
+
     if (!driverLocation.length)
-      throw new NotFoundException('Driver location info not found.');
+      throw new RpcException({
+        code: status.NOT_FOUND,
+        message: 'Driver location info not found.',
+      });
 
     const vehicle = await this.vehicleModel
       .query('driverId')
       .eq(driverId)
       .exec();
-    if (!vehicle.length) throw new NotFoundException('Vehicle info not found.');
+
+    if (!vehicle.length)
+      throw new RpcException({
+        code: status.NOT_FOUND,
+        message: 'Vehicle info not found.',
+      });
 
     return {
-      ...driverInfo.toJSON(),
-      driverStatus: driverStatus.toJSON(),
-      driverApproval: driverApproval[0].toJSON(),
-      driverLocation: driverLocation[0].toJSON(),
-      vehicle: vehicle[0].toJSON(),
+      ...(driverInfo.toJSON() as any),
+      driverStatus: driverStatus.toJSON() as any,
+      driverApproval: driverApproval[0].toJSON() as any,
+      driverLocation: driverLocation[0].toJSON() as any,
+      vehicle: vehicle[0].toJSON() as any,
     };
   }
 

@@ -3,6 +3,7 @@ services:
     build: 
       context: ../kong
     container_name: kong
+    image: uit-go_kong-api-gateway
     networks:
       - backend
     ports:
@@ -126,6 +127,7 @@ services:
       context: ./apps/user
       dockerfile: Dockerfile.db
     container_name: user-db
+    image: uit-go_user-db
     ports:
       - "5433:5432"
     networks:
@@ -140,6 +142,7 @@ services:
       context: ./apps/driver
       dockerfile: Dockerfile.db
     container_name: driver-db
+    image: uit-go_driver-db
     ports:
       - "8005:8005"
     networks:
@@ -154,6 +157,7 @@ services:
       secrets:
         - dotenv_trip_key
     container_name: trip-db
+    image: uit-go_trip-db
     ports:
       - "3307:3306"
     networks:
@@ -170,6 +174,7 @@ services:
     secrets:
       - dotenv_notification_key
       - mongo_root_password
+    image: uit-go_notification-db
     container_name: notification-db
     ports:
       - "27017:27017"

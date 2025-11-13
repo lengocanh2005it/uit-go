@@ -2,9 +2,10 @@ export const PATTERNS = {
   USER_SERVICE: {
     GET_PROFILE_BY_USER_ID: 'user.get-profile-by-user-id',
   },
-  TRIP_SERVICE: {},
+  TRIP_SERVICE: {
+    GET_TRIPS: 'trip.get-trips',
+  },
   DRIVER_SERVICE: {
-    GET_TRIPS: 'driver.get-trips',
     UPDATE_STATUS: 'driver.update-status',
     GET_INFO: 'driver.get-info',
     GET_APPROVAL_STATUS: 'driver.get-approval-status',

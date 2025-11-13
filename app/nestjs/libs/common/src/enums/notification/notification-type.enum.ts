@@ -12,4 +12,5 @@ export enum NotificationTypeEnum {
   DRIVER_APPROVED = 'driver_approved',
   DRIVER_REJECTED = 'driver_rejected',
   DRIVER_REQUEST_TIMEOUT = 'driver_request_timeout',
+  TRIP_RATED = 'trip_rated',
 }
