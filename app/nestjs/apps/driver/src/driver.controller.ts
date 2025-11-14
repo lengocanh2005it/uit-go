@@ -85,17 +85,7 @@ export class DriverController {
 
   @MessagePattern(PATTERNS.DRIVER_SERVICE.GET_APPROVAL_STATUS)
   async handleGetDriverApprovalStatus(@Payload() data: { userId: string }) {
-    try {
-      const { userId } = data;
-      if (!userId) {
-        throw new Error('userId is missing');
-      }
-      const driverApproval =
-        await this.driverService.getDriverApprovalStatusByUserId(userId);
-      return driverApproval;
-    } catch (error) {
-      console.error(error);
-    }
+    return this.driverService.getDriverApprovalStatusByUserId(data.userId);
   }
 
   @GrpcMethod(

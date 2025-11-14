@@ -156,7 +156,10 @@ export class UserService {
       );
 
       if (!driverInfo)
-        throw new InternalServerErrorException('Driver info created failed.');
+        throw new RpcException({
+          code: status.INTERNAL,
+          message: 'Driver info created failed.',
+        });
     }
 
     const savedUser = await this.getUser(user.id);
