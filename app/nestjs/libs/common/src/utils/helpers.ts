@@ -54,7 +54,10 @@ export async function sendWithTimeout<T = any>(
       timeout(ms),
       catchError((err) => {
         if (err instanceof TimeoutError) {
-          throw new RequestTimeoutException(`Timeout for pattern "${pattern}"`);
+          throw new RpcException({
+            code: status.DEADLINE_EXCEEDED,
+            message: `Timeout for pattern "${pattern}"`,
+          });
         }
         return throwError(() => err);
       }),

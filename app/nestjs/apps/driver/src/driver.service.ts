@@ -196,8 +196,12 @@ export class DriverService {
       .query('userId')
       .eq(userId)
       .exec();
+
     if (driverRecords.length === 0) {
-      throw new NotFoundException('Driver not found for this user.');
+      throw new RpcException({
+        code: status.NOT_FOUND,
+        message: 'Driver not found for this user.',
+      });
     }
 
     const driver = driverRecords[0].toJSON();
@@ -208,7 +212,10 @@ export class DriverService {
       .exec();
 
     if (approvalRecords.length === 0) {
-      throw new NotFoundException('Driver approval record not found.');
+      throw new RpcException({
+        code: status.NOT_FOUND,
+        message: 'Driver approval record not found.',
+      });
     }
 
     const record = approvalRecords[0].toJSON();
@@ -251,8 +258,12 @@ export class DriverService {
 
   async createDriver(data: CreateDriverRequest, userId: string) {
     const existed = await this.driverModel.query('userId').eq(userId).exec();
+
     if (existed.length > 0) {
-      throw new BadRequestException('Driver already exists.');
+      throw new RpcException({
+        code: status.ALREADY_EXISTS,
+        message: 'Driver already exists.',
+      });
     }
 
     const driverId = uuidv4();
@@ -633,15 +644,19 @@ export class DriverService {
     const { driverId, rating } = updateDriveRateDto;
 
     const processed = await this.getProcessedEvent(eventId);
+
     if (processed) {
       this.logger.warn(`Duplicate driver rating event skipped: ${eventId}`);
       return;
     }
 
     const driver = await this.driverModel.get({ driverId });
+
     if (!driver) {
-      this.logger.error(`Driver not found: ${driverId}`);
-      throw new NotFoundException('Driver not found.');
+      throw new RpcException({
+        code: status.NOT_FOUND,
+        message: 'Driver not found.',
+      });
     }
 
     const driverData = driver.toJSON();
