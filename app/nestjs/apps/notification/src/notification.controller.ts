@@ -62,6 +62,7 @@ export class NotificationController {
     GRPC_METHODS.NOTIFICATION_SERVICE.GET_NOTIFICATIONS_OF_USER,
   )
   @UseGuards(JwtGrpcGuard)
+  @UsePipes(GrpcValidationPipe)
   async getNotificationsOfUser(
     @GrpcBody(GetNotificationsOfUserDto)
     getNotificationOfUserDto: GetNotificationsOfUserDto,

@@ -4,7 +4,6 @@ import {
   NotificationContent,
   NotificationParams,
 } from '@libs/common/utils/types';
-import { RequestTimeoutException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   ClientProxy,
