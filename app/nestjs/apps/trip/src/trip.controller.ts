@@ -54,6 +54,7 @@ export class TripController {
 
   @GrpcMethod(TRIP_SERVICE_NAME, GRPC_METHODS.TRIP_SERVICE.CANCEL_TRIP)
   @UseGuards(JwtGrpcGuard)
+  @UsePipes(GrpcValidationPipe)
   async cancelTrip(
     @GrpcBody(CancelTripDto) cancelTripDto: CancelTripDto,
     @GrpcUser() grpcUser: TGrpcUser,
@@ -67,6 +68,7 @@ export class TripController {
     GRPC_METHODS.TRIP_SERVICE.UPDATE_TRIP_REQUEST_STATUS,
   )
   @UseGuards(JwtGrpcGuard)
+  @UsePipes(GrpcValidationPipe)
   async updateTripRequestStatus(
     @GrpcBody(UpdateTripRequestStatusDto)
     updateTripRequestStatusDto: UpdateTripRequestStatusDto,
