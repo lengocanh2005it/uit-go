@@ -20,9 +20,7 @@ import {
 import { status } from '@grpc/grpc-js';
 import {
   buildGeoLocation,
-  buildSearchPrefixes,
   CommonService,
-  FindAvailableDriversResponse,
   generateNotificationContent,
   NotificationParams,
   SERVICES,
@@ -44,17 +42,14 @@ import { RabbitMQService } from '@libs/common/modules/rabbitmq/rabbitmq.service'
 import { RedisService } from '@libs/common/modules/redis/redis.service';
 import {
   DriverInfo,
+  FindAvailableDriversResponse,
   GetAllTripsOfDriverResponse,
   GetDriverApprovalsResponse,
   DriverLocation as IDriverLocation,
+  NearbyDriver,
 } from '@libs/common/proto/driver';
 import { CreateDriverRequest } from '@libs/common/proto/user';
-import {
-  BadRequestException,
-  Injectable,
-  Logger,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { RpcException } from '@nestjs/microservices';
 import type { Item, Model } from 'nestjs-dynamoose';
@@ -315,6 +310,7 @@ export class DriverService {
       mesasge: 'Driver created successfully.',
     };
   }
+
   async updateDriverApprovalStatus(
     updateDriverApprovalDto: UpdateDriverApprovalDto,
     driverId: string,
@@ -411,105 +407,68 @@ export class DriverService {
     return byDriver;
   }
 
-  async findNearbyDrivers(lat: number, lng: number, radiusKm = 3) {
-    const cacheKey = `available_drivers:${lat.toFixed(4)}:${lng.toFixed(4)}:${radiusKm}`;
-    const cached = await this.redisService.get(cacheKey);
-
-    if (cached) {
-      return JSON.parse(cached);
-    }
-
-    const prefixes = buildSearchPrefixes(lat, lng, radiusKm, 5);
-
-    if (prefixes.length === 0) {
-      return { count: 0, drivers: [] };
-    }
-
-    const locationResponses: DriverLocation[][] = await Promise.all(
-      prefixes.map(
-        (prefix) =>
-          this.driverLocationModel
-            .query('hashPrefix')
-            .eq(prefix)
-            .exec() as Promise<DriverLocation[]>,
-      ),
-    );
-
-    const locations: DriverLocation[] = locationResponses.flat();
-    const latestByDriver = this.pickLatestLocationPerDriver(locations);
-
-    const entries = await Promise.all(
-      Object.values(latestByDriver).map(async (location) => {
-        try {
-          const distance = await this.commonService.getDistanceWithCoordinates(
-            { lat, lon: lng },
-            { lat: location.lat, lon: location.lng },
-          );
-
-          const statusDoc = await this.driverStatusModel.get({
-            driverId: location.driverId,
-          });
-
-          const status = statusDoc?.toJSON()?.status;
-
-          if (status === DriverStatusEnum.ONLINE && distance <= radiusKm) {
-            return {
-              driverId: location.driverId,
-              lat: location.lat,
-              lng: location.lng,
-              distanceKm: distance,
-            };
-          }
-
-          return null;
-        } catch (error) {
-          return null;
-        }
-      }),
-    );
-
-    const filtered = entries.filter(Boolean);
-
-    await this.redisService.set(
-      cacheKey,
-      JSON.stringify({ count: filtered.length, drivers: filtered }),
-      10,
-    );
-
-    return { count: filtered.length, drivers: filtered };
-  }
-
   async findAvailableDrivers(
     lat: number,
     lng: number,
+    topN = 10,
   ): Promise<FindAvailableDriversResponse> {
-    try {
-      this.logger.debug(
-        `Finding available drivers near lat: ${lat}, lng: ${lng}`,
-      );
-      const maxRadiusKm = this.configService.get<number>(
-        'mechanisms.max_radius_km',
-        25,
-      );
-      const searchRadii = [3, 5, 10, 15, maxRadiusKm];
+    this.logger.debug(`Finding drivers for (${lat}, ${lng})`);
 
-      for (const radius of searchRadii) {
-        this.logger.debug(`Searching within ${radius}km radius`);
-        const drivers = await this.findNearbyDrivers(lat, lng, radius);
-        if (drivers?.count > 0) {
-          this.logger.debug(
-            `Found ${drivers.count} drivers within ${radius}km`,
-          );
-          return drivers;
-        }
-      }
+    const maxRadiusKm = this.configService.get<number>(
+      'mechanisms.max_radius_km',
+      25,
+    );
 
-      this.logger.debug('No available drivers found');
-      return { count: 0, drivers: [] };
-    } catch (error) {
-      this.logger.error('Error finding available drivers:', error);
-      throw error;
+    const keyLat = lat.toFixed(3);
+    const keyLng = lng.toFixed(3);
+
+    const cacheKey = `avail:${keyLat}:${keyLng}:${maxRadiusKm}`;
+    const cached = await this.redisService.get(cacheKey);
+
+    if (cached) {
+      this.logger.debug(`Cache hit for location ${lat},${lng}`);
+      return JSON.parse(cached) as FindAvailableDriversResponse;
     }
+
+    const geoDrivers = await this.redisService.geoRadiusWithDistance(
+      'drivers:locations',
+      lng,
+      lat,
+      maxRadiusKm,
+      'km',
+      topN * 2,
+    );
+
+    if (!geoDrivers.length) return { count: 0, drivers: [] };
+
+    const driverIds = geoDrivers.map((d) => d.member);
+    const onlineMap = await this.redisService.areDriversOnline(driverIds);
+    const drivers: NearbyDriver[] = [];
+
+    for (const d of geoDrivers) {
+      if (!onlineMap[d.member]) continue;
+      const pos = await this.redisService.geoPos('drivers:locations', d.member);
+
+      if (!pos) continue;
+
+      drivers.push({
+        driverId: d.member,
+        lat: pos.lat,
+        lng: pos.lng,
+        distanceKm: d.distance,
+      });
+
+      if (drivers.length >= topN) break;
+    }
+
+    const result: FindAvailableDriversResponse = {
+      count: drivers.length,
+      drivers,
+    };
+
+    await this.redisService.set(cacheKey, JSON.stringify(result), 30);
+
+    return result;
   }
 
   async getLocationOfDriver(

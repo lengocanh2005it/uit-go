@@ -106,4 +106,62 @@ export class RedisService {
       if (_channel === channel) callback(message);
     });
   }
+
+  pipeline() {
+    return this.redisClient.pipeline();
+  }
+
+  async geoRadiusWithDistance(
+    key: string,
+    longitude: number,
+    latitude: number,
+    radius: number,
+    unit: 'm' | 'km' | 'mi' | 'ft' = 'km',
+    count?: number,
+  ): Promise<{ member: string; distance: number }[]> {
+    const resRaw = await this.redisClient.georadius(
+      key,
+      longitude,
+      latitude,
+      radius,
+      unit,
+      'WITHDIST',
+      ...(count ? ['COUNT', count] : []),
+    );
+
+    return (resRaw as Array<[string, string]>).map(([member, distance]) => ({
+      member,
+      distance: parseFloat(distance),
+    }));
+  }
+
+  async geoPos(
+    key: string,
+    member: string,
+  ): Promise<{ lat: number; lng: number } | null> {
+    const res = await this.redisClient.geopos(key, member);
+    if (!res || !res[0]) return null;
+
+    return {
+      lng: parseFloat(res[0][0]),
+      lat: parseFloat(res[0][1]),
+    };
+  }
+
+  async isDriverOnline(driverId: string): Promise<boolean> {
+    return (await this.redisClient.sismember('online_drivers', driverId)) === 1;
+  }
+
+  async areDriversOnline(
+    driverIds: string[],
+  ): Promise<Record<string, boolean>> {
+    const pipeline = this.redisClient.pipeline();
+    driverIds.forEach((id) => pipeline.sismember('online_drivers', id));
+    const results = await pipeline.exec();
+    const map: Record<string, boolean> = {};
+    driverIds.forEach((id, i) => {
+      map[id] = results?.[i]?.[1] === 1;
+    });
+    return map;
+  }
 }
