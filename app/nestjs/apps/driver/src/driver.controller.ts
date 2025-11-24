@@ -1,4 +1,5 @@
 import {
+  FindAvailableDriversDto,
   GetDriverApprovalsDto,
   GetDriverInfoDetailByIdDto,
   GetLocationOfDriverDto,
@@ -153,6 +154,19 @@ export class DriverController {
       updateDriverApprovalDto,
       driverId,
     );
+  }
+
+  @GrpcMethod(
+    DRIVER_SERVICE_NAME,
+    GRPC_METHODS.DRIVER_SERVICE.FIND_AVAILABLE_DRIVERS,
+  )
+  @UsePipes(GrpcValidationPipe)
+  async findAvailableDriversGrpc(
+    @GrpcBody(FindAvailableDriversDto)
+    findAvailableDriversDto: FindAvailableDriversDto,
+  ) {
+    const { lng, lat } = findAvailableDriversDto;
+    return this.driverService.findAvailableDrivers(lat, lng);
   }
 
   @MessagePattern(PATTERNS.DRIVER_SERVICE.FIND_AVAILABLE)

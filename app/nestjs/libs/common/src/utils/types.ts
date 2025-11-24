@@ -63,16 +63,6 @@ export type AssignDriverDto = {
   createTripDto: CreateTripDto;
 };
 
-export type FindAvailableDriversResponse = {
-  count: number;
-  drivers: {
-    driverId: string;
-    lat: number;
-    lng: number;
-    distanceKm: number;
-  }[];
-};
-
 export interface Coordinates {
   lat: number;
   lon: number;

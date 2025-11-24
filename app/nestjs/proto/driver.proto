@@ -20,6 +20,25 @@ service DriverService {
     returns (DriverLocation); 
   rpc GetDriverInfoDetailById(GetDriverInfoDetailByIdRequest)
     returns (DriverInfo);
+  rpc FindAvailableDrivers(FindAvailableDriversRequest)
+    returns (FindAvailableDriversResponse);
+}
+
+message NearbyDriver {
+  string driver_id = 1;
+  double lat = 2;
+  double lng = 3;
+  double distance_km = 4;
+}
+
+message FindAvailableDriversRequest {
+  double lat = 1;
+  double lng = 2;
+}
+
+message FindAvailableDriversResponse {
+  int32 count = 1;
+  repeated NearbyDriver drivers = 2;
 }
 
 message GetDriverInfoDetailByIdRequest {
