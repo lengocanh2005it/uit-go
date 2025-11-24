@@ -20,6 +20,7 @@ import envConfig from './configs/env.config';
 import { OutboxEvent, Trip, TripRating, TripRequest } from './entities';
 import { TripController } from './trip.controller';
 import { TripService } from './trip.service';
+import { PrometheusModule } from '@willsoto/nestjs-prometheus'
 
 @Module({
   imports: [
@@ -60,6 +61,7 @@ import { TripService } from './trip.service';
         name: QueueNamesOfTripService.driverAssigment,
       },
     ),
+    PrometheusModule.register()
   ],
   controllers: [TripController],
   providers: [
@@ -72,4 +74,4 @@ import { TripService } from './trip.service';
     DriverAssignmentProducer,
   ],
 })
-export class TripModule {}
+export class TripModule { }

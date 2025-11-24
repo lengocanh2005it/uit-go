@@ -5,10 +5,10 @@ import { status } from '@grpc/grpc-js';
 import {
   AssignDriverDto,
   CommonService,
-  FindAvailableDriversResponse,
   generateNotificationContent,
   SERVICES,
 } from '@libs/common';
+import { FindAvailableDriversResponse } from '@libs/common/proto/driver'
 import { PATTERNS } from '@libs/common/constants';
 import { InjectRabbitMqService } from '@libs/common/decorators';
 import { CreateTripRequestDto } from '@libs/common/dto';

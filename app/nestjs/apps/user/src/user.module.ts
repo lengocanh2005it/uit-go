@@ -11,6 +11,7 @@ import { OutboxEvent, User, UserProfile } from './entities';
 import { UserController } from './user.controller';
 import { UserService } from './user.service';
 import { QueueNames } from '@libs/common/constants';
+import { PrometheusModule } from '@willsoto/nestjs-prometheus'
 
 @Module({
   imports: [
@@ -40,8 +41,9 @@ import { QueueNames } from '@libs/common/constants';
       name: QueueNames.OUTBOX_EVENT_QUEUE,
     }),
     CommonModule,
+    PrometheusModule.register()
   ],
   controllers: [UserController],
   providers: [UserService, OutbotEventProcessor, OutboxEventProducer],
 })
-export class UserModule {}
+export class UserModule { }
