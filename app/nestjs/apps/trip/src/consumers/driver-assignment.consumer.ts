@@ -45,7 +45,7 @@ export class DriverAssignmentConsumer implements OnModuleInit {
     @InjectPulsarService()
     private readonly pulsarService: PulsarService,
     @InjectRedisService() private readonly redisService: RedisService,
-    private readonly tripRepo: Repository<Trip>,
+    @InjectRepository(Trip) private readonly tripRepo: Repository<Trip>,
     @InjectRabbitMqService() private readonly rabbitMqService: RabbitMQService,
     private readonly commonService: CommonService,
     @InjectRepository(TripRequest)
