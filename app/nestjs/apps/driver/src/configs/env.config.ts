@@ -34,4 +34,7 @@ export default () => ({
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || 'fake',
     local_url: process.env.LOCAL_URL || '',
   },
+  pulsar: {
+    service_url: process.env.PULSAR_SERVICE_URL || '',
+  },
 });

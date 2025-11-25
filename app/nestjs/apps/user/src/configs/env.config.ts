@@ -32,4 +32,7 @@ export default () => ({
     timeout: parseInt(process.env.HTTP_TIMEOUT || '5000', 10) || 5000,
     max_redirects: parseInt(process.env.HTTP_TIMEOUT || '5', 10) || 5,
   },
+  pulsar: {
+    service_url: process.env.PULSAR_SERVICE_URL || '',
+  },
 });

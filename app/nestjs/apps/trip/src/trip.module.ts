@@ -1,3 +1,4 @@
+import { DriverAssignmentConsumer } from '@/trip/src/consumers';
 import {
   DriverAssignmentProcessor,
   TripRequestProcessor,
@@ -70,6 +71,7 @@ import { TripService } from './trip.service';
     TripStatusProducer,
     DriverAssignmentProcessor,
     DriverAssignmentProducer,
+    DriverAssignmentConsumer,
   ],
 })
 export class TripModule {}
