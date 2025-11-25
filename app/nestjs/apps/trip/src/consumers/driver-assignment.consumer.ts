@@ -1,4 +1,3 @@
-import { QueueNamesOfTripService } from '@/trip/src/constants';
 import { Trip, TripRequest } from '@/trip/src/entities';
 import { TripRequestProducer } from '@/trip/src/producers';
 import { status } from '@grpc/grpc-js';
@@ -12,43 +11,47 @@ import {
 } from '@libs/common';
 import { PATTERNS } from '@libs/common/constants';
 import {
+  InjectPulsarService,
   InjectRabbitMqService,
   InjectRedisService,
 } from '@libs/common/decorators';
 import { CreateTripRequestDto } from '@libs/common/dto';
 import { NotificationTypeEnum } from '@libs/common/enums/notification';
+import { PulsarService } from '@libs/common/modules/pulsar/pulsar.service';
 import { RabbitMQService } from '@libs/common/modules/rabbitmq/rabbitmq.service';
 import { RedisService } from '@libs/common/modules/redis/redis.service';
 import { FindAvailableDriversResponse } from '@libs/common/proto/driver';
-import { OnWorkerEvent, Processor, WorkerHost } from '@nestjs/bullmq';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Job } from 'bullmq';
 import { addSeconds } from 'date-fns';
 import { ObjectType } from 'nestjs-dynamoose';
 import CircuitBreaker from 'opossum';
-import { Repository } from 'typeorm';
+import { Consumer } from 'pulsar-client';
 import Redlock from 'redlock';
+import { Repository } from 'typeorm';
 
-@Processor(QueueNamesOfTripService.driverAssigment)
-export class DriverAssignmentProcessor extends WorkerHost {
+@Injectable()
+export class DriverAssignmentConsumer implements OnModuleInit {
+  private readonly logger = new Logger(DriverAssignmentConsumer.name);
   private findDriversBreaker: CircuitBreaker<
     [payload: { lat: number; lng: number }],
     FindAvailableDriversResponse
   >;
   private redlock: Redlock;
+  private consumer: Consumer;
 
   constructor(
+    @InjectPulsarService()
+    private readonly pulsarService: PulsarService,
+    @InjectRedisService() private readonly redisService: RedisService,
+    private readonly tripRepo: Repository<Trip>,
     @InjectRabbitMqService() private readonly rabbitMqService: RabbitMQService,
     private readonly commonService: CommonService,
-    @InjectRepository(Trip) private readonly tripRepo: Repository<Trip>,
     @InjectRepository(TripRequest)
     private readonly tripRequestRepo: Repository<TripRequest>,
     private readonly tripRequestProducer: TripRequestProducer,
-    @InjectRedisService() private readonly redisService: RedisService,
   ) {
-    super();
-
     this.findDriversBreaker = new CircuitBreaker(
       (payload) =>
         this.rabbitMqService.send(
@@ -73,22 +76,45 @@ export class DriverAssignmentProcessor extends WorkerHost {
     });
   }
 
-  async process(job: Job<AssignDriverDto>) {
-    const { passengerId, createTripDto } = job.data;
+  async onModuleInit() {
+    this.consumer = await this.pulsarService.createConsumer(
+      'trip-create',
+      'trip-subscription',
+      'Shared',
+    );
+
+    this.logger.log('🚀 DriverAssignmentConsumer started');
+    this.start();
+  }
+
+  async start() {
+    while (true) {
+      const msg = await this.consumer.receive();
+      try {
+        const data: AssignDriverDto = JSON.parse(msg.getData().toString());
+        await this.processTrip(data);
+        await this.consumer.acknowledge(msg);
+      } catch (err) {
+        this.logger.error('Failed to process trip message', err);
+        this.consumer.negativeAcknowledge(msg);
+      }
+    }
+  }
+
+  private async processTrip(data: AssignDriverDto) {
+    const { passengerId, createTripDto } = data;
     const { destinationAddress, originAddress, note } = createTripDto;
 
-    const originAddressGeoCode =
-      await this.commonService.getCoordinates(originAddress);
-
-    const destinationAddressGeoCode =
+    const originGeo = await this.commonService.getCoordinates(originAddress);
+    const destinationGeo =
       await this.commonService.getCoordinates(destinationAddress);
 
     const availableDrivers = await this.findDriversBreaker.fire({
-      lat: originAddressGeoCode.lat,
-      lng: originAddressGeoCode.lon,
+      lat: originGeo.lat,
+      lng: originGeo.lon,
     });
 
-    if (availableDrivers.count === 0) {
+    if (!availableDrivers.count) {
       throw new RpcException({
         code: status.NOT_FOUND,
         message: 'No available drivers found nearby.',
@@ -103,24 +129,26 @@ export class DriverAssignmentProcessor extends WorkerHost {
     let tripCreated = false;
 
     for (const driver of availableDrivers.drivers) {
-      let lock: any;
+      let lock: Redlock.Lock | undefined;
       try {
-        lock = await this.lockDriver(driver.driverId);
+        lock = await this.redlock.acquire(
+          [`locks:driver:${driver.driverId}`],
+          5000,
+        );
 
         const newTrip = this.tripRepo.create({
           originAddress,
           destinationAddress,
-          originLat: originAddressGeoCode?.lat ?? 0,
-          originLng: originAddressGeoCode?.lon ?? 0,
-          destinationLat: destinationAddressGeoCode?.lat ?? 0,
-          destinationLng: destinationAddressGeoCode?.lon ?? 0,
+          originLat: originGeo.lat,
+          originLng: originGeo.lon,
+          destinationLat: destinationGeo.lat,
+          destinationLng: destinationGeo.lon,
           fareEstimate,
           fareFinal: fareEstimate,
           driverId: driver.driverId,
           passengerId,
           note,
         });
-
         await this.tripRepo.save(newTrip);
 
         const newTripRequest = await this.createTripRequest(
@@ -132,10 +160,7 @@ export class DriverAssignmentProcessor extends WorkerHost {
         );
 
         await this.tripRequestProducer.processTripRequest(
-          {
-            tripRequestId: newTripRequest.id,
-            sub: passengerId,
-          },
+          { tripRequestId: newTripRequest.id, sub: passengerId },
           15000,
         );
 
@@ -146,7 +171,6 @@ export class DriverAssignmentProcessor extends WorkerHost {
             dropoffLocation: destinationAddress,
           },
         );
-
         const driverInfo = await this.rabbitMqService.send<ObjectType>(
           SERVICES.DRIVER_SERVICE,
           PATTERNS.DRIVER_SERVICE.GET_BY_ID,
@@ -172,10 +196,13 @@ export class DriverAssignmentProcessor extends WorkerHost {
         );
 
         tripCreated = true;
-        await lock.release();
+        await lock.unlock();
         break;
       } catch (err) {
-        if (lock) await lock.release().catch(() => {});
+        if (lock) await lock.unlock().catch(() => {});
+        this.logger.warn(
+          `Driver ${driver.driverId} busy or error, trying next driver`,
+        );
         continue;
       }
     }
@@ -188,55 +215,12 @@ export class DriverAssignmentProcessor extends WorkerHost {
     }
   }
 
-  @OnWorkerEvent('completed')
-  onCompleted(job: Job) {
-    console.log(`Job '${job.name}' completed.`);
-  }
-
-  @OnWorkerEvent('failed')
-  async onFailed(job: Job<AssignDriverDto>, err: Error) {
-    console.log(`Job '${job.name}' failed due to: `, err);
-
-    if (job.attemptsMade >= (job.opts.attempts ?? 1)) {
-      console.log(`Job '${job.name}' failed after all retries.`);
-
-      const { passengerId } = job.data;
-
-      this.rabbitMqService.emit(
-        SERVICES.NOTIFICATION_SERVICE,
-        PATTERNS.NOTIFICATION_SERVICE.CREATE_NOTIFICATION,
-        {
-          userId: passengerId,
-          createNotificationDto: {
-            type: NotificationTypeEnum.TRIP_REQUEST_FAILED,
-            message:
-              "We couldn't find a driver for your trip right now. Please try again in a few minutes.",
-            title: 'No Drivers Available',
-          },
-        },
-      );
-    }
-  }
-
-  @OnWorkerEvent('active')
-  onActive(job: Job) {
-    if (job.attemptsMade > 0) {
-      console.error(
-        `Retrying job '${job.name}', attempt: ${job.attemptsMade + 1}`,
-      );
-    }
-  }
-
-  private createTripRequest = async (
+  private async createTripRequest(
     createTripRequestDto: CreateTripRequestDto,
     trip: Trip,
-  ) => {
+  ) {
     const newTripRequest = this.tripRequestRepo.create(createTripRequestDto);
     newTripRequest.trip = trip;
     return this.tripRequestRepo.save(newTripRequest);
-  };
-
-  private async lockDriver(driverId: string) {
-    return this.redlock.acquire([`locks:driver:${driverId}`], 5000);
   }
 }

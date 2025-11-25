@@ -10,6 +10,7 @@ import { TripRequestStatus, TripStatus } from '@libs/common/proto/trip';
 import { UserRole as UseerRoleProto } from '@libs/common/proto/user';
 
 export const RABBITMQ_SERVCE_TOKEN = Symbol('RABBITMQ_SERVICE');
+export const PULSAR_SERVICE_TOKEN = Symbol('PULSAR_SERVICE');
 export const REDIS_SERVICE_TOKEN = Symbol('REDIS_SERVICE');
 export const BULLMQ_SERVICE_TOKEN = Symbol('BULLMQ_SERVICE');
 export const RABBITMQ_QUEUE_SERVICES = [
@@ -26,6 +27,8 @@ export const SERVICES = RABBITMQ_QUEUE_SERVICES.reduce(
   },
   {} as Record<ServiceName, ServiceName>,
 );
+export const REDLOCK_RETRY_COUNT = 3;
+export const REDLOCK_RETRY_DELAY = 100;
 export const MAX_RETRY = 5;
 export const BACKOFF_MS = 5000;
 export const tripRequestStatusMapping: Record<

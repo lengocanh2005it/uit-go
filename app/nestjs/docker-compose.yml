@@ -50,6 +50,20 @@ services:
     networks:
       - backend
 
+  pulsar:
+    image: apachepulsar/pulsar:3.3.2
+    container_name: pulsar
+    ports:
+      - "6650:6650"
+      - "8080:8080"
+    command: >
+      bin/pulsar standalone
+    environment:
+      PULSAR_MEM: "-Xms512m -Xmx512m"
+    networks:
+      - backend
+    restart: unless-stopped
+
   driver-service:
     build:
       context: .
