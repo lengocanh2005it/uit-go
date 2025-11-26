@@ -49,7 +49,7 @@ export class NotificationService {
       });
     }
 
-    console.log('Notification: ', notification)
+    console.log('Notification: ', notification);
 
     const updated = await this.userNotificationModel.findByIdAndUpdate(
       notificationId,
@@ -70,7 +70,7 @@ export class NotificationService {
       id: updated._id.toString(),
       message: updated.message,
       read: updated.read,
-      readAt: updated.readAt ? new Date(updated.readAt) :undefined,
+      readAt: updated.readAt ? new Date(updated.readAt) : undefined,
       data: updated.data ?? {},
       createdAt: updated.createdAt ? new Date(updated.createdAt) : undefined,
       updatedAt: updated.updatedAt ? new Date(updated.updatedAt) : undefined,
@@ -78,10 +78,12 @@ export class NotificationService {
         id: notification.notification._id.toString(),
         title: notification.notification.title,
         type: notification.notification.type,
-        createdAt: notification.notification.createdAt ?
-         new Date(notification.notification.createdAt) : undefined,
+        createdAt: notification.notification.createdAt
+          ? new Date(notification.notification.createdAt)
+          : undefined,
         updatedAt: notification.notification.updatedAt
-        ? new Date(notification.notification.updatedAt) : undefined,
+          ? new Date(notification.notification.updatedAt)
+          : undefined,
       },
     };
   }
