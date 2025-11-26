@@ -65,9 +65,13 @@ message GetDriverApprovalsRequest {
 }
 
 message GetDriverApprovalsResponse {
+  repeated GetDriverApprovalsFormatted approvals = 1;
+}
+
+message GetDriverApprovalsFormatted {
   string driver_approval_id = 1;
   string status = 2;
-  optional google.protobuf.Timestamp reviewed_date = 3;
+  google.protobuf.Timestamp reviewed_date = 3;
   google.protobuf.StringValue note = 4;
   string driver_id = 5;
   string vehicle_id = 6;
@@ -78,10 +82,23 @@ message GetDriverApprovalsResponse {
 message UpdateDriverApprovalRequest {
   DriverApprovalStatus status = 1;
   google.protobuf.StringValue note = 2;
+  string driver_approval_id = 3;
+}
+
+message UpdateDriverApprovalData {
+  string driver_approval_id = 1;
+  string status = 2;
+  google.protobuf.Timestamp reviewed_date = 3;
+  google.protobuf.StringValue note = 4;
+  string driver_id = 5;
+  string vehicle_id = 6;
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp updated_at = 8;
 }
 
 message UpdateDriverApprovalResponse {
-
+  string message = 1;
+  UpdateDriverApprovalData data = 2;
 }
 
 enum DriverStatus {
@@ -124,7 +141,7 @@ message Driver {
 message DriverApproval {
   string driver_approval_id = 1;
   DriverApprovalStatus status = 2;
-  optional google.protobuf.Timestamp reviewed_date = 3;
+  google.protobuf.Timestamp reviewed_date = 3;
   google.protobuf.StringValue note = 4;
   string driver_id = 5;
   string vehicle_id = 6;
