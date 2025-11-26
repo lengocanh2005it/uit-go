@@ -130,29 +130,31 @@ export class DriverService {
     driverId: string,
     statusData: DriverStatusEnum,
     eventId?: string,
+    currentLocation?: string,
   ) {
     if (eventId?.trim()) {
-      const exists = await this.getProcessedEvent(eventId);
+      const exists = await this.processedEventModel.get({
+        eventId: eventId.trim(),
+      });
       if (exists) {
         console.log(`Skipped duplicate event: ${eventId}`);
         return;
       }
     }
 
-    const findDriver = await this.driverModel.get({ driverId });
+    const [driver, driverStatus] = await Promise.all([
+      this.driverModel.get({ driverId }),
+      this.driverStatusModel.get({ driverId }),
+    ]);
 
-    if (!findDriver) {
+    if (!driver) {
       throw new RpcException({
         code: status.NOT_FOUND,
         message: 'Driver info not found.',
       });
     }
 
-    const findDriverStatusRecord = await this.driverStatusModel.get({
-      driverId,
-    });
-
-    if (!findDriverStatusRecord?.toJSON()) {
+    if (!driverStatus?.toJSON()) {
       throw new RpcException({
         code: status.NOT_FOUND,
         message: 'Driver status info not found.',
@@ -161,11 +163,18 @@ export class DriverService {
 
     await this.driverStatusModel.update({ driverId }, { status: statusData });
 
+    if (currentLocation?.trim() && statusData === DriverStatusEnum.ONLINE) {
+      const { lon, lat } =
+        await this.commonService.getCoordinates(currentLocation);
+      await this.updateLocationOfDriver(driverId, lat, lon);
+    }
+
     if (eventId?.trim()) {
-      await this.processedEventModel.create({
-        eventId,
-        createdAt: new Date(),
-      });
+      try {
+        await this.processedEventModel.create({ eventId: eventId.trim() });
+      } catch (err) {
+        if (err.name !== 'ConditionalCheckFailedException') throw err;
+      }
     }
   }
 
@@ -227,35 +236,34 @@ export class DriverService {
 
   async updateLocationOfDriver(driverId: string, lat: number, lng: number) {
     const { hash_prefix, geo_hash } = buildGeoLocation(lat, lng);
-    const existingRecord = await this.driverLocationModel.get({
-      driverId,
-      hashPrefix: hash_prefix,
-    });
 
-    if (!existingRecord) {
-      await this.driverLocationModel.create({
+    const existingRecords = await this.driverLocationModel
+      .query('driverId')
+      .eq(driverId)
+      .exec();
+
+    if (existingRecords?.length) {
+      const deleteRequests = existingRecords
+        .filter((r) => r.hashPrefix !== hash_prefix)
+        .map((r) =>
+          this.driverLocationModel.delete({
+            driverId,
+            hashPrefix: r.hashPrefix,
+          }),
+        );
+
+      await Promise.all(deleteRequests);
+    }
+
+    await this.driverLocationModel.update(
+      { driverId, hashPrefix: hash_prefix },
+      {
         geoHash: geo_hash,
-        hashPrefix: hash_prefix,
-        driverId,
-        createdAt: new Date(),
-        updatedAt: new Date(),
         lat,
         lng,
-      });
-    } else {
-      await this.driverLocationModel.update(
-        {
-          driverId,
-          hashPrefix: hash_prefix,
-        },
-        {
-          updatedAt: new Date(),
-          lat,
-          lng,
-          geoHash: geo_hash,
-        },
-      );
-    }
+      },
+      { return: 'item' },
+    );
   }
 
   async createDriver(data: CreateDriverDto, userId: string) {
@@ -695,7 +703,6 @@ export class DriverService {
 
     await this.processedEventModel.create({
       eventId,
-      createdAt: new Date(),
     });
 
     this.logger.log(
