@@ -86,10 +86,9 @@ message RegisterRequest {
   UserRole role = 3;
   string full_name = 4;
   string phone_number = 5;
-  string phone_address = 6;
+  string address = 6;
   google.protobuf.Timestamp birth_day = 7;
-  CreateDriverRequest create_driver_request = 8;
-  string address = 9;
+  CreateDriverRequest create_driver_dto = 8;
 }
 
 message UserData {

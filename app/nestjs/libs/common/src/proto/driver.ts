@@ -5,13 +5,13 @@
 // source: driver.proto
 
 /* eslint-disable */
-import { GrpcMethod, GrpcStreamMethod } from '@nestjs/microservices';
-import { wrappers } from 'protobufjs';
-import { Observable } from 'rxjs';
-import { Struct } from './google/protobuf/struct';
-import { Trip } from './trip';
+import { GrpcMethod, GrpcStreamMethod } from "@nestjs/microservices";
+import { wrappers } from "protobufjs";
+import { Observable } from "rxjs";
+import { Struct } from "./google/protobuf/struct";
+import { Trip } from "./trip";
 
-export const protobufPackage = 'driver';
+export const protobufPackage = "driver";
 
 export enum DriverApprovalStatus {
   DRIVER_APPROVAL_STATUS_UNSPECIFIED = 0,
@@ -54,16 +54,21 @@ export interface GetLocationOfDriverRequest {
   driverId: string;
 }
 
-export interface GetLocationOfDriverRespose {}
+export interface GetLocationOfDriverRespose {
+}
 
 export interface GetDriverApprovalsRequest {
   status?: DriverApprovalStatus | undefined;
 }
 
 export interface GetDriverApprovalsResponse {
+  approvals: GetDriverApprovalsFormatted[];
+}
+
+export interface GetDriverApprovalsFormatted {
   driverApprovalId: string;
   status: string;
-  reviewedDate?: Date | undefined;
+  reviewedDate: Date | undefined;
   note: string | undefined;
   driverId: string;
   vehicleId: string;
@@ -74,9 +79,24 @@ export interface GetDriverApprovalsResponse {
 export interface UpdateDriverApprovalRequest {
   status: DriverApprovalStatus;
   note: string | undefined;
+  driverApprovalId: string;
 }
 
-export interface UpdateDriverApprovalResponse {}
+export interface UpdateDriverApprovalData {
+  driverApprovalId: string;
+  status: string;
+  reviewedDate: Date | undefined;
+  note: string | undefined;
+  driverId: string;
+  vehicleId: string;
+  createdAt: Date | undefined;
+  updatedAt: Date | undefined;
+}
+
+export interface UpdateDriverApprovalResponse {
+  message: string;
+  data: UpdateDriverApprovalData | undefined;
+}
 
 export interface UpdateDriverStatusGrpcRequest {
   status: DriverStatus;
@@ -111,7 +131,7 @@ export interface Driver {
 export interface DriverApproval {
   driverApprovalId: string;
   status: DriverApprovalStatus;
-  reviewedDate?: Date | undefined;
+  reviewedDate: Date | undefined;
   note: string | undefined;
   driverId: string;
   vehicleId: string;
@@ -172,62 +192,39 @@ export interface DriverInfo {
   vehicle: Vehicle | undefined;
 }
 
-export const DRIVER_PACKAGE_NAME = 'driver';
+export const DRIVER_PACKAGE_NAME = "driver";
 
-wrappers['.google.protobuf.Timestamp'] = {
+wrappers[".google.protobuf.Timestamp"] = {
   fromObject(value: Date) {
-    return {
-      seconds: value.getTime() / 1000,
-      nanos: (value.getTime() % 1000) * 1e6,
-    };
+    return { seconds: value.getTime() / 1000, nanos: (value.getTime() % 1000) * 1e6 };
   },
   toObject(message: { seconds: number; nanos: number }) {
     return new Date(message.seconds * 1000 + message.nanos / 1e6);
   },
 } as any;
 
-wrappers['.google.protobuf.Struct'] = {
-  fromObject: Struct.wrap,
-  toObject: Struct.unwrap,
-} as any;
+wrappers[".google.protobuf.Struct"] = { fromObject: Struct.wrap, toObject: Struct.unwrap } as any;
 
 export interface DriverServiceClient {
-  getAllTripsOfDriver(
-    request: GetAllTripsOfDriverRequest,
-  ): Observable<GetAllTripsOfDriverResponse>;
+  getAllTripsOfDriver(request: GetAllTripsOfDriverRequest): Observable<GetAllTripsOfDriverResponse>;
 
-  updateDriverStatusGrpc(
-    request: UpdateDriverStatusGrpcRequest,
-  ): Observable<UpdateDriverStatusGrpcResponse>;
+  updateDriverStatusGrpc(request: UpdateDriverStatusGrpcRequest): Observable<UpdateDriverStatusGrpcResponse>;
 
-  updateDriverApproval(
-    request: UpdateDriverApprovalRequest,
-  ): Observable<UpdateDriverApprovalResponse>;
+  updateDriverApproval(request: UpdateDriverApprovalRequest): Observable<UpdateDriverApprovalResponse>;
 
-  getDriverApprovals(
-    request: GetDriverApprovalsRequest,
-  ): Observable<GetDriverApprovalsResponse>;
+  getDriverApprovals(request: GetDriverApprovalsRequest): Observable<GetDriverApprovalsResponse>;
 
-  getLocationOfDriver(
-    request: GetLocationOfDriverRequest,
-  ): Observable<DriverLocation>;
+  getLocationOfDriver(request: GetLocationOfDriverRequest): Observable<DriverLocation>;
 
-  getDriverInfoDetailById(
-    request: GetDriverInfoDetailByIdRequest,
-  ): Observable<DriverInfo>;
+  getDriverInfoDetailById(request: GetDriverInfoDetailByIdRequest): Observable<DriverInfo>;
 
-  findAvailableDrivers(
-    request: FindAvailableDriversRequest,
-  ): Observable<FindAvailableDriversResponse>;
+  findAvailableDrivers(request: FindAvailableDriversRequest): Observable<FindAvailableDriversResponse>;
 }
 
 export interface DriverServiceController {
   getAllTripsOfDriver(
     request: GetAllTripsOfDriverRequest,
-  ):
-    | Promise<GetAllTripsOfDriverResponse>
-    | Observable<GetAllTripsOfDriverResponse>
-    | GetAllTripsOfDriverResponse;
+  ): Promise<GetAllTripsOfDriverResponse> | Observable<GetAllTripsOfDriverResponse> | GetAllTripsOfDriverResponse;
 
   updateDriverStatusGrpc(
     request: UpdateDriverStatusGrpcRequest,
@@ -238,17 +235,11 @@ export interface DriverServiceController {
 
   updateDriverApproval(
     request: UpdateDriverApprovalRequest,
-  ):
-    | Promise<UpdateDriverApprovalResponse>
-    | Observable<UpdateDriverApprovalResponse>
-    | UpdateDriverApprovalResponse;
+  ): Promise<UpdateDriverApprovalResponse> | Observable<UpdateDriverApprovalResponse> | UpdateDriverApprovalResponse;
 
   getDriverApprovals(
     request: GetDriverApprovalsRequest,
-  ):
-    | Promise<GetDriverApprovalsResponse>
-    | Observable<GetDriverApprovalsResponse>
-    | GetDriverApprovalsResponse;
+  ): Promise<GetDriverApprovalsResponse> | Observable<GetDriverApprovalsResponse> | GetDriverApprovalsResponse;
 
   getLocationOfDriver(
     request: GetLocationOfDriverRequest,
@@ -260,47 +251,30 @@ export interface DriverServiceController {
 
   findAvailableDrivers(
     request: FindAvailableDriversRequest,
-  ):
-    | Promise<FindAvailableDriversResponse>
-    | Observable<FindAvailableDriversResponse>
-    | FindAvailableDriversResponse;
+  ): Promise<FindAvailableDriversResponse> | Observable<FindAvailableDriversResponse> | FindAvailableDriversResponse;
 }
 
 export function DriverServiceControllerMethods() {
   return function (constructor: Function) {
     const grpcMethods: string[] = [
-      'getAllTripsOfDriver',
-      'updateDriverStatusGrpc',
-      'updateDriverApproval',
-      'getDriverApprovals',
-      'getLocationOfDriver',
-      'getDriverInfoDetailById',
-      'findAvailableDrivers',
+      "getAllTripsOfDriver",
+      "updateDriverStatusGrpc",
+      "updateDriverApproval",
+      "getDriverApprovals",
+      "getLocationOfDriver",
+      "getDriverInfoDetailById",
+      "findAvailableDrivers",
     ];
     for (const method of grpcMethods) {
-      const descriptor: any = Reflect.getOwnPropertyDescriptor(
-        constructor.prototype,
-        method,
-      );
-      GrpcMethod('DriverService', method)(
-        constructor.prototype[method],
-        method,
-        descriptor,
-      );
+      const descriptor: any = Reflect.getOwnPropertyDescriptor(constructor.prototype, method);
+      GrpcMethod("DriverService", method)(constructor.prototype[method], method, descriptor);
     }
     const grpcStreamMethods: string[] = [];
     for (const method of grpcStreamMethods) {
-      const descriptor: any = Reflect.getOwnPropertyDescriptor(
-        constructor.prototype,
-        method,
-      );
-      GrpcStreamMethod('DriverService', method)(
-        constructor.prototype[method],
-        method,
-        descriptor,
-      );
+      const descriptor: any = Reflect.getOwnPropertyDescriptor(constructor.prototype, method);
+      GrpcStreamMethod("DriverService", method)(constructor.prototype[method], method, descriptor);
     }
   };
 }
 
-export const DRIVER_SERVICE_NAME = 'DriverService';
+export const DRIVER_SERVICE_NAME = "DriverService";

@@ -21,7 +21,7 @@ import {
 import { Injectable } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 
 @Injectable()
 export class NotificationService {
@@ -36,8 +36,10 @@ export class NotificationService {
     const { notificationId } = markAsReadDto;
 
     const notification = await this.userNotificationModel
-      .findById(notificationId)
-      .populate('notification')
+      .findOne({
+        _id: new Types.ObjectId(notificationId),
+      })
+      .populate<{ notification: NotificationDocument }>('notification')
       .exec();
 
     if (!notification) {
@@ -46,6 +48,8 @@ export class NotificationService {
         message: `Notification not found.`,
       });
     }
+
+    console.log('Notification: ', notification)
 
     const updated = await this.userNotificationModel.findByIdAndUpdate(
       notificationId,
@@ -62,22 +66,22 @@ export class NotificationService {
         message: `Can't update the notification.`,
       });
 
-    const notif = updated.notification as unknown as NotificationDocument;
-
     return {
       id: updated._id.toString(),
       message: updated.message,
       read: updated.read,
-      readAt: updated.readAt,
+      readAt: updated.readAt ? new Date(updated.readAt) :undefined,
       data: updated.data ?? {},
-      createdAt: updated.createdAt,
-      updatedAt: updated.updatedAt,
+      createdAt: updated.createdAt ? new Date(updated.createdAt) : undefined,
+      updatedAt: updated.updatedAt ? new Date(updated.updatedAt) : undefined,
       notification: {
-        id: notif._id.toString(),
-        title: notif.title,
-        type: notif.type,
-        createdAt: notif.createdAt,
-        updatedAt: notif.updatedAt,
+        id: notification.notification._id.toString(),
+        title: notification.notification.title,
+        type: notification.notification.type,
+        createdAt: notification.notification.createdAt ?
+         new Date(notification.notification.createdAt) : undefined,
+        updatedAt: notification.notification.updatedAt
+        ? new Date(notification.notification.updatedAt) : undefined,
       },
     };
   }
@@ -87,7 +91,9 @@ export class NotificationService {
   ): Promise<DeleteNotificationOfUserResponse> {
     const { notificationId } = deleteNotificationDto;
 
-    const notif = await this.userNotificationModel.findById(notificationId);
+    const notif = await this.userNotificationModel.findOne({
+      _id: new Types.ObjectId(notificationId),
+    });
 
     if (!notif)
       throw new RpcException({
@@ -95,7 +101,9 @@ export class NotificationService {
         message: `Notification not found.`,
       });
 
-    await this.userNotificationModel.findOneAndDelete({ id: notificationId });
+    await this.userNotificationModel.findOneAndDelete({
+      _id: new Types.ObjectId(notificationId),
+    });
 
     return {
       message: 'The notification has been deleted successfully.',

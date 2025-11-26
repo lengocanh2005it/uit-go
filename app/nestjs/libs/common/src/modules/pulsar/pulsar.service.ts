@@ -45,11 +45,13 @@ export class PulsarService implements OnModuleDestroy {
     topic: string,
     subscription: string,
     subscriptionType: 'Exclusive' | 'Shared' | 'KeyShared' = 'Shared',
+    options?: any,
   ): Promise<Pulsar.Consumer> {
     const consumer = await this.client.subscribe({
       topic,
       subscription,
       subscriptionType,
+      ...options,
     });
     return consumer;
   }

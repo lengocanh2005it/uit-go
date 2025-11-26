@@ -3,6 +3,8 @@ FROM amazon/dynamodb-local:latest
 
 WORKDIR /home/dynamodblocal
 
+RUN mkdir -p /home/dynamodblocal/data
+
 EXPOSE 8005
 
-CMD ["-jar", "DynamoDBLocal.jar", "-sharedDb", "-inMemory", "-port", "8005"]
+CMD ["-jar", "DynamoDBLocal.jar", "-sharedDb", "-dbPath", "/home/dynamodblocal/data", "-port", "8005"]
