@@ -1,8 +1,8 @@
 import { CreateUserDto, LoginUserDto, UpdateProfileDto } from '@/user/src/dto';
 import { status } from '@grpc/grpc-js';
 import {
+  convertStringsToDates,
   generateNotificationContent,
-  grpcRoleToUserRoleMapping,
   NotificationParams,
   SERVICES,
   TGrpcUser,
@@ -30,6 +30,7 @@ import CircuitBreaker from 'opossum';
 import { DataSource, EntityManager, Repository } from 'typeorm';
 import { OutboxEvent, User, UserProfile } from './entities';
 import { NotificationTypeEnum } from '@libs/common/enums/notification';
+import { instanceToPlain } from 'class-transformer';
 
 @Injectable()
 export class UserService {
@@ -318,13 +319,28 @@ export class UserService {
         message: 'User not found.',
       });
 
-    let formattedUser: any = omit(user, ['password']);
+    let formattedUser: any = {
+      ...omit(user, ['password']),
+      createdAt: user.createdAt?.toISOString(),
+      updatedAt: user.updatedAt?.toISOString(),
+      profile: user.profile
+        ? {
+            ...user.profile,
+            birthDay: user.profile.birthDay?.toISOString(),
+          }
+        : undefined,
+    };
 
     if (user.role === UserRole.DRIVER) {
       formattedUser.driverInfo = await this.getDriverInfoBreaker.fire(user.id);
     }
 
-    return formattedUser;
+    let plainUser: any = instanceToPlain(formattedUser);
+    plainUser = convertStringsToDates(plainUser);
+
+    console.log(plainUser);
+
+    return plainUser;
   };
 
   async updateProfile(grpcUser: TGrpcUser, updateProfileDto: UpdateProfileDto) {
