@@ -42,7 +42,10 @@ export class OutboxEvent {
   })
   createdAt!: Date;
 
-  @Column({ type: 'timestamp', nullable: true })
+  @Column({
+    type: 'timestamp',
+    nullable: true,
+  })
   sentAt?: Date;
 
   @Column({ type: 'uuid' })
