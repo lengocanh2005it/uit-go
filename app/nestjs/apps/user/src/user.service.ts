@@ -229,7 +229,7 @@ export class UserService {
 
   public login = async (loginUserDto: LoginUserDto): Promise<LoginResponse> => {
     return this.dataSource.transaction(async (manager) => {
-      const { email, password } = loginUserDto;
+      const { email, password, currentLocation } = loginUserDto;
 
       const user = await manager
         .getRepository(User)
@@ -249,7 +249,14 @@ export class UserService {
           message: 'Invalid credentials',
         });
 
-      if (user.role === UserRole.DRIVER) {
+      if (user.role === UserRole.DRIVER && !currentLocation?.trim()) {
+        throw new RpcException({
+          code: status.INVALID_ARGUMENT,
+          message: 'Driver must provide current location when logging in.',
+        });
+      }
+
+      if (user.role === UserRole.DRIVER && currentLocation?.trim()) {
         const driverApproval = await this.getDriverApprovalStatusBreaker.fire(
           user.id,
         );
@@ -282,7 +289,7 @@ export class UserService {
         secret: this.configService.get<string>('jwt_secret', ''),
       });
 
-      if (user.role === UserRole.DRIVER) {
+      if (user.role === UserRole.DRIVER && currentLocation?.trim()) {
         const driverInfo = await this.getDriverInfoBreaker.fire(user.id);
 
         await this.createNewOutbox(
@@ -291,6 +298,7 @@ export class UserService {
             payload: {
               driverId: driverInfo.driverId,
               status: DriverStatusEnum.ONLINE,
+              currentLocation,
             },
             aggregateId: user.id,
             aggregateType: 'USER',
@@ -337,8 +345,6 @@ export class UserService {
 
     let plainUser: any = instanceToPlain(formattedUser);
     plainUser = convertStringsToDates(plainUser);
-
-    console.log(plainUser);
 
     return plainUser;
   };

@@ -68,7 +68,7 @@ export interface GetDriverApprovalsFormatted {
   driverApprovalId: string;
   status: string;
   reviewedDate: Date | undefined;
-  note: string | undefined;
+  note?: string | undefined;
   driverId: string;
   vehicleId: string;
   createdAt: Date | undefined;
@@ -77,7 +77,7 @@ export interface GetDriverApprovalsFormatted {
 
 export interface UpdateDriverApprovalRequest {
   status: DriverApprovalStatus;
-  note: string | undefined;
+  note?: string | undefined;
   driverApprovalId: string;
 }
 
@@ -85,7 +85,7 @@ export interface UpdateDriverApprovalData {
   driverApprovalId: string;
   status: string;
   reviewedDate: Date | undefined;
-  note: string | undefined;
+  note?: string | undefined;
   driverId: string;
   vehicleId: string;
   createdAt: Date | undefined;
@@ -100,6 +100,7 @@ export interface UpdateDriverApprovalResponse {
 export interface UpdateDriverStatusGrpcRequest {
   status: DriverStatus;
   driverId: string;
+  currentLocation?: string | undefined;
 }
 
 export interface UpdateDriverStatusGrpcResponse {
@@ -108,11 +109,11 @@ export interface UpdateDriverStatusGrpcResponse {
 }
 
 export interface GetAllTripsOfDriverRequest {
-  afterCursor: string | undefined;
+  afterCursor?: string | undefined;
 }
 
 export interface GetAllTripsOfDriverResponse {
-  afterCursor: string | undefined;
+  afterCursor?: string | undefined;
   data: Trip[];
 }
 
@@ -131,7 +132,7 @@ export interface DriverApproval {
   driverApprovalId: string;
   status: DriverApprovalStatus;
   reviewedDate: Date | undefined;
-  note: string | undefined;
+  note?: string | undefined;
   driverId: string;
   vehicleId: string;
   createdAt: Date | undefined;

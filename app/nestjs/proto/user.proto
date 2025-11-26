@@ -69,6 +69,7 @@ message UpdateProfileResponse {
 message LoginRequest {
   string email = 1;
   string password = 2;
+  optional string current_location = 3;
 }
 
 message CreateDriverRequest {
