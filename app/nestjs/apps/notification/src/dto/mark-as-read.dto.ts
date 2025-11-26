@@ -1,6 +1,7 @@
-import { IsUUID } from 'class-validator';
+import { IsNotEmpty, IsString } from 'class-validator';
 
 export class MarkAsReadDto {
-  @IsUUID()
+  @IsString()
+  @IsNotEmpty()
   readonly notificationId: string;
 }

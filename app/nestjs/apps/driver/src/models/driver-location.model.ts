@@ -32,26 +32,8 @@ export const DriverLocationSchema = new Schema(
   },
   {
     timestamps: {
-      createdAt: {
-        created_at: {
-          type: {
-            value: Date,
-            settings: {
-              storage: 'iso',
-            },
-          },
-        },
-      },
-      updatedAt: {
-        updated_at: {
-          type: {
-            value: Date,
-            settings: {
-              storage: 'iso',
-            },
-          },
-        },
-      },
+      createdAt: 'createdAt',
+      updatedAt: 'updatedAt',
     },
   },
 );

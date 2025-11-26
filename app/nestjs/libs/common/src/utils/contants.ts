@@ -7,7 +7,7 @@ import {
 } from '@libs/common/enums';
 import { DriverApprovalStatus, DriverStatus } from '@libs/common/proto/driver';
 import { TripRequestStatus, TripStatus } from '@libs/common/proto/trip';
-import { UserRole as UseerRoleProto } from '@libs/common/proto/user';
+import { UserRole as UserRoleProto } from '@libs/common/proto/user';
 
 export const RABBITMQ_SERVCE_TOKEN = Symbol('RABBITMQ_SERVICE');
 export const PULSAR_SERVICE_TOKEN = Symbol('PULSAR_SERVICE');
@@ -27,14 +27,13 @@ export const SERVICES = RABBITMQ_QUEUE_SERVICES.reduce(
   },
   {} as Record<ServiceName, ServiceName>,
 );
+export const PULSAR_MAX_REDELIVER_COUNT = 3;
+export const PULSAR_REDELIVER_TIMEOUT = 2000;
 export const REDLOCK_RETRY_COUNT = 3;
 export const REDLOCK_RETRY_DELAY = 100;
 export const MAX_RETRY = 5;
 export const BACKOFF_MS = 5000;
-export const tripRequestStatusMapping: Record<
-  TripRequestStatus,
-  TripRequestStatusEnum
-> = {
+export const tripRequestStatusMapping: Record<number, TripRequestStatusEnum> = {
   [TripRequestStatus.TRIP_REQUEST_STATUS_UNSPECIFIED]:
     TripRequestStatusEnum.PENDING,
   [TripRequestStatus.TRIP_REQUEST_STATUS_ACCEPTED]:
@@ -47,7 +46,7 @@ export const tripRequestStatusMapping: Record<
     TripRequestStatusEnum.TIMEOUT,
   [TripRequestStatus.UNRECOGNIZED]: TripRequestStatusEnum.PENDING,
 };
-export const tripStatusMapping: Record<TripStatus, TripStatusEnum> = {
+export const tripStatusMapping: Record<number, TripStatusEnum> = {
   [TripStatus.TRIP_STATUS_UNSPECIFIED]: TripStatusEnum.SEARCHING,
   [TripStatus.TRIP_STATUS_SEARCHING]: TripStatusEnum.SEARCHING,
   [TripStatus.TRIP_STATUS_ACCEPTED]: TripStatusEnum.ACCEPTED,
@@ -58,14 +57,14 @@ export const tripStatusMapping: Record<TripStatus, TripStatusEnum> = {
   [TripStatus.TRIP_STATUS_ARRIVING]: TripStatusEnum.ARRIVING,
   [TripStatus.TRIP_STATUS_STARTED]: TripStatusEnum.STARTED,
 };
-export const grpcRoleToUserRoleMapping: Record<UseerRoleProto, UserRole> = {
-  [UseerRoleProto.USER_ROLE_CUSTOMER]: UserRole.CUSTOMER,
-  [UseerRoleProto.USER_ROLE_DRIVER]: UserRole.DRIVER,
-  [UseerRoleProto.USER_ROLE_ADMIN]: UserRole.ADMIN,
-  [UseerRoleProto.USER_ROLE_UNSPECIFIED]: UserRole.CUSTOMER,
-  [UseerRoleProto.UNRECOGNIZED]: UserRole.CUSTOMER,
+export const grpcRoleToUserRoleMapping: Record<number, UserRole> = {
+  [UserRoleProto.USER_ROLE_CUSTOMER]: UserRole.CUSTOMER,
+  [UserRoleProto.USER_ROLE_DRIVER]: UserRole.DRIVER,
+  [UserRoleProto.USER_ROLE_ADMIN]: UserRole.ADMIN,
+  [UserRoleProto.USER_ROLE_UNSPECIFIED]: UserRole.CUSTOMER,
+  [UserRoleProto.UNRECOGNIZED]: UserRole.CUSTOMER,
 };
-export const driverStatusMapping: Record<DriverStatus, DriverStatusEnum> = {
+export const driverStatusMapping: Record<number, DriverStatusEnum> = {
   [DriverStatus.DRIVER_STATUS_UNSPECIFIED]: DriverStatusEnum.ONLINE,
   [DriverStatus.UNRECOGNIZED]: DriverStatusEnum.ONLINE,
   [DriverStatus.DRIVER_STATUS_OFFLINE]: DriverStatusEnum.OFFLINE,
@@ -73,7 +72,7 @@ export const driverStatusMapping: Record<DriverStatus, DriverStatusEnum> = {
   [DriverStatus.DRIVER_STATUS_BUSY]: DriverStatusEnum.BUSY,
 };
 export const driverApprovalStatusMapping: Record<
-  DriverApprovalStatus,
+  number,
   DriverApprovalStatusEnum
 > = {
   [DriverApprovalStatus.DRIVER_APPROVAL_STATUS_UNSPECIFIED]:

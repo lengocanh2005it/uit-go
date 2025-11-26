@@ -5,6 +5,8 @@ import {
   AssignDriverDto,
   CommonService,
   generateNotificationContent,
+  PULSAR_MAX_REDELIVER_COUNT,
+  PULSAR_REDELIVER_TIMEOUT,
   REDLOCK_RETRY_COUNT,
   REDLOCK_RETRY_DELAY,
   SERVICES,
@@ -21,54 +23,53 @@ import { PulsarService } from '@libs/common/modules/pulsar/pulsar.service';
 import { RabbitMQService } from '@libs/common/modules/rabbitmq/rabbitmq.service';
 import { RedisService } from '@libs/common/modules/redis/redis.service';
 import { FindAvailableDriversResponse } from '@libs/common/proto/driver';
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
 import { InjectRepository } from '@nestjs/typeorm';
 import { addSeconds } from 'date-fns';
 import { ObjectType } from 'nestjs-dynamoose';
 import CircuitBreaker from 'opossum';
-import { Consumer } from 'pulsar-client';
+import { Consumer, Message } from 'pulsar-client';
 import Redlock from 'redlock';
 import { Repository } from 'typeorm';
 
 @Injectable()
-export class DriverAssignmentConsumer implements OnModuleInit {
+export class DriverAssignmentConsumer implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(DriverAssignmentConsumer.name);
-  private findDriversBreaker: CircuitBreaker<
+  private consumer: Consumer | null = null;
+  private running = false;
+  private readonly breaker: CircuitBreaker<
     [payload: { lat: number; lng: number }],
     FindAvailableDriversResponse
   >;
-  private redlock: Redlock;
-  private consumer: Consumer;
+  private readonly redlock: Redlock;
 
   constructor(
-    @InjectPulsarService()
-    private readonly pulsarService: PulsarService,
+    @InjectPulsarService() private readonly pulsarService: PulsarService,
     @InjectRedisService() private readonly redisService: RedisService,
     @InjectRepository(Trip) private readonly tripRepo: Repository<Trip>,
-    @InjectRabbitMqService() private readonly rabbitMqService: RabbitMQService,
-    private readonly commonService: CommonService,
     @InjectRepository(TripRequest)
     private readonly tripRequestRepo: Repository<TripRequest>,
+    @InjectRabbitMqService() private readonly rabbitMqService: RabbitMQService,
+    private readonly commonService: CommonService,
     private readonly tripRequestProducer: TripRequestProducer,
   ) {
-    this.findDriversBreaker = new CircuitBreaker(
-      (payload) =>
+    this.breaker = new CircuitBreaker(
+      (payload: { lat: number; lng: number }) =>
         this.rabbitMqService.send(
           SERVICES.DRIVER_SERVICE,
           PATTERNS.DRIVER_SERVICE.FIND_AVAILABLE,
           payload,
         ),
-      {
-        errorThresholdPercentage: 50,
-        resetTimeout: 10000,
-      },
+      { errorThresholdPercentage: 50, resetTimeout: 10000 },
     );
 
-    this.findDriversBreaker.fallback(() => ({
-      count: 0,
-      drivers: [],
-    }));
+    this.breaker.fallback(() => ({ count: 0, drivers: [] }));
 
     this.redlock = new Redlock([this.redisService.getClient() as any], {
       retryCount: REDLOCK_RETRY_COUNT,
@@ -77,28 +78,132 @@ export class DriverAssignmentConsumer implements OnModuleInit {
   }
 
   async onModuleInit() {
-    this.consumer = await this.pulsarService.createConsumer(
-      'trip-create',
-      'trip-subscription',
-      'Shared',
-    );
+    this.logger.log('Initializing DriverAssignmentConsumer...');
+    try {
+      this.consumer = await this.pulsarService.createConsumer(
+        'trip-create',
+        'trip-subscription',
+        'Shared',
+        {
+          deadLetterPolicy: {
+            maxRedeliverCount: PULSAR_MAX_REDELIVER_COUNT,
+            deadLetterTopic: 'trip-create-dlq',
+          },
+          nAckRedeliverTimeoutMs: PULSAR_REDELIVER_TIMEOUT,
+        },
+      );
 
-    this.logger.log('🚀 DriverAssignmentConsumer started');
-    this.start();
+      this.running = true;
+      this.logger.log('🚀 DriverAssignmentConsumer started');
+      this.startLoop().catch((err) => {
+        this.logger.error('Fatal error in consumer loop', err);
+      });
+    } catch (err) {
+      this.logger.error('Failed to create pulsar consumer during init', err);
+      throw err;
+    }
   }
 
-  async start() {
-    while (true) {
-      const msg = await this.consumer.receive();
+  async onModuleDestroy() {
+    this.logger.log('Shutting down DriverAssignmentConsumer...');
+    this.running = false;
+    try {
+      if (this.consumer) {
+        await this.consumer.close();
+        this.consumer = null;
+      }
+    } catch (err) {
+      this.logger.warn('Error while closing consumer', err);
+    }
+  }
+
+  private async startLoop() {
+    let backoffMs = 100;
+    const maxBackoff = 5000;
+
+    while (this.running) {
+      if (!this.consumer) {
+        this.logger.warn('Consumer not available, attempting recreate...');
+        try {
+          this.consumer = await this.pulsarService.createConsumer(
+            'trip-create',
+            'trip-subscription',
+            'Shared',
+            {
+              deadLetterPolicy: {
+                maxRedeliverCount: PULSAR_MAX_REDELIVER_COUNT,
+                deadLetterTopic: 'trip-create-dlq',
+              },
+              nAckRedeliverTimeoutMs: PULSAR_REDELIVER_TIMEOUT,
+            },
+          );
+          this.logger.log('Recreated Pulsar consumer successfully');
+        } catch (err) {
+          this.logger.error('Failed to recreate consumer, will retry', err);
+          await this.sleep(Math.min(backoffMs, maxBackoff));
+          backoffMs = Math.min(backoffMs * 2, maxBackoff);
+          continue;
+        }
+      }
+
       try {
-        const data: AssignDriverDto = JSON.parse(msg.getData().toString());
-        await this.processTrip(data);
-        await this.consumer.acknowledge(msg);
-      } catch (err) {
-        this.logger.error('Failed to process trip message', err);
-        this.consumer.negativeAcknowledge(msg);
+        const msg: Message = await this.consumer.receive();
+        backoffMs = 100;
+
+        try {
+          const raw = msg.getData().toString();
+          let data: AssignDriverDto;
+          try {
+            data = JSON.parse(raw);
+          } catch (parseErr) {
+            this.logger.error(
+              'Invalid message payload, sending to DLQ via negativeAcknowledge',
+              parseErr,
+            );
+            await this.safeNegativeAcknowledge(msg);
+            continue;
+          }
+
+          await this.processTrip(data);
+          await this.safeAcknowledge(msg);
+        } catch (processingErr) {
+          this.logger.error('Failed to process trip message', processingErr);
+          await this.safeNegativeAcknowledge(msg);
+        }
+      } catch (receiveErr) {
+        this.logger.error('Error receiving message from Pulsar', receiveErr);
+        try {
+          if (this.consumer) {
+            await this.consumer.close().catch(() => {});
+          }
+        } catch {
+        } finally {
+          this.consumer = null;
+        }
+        await this.sleep(Math.min(backoffMs, maxBackoff));
+        backoffMs = Math.min(backoffMs * 2, maxBackoff);
       }
     }
+  }
+
+  private async safeAcknowledge(msg: Message) {
+    try {
+      if (this.consumer) await this.consumer.acknowledge(msg);
+    } catch (err) {
+      this.logger.warn('Failed to acknowledge message', err);
+    }
+  }
+
+  private async safeNegativeAcknowledge(msg: Message) {
+    try {
+      if (this.consumer) this.consumer.negativeAcknowledge(msg);
+    } catch (err) {
+      this.logger.warn('Failed to negativeAcknowledge message', err);
+    }
+  }
+
+  private sleep(ms: number) {
+    return new Promise((res) => setTimeout(res, ms));
   }
 
   private async processTrip(data: AssignDriverDto) {
@@ -109,15 +214,15 @@ export class DriverAssignmentConsumer implements OnModuleInit {
     const destinationGeo =
       await this.commonService.getCoordinates(destinationAddress);
 
-    const availableDrivers = await this.findDriversBreaker.fire({
+    const availableDrivers = await this.breaker.fire({
       lat: originGeo.lat,
       lng: originGeo.lon,
     });
 
-    if (!availableDrivers.count) {
+    if (!availableDrivers?.count) {
       throw new RpcException({
         code: status.NOT_FOUND,
-        message: 'No available drivers found nearby.',
+        message: `No available drivers for passenger ${passengerId}`,
       });
     }
 
@@ -129,7 +234,7 @@ export class DriverAssignmentConsumer implements OnModuleInit {
     let tripCreated = false;
 
     for (const driver of availableDrivers.drivers) {
-      let lock: Redlock.Lock | undefined;
+      let lock: Redlock.Lock | null = null;
       try {
         lock = await this.redlock.acquire(
           [`locks:driver:${driver.driverId}`],
@@ -149,6 +254,7 @@ export class DriverAssignmentConsumer implements OnModuleInit {
           passengerId,
           note,
         });
+
         await this.tripRepo.save(newTrip);
 
         const newTripRequest = await this.createTripRequest(
@@ -171,6 +277,7 @@ export class DriverAssignmentConsumer implements OnModuleInit {
             dropoffLocation: destinationAddress,
           },
         );
+
         const driverInfo = await this.rabbitMqService.send<ObjectType>(
           SERVICES.DRIVER_SERVICE,
           PATTERNS.DRIVER_SERVICE.GET_BY_ID,
@@ -196,12 +303,24 @@ export class DriverAssignmentConsumer implements OnModuleInit {
         );
 
         tripCreated = true;
-        await lock.unlock();
+        if (lock) {
+          try {
+            await lock.unlock();
+          } catch (unlockErr) {
+            this.logger.warn('Failed to unlock redlock (ignored)', unlockErr);
+          }
+        }
         break;
       } catch (err) {
-        if (lock) await lock.unlock().catch(() => {});
+        if (lock) {
+          try {
+            await lock.unlock();
+          } catch (unlockErr) {
+            this.logger.warn('Failed to unlock after error', unlockErr);
+          }
+        }
         this.logger.warn(
-          `Driver ${driver.driverId} busy or error, trying next driver`,
+          `Driver ${driver.driverId} busy or error, trying next driver. cause: ${err?.message ?? err}`,
         );
         continue;
       }
@@ -209,8 +328,8 @@ export class DriverAssignmentConsumer implements OnModuleInit {
 
     if (!tripCreated) {
       throw new RpcException({
-        code: status.NOT_FOUND,
-        message: 'No available drivers could be locked.',
+        code: status.INTERNAL,
+        message: `No available drivers could be locked for passenger ${passengerId}`,
       });
     }
   }
