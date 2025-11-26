@@ -3,7 +3,6 @@ syntax = "proto3";
 package trip;
 
 import "google/protobuf/timestamp.proto";
-import "google/protobuf/wrappers.proto";
 
 service TripService {
   rpc GetTrip(GetTripRequest) returns (GetTripResponse); 
@@ -99,8 +98,8 @@ message UpdateTripRequestStatusResponse {
 
 message UpdateTripRequest {
   optional TripStatus status = 1;
-  google.protobuf.StringValue note = 2;
-  google.protobuf.StringValue destination_address = 3;
+  optional string note = 2;
+  optional string destination_address = 3;
   optional float fare_final = 4;
   string trip_id = 5;
 }
@@ -112,7 +111,7 @@ message UpdateTripResponse {
 message CreateTripRequest {
   string origin_address = 1;
   string destination_address = 2;
-  google.protobuf.StringValue note = 3;
+  optional string note = 3;
 }
 
 message Customer {

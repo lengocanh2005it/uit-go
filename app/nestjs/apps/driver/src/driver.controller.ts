@@ -4,8 +4,8 @@ import {
   GetDriverInfoDetailByIdDto,
   GetLocationOfDriverDto,
 } from '@/driver/src/dto';
-import { Metadata } from '@grpc/grpc-js';
-import { CommonService, getIdFromMetadata, TGrpcUser } from '@libs/common';
+import { status } from '@grpc/grpc-js';
+import { TGrpcUser } from '@libs/common';
 import { GRPC_METHODS, PATTERNS } from '@libs/common/constants';
 import { GrpcBody, GrpcUser } from '@libs/common/decorators';
 import {
@@ -34,23 +34,27 @@ import {
   GrpcMethod,
   MessagePattern,
   Payload,
+  RpcException,
 } from '@nestjs/microservices';
 import { DriverService } from './driver.service';
 
 @Controller()
 export class DriverController {
-  constructor(
-    private readonly driverService: DriverService,
-    private readonly commonService: CommonService,
-  ) {}
+  constructor(private readonly driverService: DriverService) {}
 
   @EventPattern(PATTERNS.DRIVER_SERVICE.UPDATE_STATUS)
   async updateDriverStatus(
     @Payload('driverId', ParseUUIDPipe) driverId: string,
     @Payload('status') status: DriverStatusEnum,
     @Payload('eventId') eventId: string,
+    @Payload('currentLocation') currentLocation?: string,
   ) {
-    await this.driverService.updateDriverStatus(driverId, status, eventId);
+    await this.driverService.updateDriverStatus(
+      driverId,
+      status,
+      eventId,
+      currentLocation,
+    );
   }
 
   @EventPattern(PATTERNS.DRIVER_SERVICE.UPDATE_RATE)
@@ -58,7 +62,7 @@ export class DriverController {
     @Payload('updateDriverRateDto') updateDriverRateDto: UpdateDriverRateDto,
     @Payload('eventId', ParseUUIDPipe) eventId: string,
   ) {
-    await this.driverService.handleDriverRatedEvent(
+    return this.driverService.handleDriverRatedEvent(
       updateDriverRateDto,
       eventId,
     );
@@ -99,18 +103,23 @@ export class DriverController {
     @GrpcBody(UpdateDriverStatusDto)
     updateDriverStatusDto: UpdateDriverStatusDto,
   ): Promise<UpdateDriverStatusGrpcResponse> {
-    const { status, driverId } = updateDriverStatusDto;
-    await this.driverService.updateDriverStatus(driverId, status);
+    const {
+      status: statusData,
+      driverId,
+      currentLocation,
+    } = updateDriverStatusDto;
 
-    if (status === DriverStatusEnum.ONLINE) {
-      const { latitude, longitude } =
-        await this.commonService.getServerLocation();
-      await this.driverService.updateLocationOfDriver(
-        driverId,
-        latitude,
-        longitude,
-      );
-    }
+    if (statusData === DriverStatusEnum.ONLINE && !currentLocation?.trim())
+      throw new RpcException({
+        code: status.INVALID_ARGUMENT,
+        message: 'Current location is required to set status to ONLINE.',
+      });
+
+    await this.driverService.updateDriverStatus(
+      driverId,
+      statusData,
+      currentLocation,
+    );
 
     return {
       message: 'Status updated successfully.',

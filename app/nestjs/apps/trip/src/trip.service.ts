@@ -513,7 +513,7 @@ export class TripService {
 
       await tripRatingRepo.save(tripRating);
 
-      await this.createNewOutboxEvent(
+      const outboxEvent = await this.createNewOutboxEvent(
         {
           eventType: EventTypes.UPDATE_RATE,
           payload: {
@@ -544,6 +544,21 @@ export class TripService {
         PATTERNS.DRIVER_SERVICE.GET_BY_ID,
         {
           driverId: trip.driverId,
+        },
+      );
+
+      this.rabbitMqService.emit(
+        SERVICES.DRIVER_SERVICE,
+        PATTERNS.DRIVER_SERVICE.UPDATE_RATE,
+        {
+          updateDriverRateDto: {
+            driverId: driverInfo.driverId,
+            rating,
+            tripId,
+            reviewerId: sub,
+            ...(comment?.trim() && { comment }),
+          },
+          eventId: outboxEvent.id,
         },
       );
 

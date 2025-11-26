@@ -92,8 +92,8 @@ export interface UpdateTripRequestStatusResponse {}
 
 export interface UpdateTripRequest {
   status?: TripStatus | undefined;
-  note: string | undefined;
-  destinationAddress: string | undefined;
+  note?: string | undefined;
+  destinationAddress?: string | undefined;
   fareFinal?: number | undefined;
   tripId: string;
 }
@@ -103,7 +103,7 @@ export interface UpdateTripResponse {}
 export interface CreateTripRequest {
   originAddress: string;
   destinationAddress: string;
-  note: string | undefined;
+  note?: string | undefined;
 }
 
 export interface Customer {

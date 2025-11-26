@@ -4,7 +4,6 @@ package driver;
 
 import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
-import "google/protobuf/wrappers.proto";
 import "trip.proto";
 
 service DriverService {
@@ -72,7 +71,7 @@ message GetDriverApprovalsFormatted {
   string driver_approval_id = 1;
   string status = 2;
   google.protobuf.Timestamp reviewed_date = 3;
-  google.protobuf.StringValue note = 4;
+  optional string note = 4;
   string driver_id = 5;
   string vehicle_id = 6;
   google.protobuf.Timestamp created_at = 7;
@@ -81,7 +80,7 @@ message GetDriverApprovalsFormatted {
 
 message UpdateDriverApprovalRequest {
   DriverApprovalStatus status = 1;
-  google.protobuf.StringValue note = 2;
+  optional string note = 2;
   string driver_approval_id = 3;
 }
 
@@ -89,7 +88,7 @@ message UpdateDriverApprovalData {
   string driver_approval_id = 1;
   string status = 2;
   google.protobuf.Timestamp reviewed_date = 3;
-  google.protobuf.StringValue note = 4;
+  optional string note = 4;
   string driver_id = 5;
   string vehicle_id = 6;
   google.protobuf.Timestamp created_at = 7;
@@ -111,6 +110,7 @@ enum DriverStatus {
 message UpdateDriverStatusGrpcRequest {
   DriverStatus status = 1;
   string driver_id = 2;
+  optional string current_location = 3;
 }
 
 message UpdateDriverStatusGrpcResponse {
@@ -119,11 +119,11 @@ message UpdateDriverStatusGrpcResponse {
 }
 
 message GetAllTripsOfDriverRequest {
-  google.protobuf.StringValue after_cursor = 1;
+  optional string after_cursor = 1;
 }
 
 message GetAllTripsOfDriverResponse {
-  google.protobuf.StringValue after_cursor = 1;
+  optional string after_cursor = 1;
   repeated trip.Trip data = 2;
 }
 
@@ -142,7 +142,7 @@ message DriverApproval {
   string driver_approval_id = 1;
   DriverApprovalStatus status = 2;
   google.protobuf.Timestamp reviewed_date = 3;
-  google.protobuf.StringValue note = 4;
+  optional string note = 4;
   string driver_id = 5;
   string vehicle_id = 6;
   google.protobuf.Timestamp created_at = 7;

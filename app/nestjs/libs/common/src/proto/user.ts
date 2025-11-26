@@ -68,6 +68,7 @@ export interface UpdateProfileResponse {
 export interface LoginRequest {
   email: string;
   password: string;
+  currentLocation?: string | undefined;
 }
 
 export interface CreateDriverRequest {
