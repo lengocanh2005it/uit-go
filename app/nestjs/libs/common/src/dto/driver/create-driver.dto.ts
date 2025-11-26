@@ -1,5 +1,3 @@
-import { timestampToDate } from '@libs/common/utils';
-import { Transform } from 'class-transformer';
 import { IsDate, IsNotEmpty, IsString } from 'class-validator';
 
 export class CreateDriverDto {
@@ -7,7 +5,6 @@ export class CreateDriverDto {
   @IsNotEmpty()
   licenseNumber: string;
 
-  @Transform(({ value }) => timestampToDate(value))
   @IsDate()
   licenseExpiry: Date;
 

@@ -87,7 +87,7 @@ export class UserService {
           SERVICES.DRIVER_SERVICE,
           PATTERNS.DRIVER_SERVICE.CREATE,
           {
-            createDriverRequest,
+            createDriverDto: createDriverRequest,
             userId,
           },
         ),
@@ -133,7 +133,7 @@ export class UserService {
     const user = this.userRepo.create({
       email,
       password: hashedPassword,
-      role: grpcRoleToUserRoleMapping[role],
+      role,
     });
 
     await this.userRepo.save(user);

@@ -17,6 +17,7 @@ import {
   Vehicle,
   VehicleKey,
 } from '@/driver/src/interfaces';
+import { DriverApprovalSchema } from '@/driver/src/models';
 import { status } from '@grpc/grpc-js';
 import {
   buildGeoLocation,
@@ -32,6 +33,7 @@ import {
   InjectRedisService,
 } from '@libs/common/decorators';
 import {
+  CreateDriverDto,
   GetAllTripsOfDriverDto,
   UpdateDriverApprovalDto,
 } from '@libs/common/dto';
@@ -47,8 +49,8 @@ import {
   GetDriverApprovalsResponse,
   DriverLocation as IDriverLocation,
   NearbyDriver,
+  UpdateDriverApprovalResponse,
 } from '@libs/common/proto/driver';
-import { CreateDriverRequest } from '@libs/common/proto/user';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { RpcException } from '@nestjs/microservices';
@@ -251,7 +253,7 @@ export class DriverService {
     }
   }
 
-  async createDriver(data: CreateDriverRequest, userId: string) {
+  async createDriver(data: CreateDriverDto, userId: string) {
     const existed = await this.driverModel.query('userId').eq(userId).exec();
 
     if (existed.length > 0) {
@@ -271,7 +273,7 @@ export class DriverService {
       rating: 0,
       totalTrip: 0,
       licenseNumber: data.licenseNumber,
-      licenseExpiry: data.licenseExpiry ?? new Date(),
+      licenseExpiry: new Date(data.licenseExpiry) ?? new Date(),
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -313,36 +315,44 @@ export class DriverService {
 
   async updateDriverApprovalStatus(
     updateDriverApprovalDto: UpdateDriverApprovalDto,
-    driverId: string,
-  ) {
-    const { status: statusData, note } = updateDriverApprovalDto;
+  ): Promise<UpdateDriverApprovalResponse> {
+    const {
+      status: statusData,
+      note,
+      driverApprovalId,
+    } = updateDriverApprovalDto;
 
-    const driverApproval = await this.driverApprovalModel
-      .query('driverId')
-      .eq(driverId)
-      .exec();
+    const driverApproval = await this.driverApprovalModel.get({
+      driverApprovalId,
+    });
 
-    if (driverApproval.length === 0) {
+    if (!driverApproval) {
       throw new RpcException({
         code: status.NOT_FOUND,
         message: 'Driver approval record not found.',
       });
     }
 
-    const approvalRecord = driverApproval[0];
     const updated = await this.driverApprovalModel.update(
-      { driverApprovalId: approvalRecord.driverApprovalId },
+      { driverApprovalId },
       {
-        status: statusData,
-        note,
-        reviewedDate: new Date(),
-        updatedAt: new Date(),
-      },
+        $SET: {
+          reviewed_date: new Date(),
+          status: statusData,
+          note,
+        },
+      } as any,
     );
 
-    const driver: any = await this.getDriverInfoDetailById({
-      driverId: approvalRecord.driverId,
-    });
+    const driverId = driverApproval.toJSON().driverId;
+
+    const driver = await this.driverModel.get({ driverId });
+
+    if (!driver)
+      throw new RpcException({
+        code: status.NOT_FOUND,
+        message: `Driver info not found.`,
+      });
 
     let typeNotif: NotificationTypeEnum | null = null;
     let params: NotificationParams = {};
@@ -363,23 +373,66 @@ export class DriverService {
         SERVICES.NOTIFICATION_SERVICE,
         PATTERNS.NOTIFICATION_SERVICE.CREATE_NOTIFICATION,
         {
-          userId: driver.userId,
+          userId: driver.toJSON().userId,
           createNotificationDto: {
             type: typeNotif,
             message: messageNotif,
             title: titleNotif,
           },
           data: {
-            driverId: approvalRecord.driverId,
-            userId: driver.userId,
+            driverId,
+            userId: driver.toJSON().userId,
           },
         },
       );
+
+      if (statusData === DriverApprovalStatusEnum.ACCEPTED) {
+        const userInfo = await this.rabbitMqService.send(
+          SERVICES.USER_SERVICE,
+          PATTERNS.USER_SERVICE.GET_PROFILE_BY_USER_ID,
+          {
+            userId: driver.toJSON().userId,
+          },
+        );
+        const { message, title } = generateNotificationContent(
+          NotificationTypeEnum.ACCOUNT_CREATED,
+          {
+            userName: userInfo.profile.fullName,
+          },
+        );
+
+        this.rabbitMqService.emit(
+          SERVICES.NOTIFICATION_SERVICE,
+          PATTERNS.NOTIFICATION_SERVICE.CREATE_NOTIFICATION,
+          {
+            userId: driver.toJSON().userId,
+            createNotificationDto: {
+              type: NotificationTypeEnum.ACCOUNT_CREATED,
+              message,
+              title,
+            },
+            data: {},
+          },
+        );
+      }
     }
+
+    const toJson = updated.toJSON();
 
     return {
       message: `Driver approval updated to ${statusData}`,
-      data: updated,
+      data: {
+        driverApprovalId: toJson.driver_approval_id,
+        status: toJson.status,
+        note: toJson.note ?? undefined,
+        driverId: toJson.driver_id,
+        vehicleId: toJson.vehicle_id,
+        createdAt: new Date(toJson.createdAt),
+        updatedAt: new Date(toJson.updatedAt),
+        reviewedDate: toJson.reviewed_date
+          ? new Date(toJson.reviewed_date)
+          : undefined,
+      },
     };
   }
 
@@ -500,9 +553,9 @@ export class DriverService {
 
   async getDriversApproval(
     getDriverApprovalsDto: GetDriverApprovalsDto,
-  ): Promise<GetDriverApprovalsResponse[]> {
+  ): Promise<GetDriverApprovalsResponse> {
     const { status } = getDriverApprovalsDto;
-    let driversApproval: Item<DriverApproval & DriverApprovalKey>[] = [];
+    let driversApproval: any[] = [];
 
     if (status) {
       driversApproval = await this.driverApprovalModel
@@ -513,19 +566,23 @@ export class DriverService {
       driversApproval = await this.driverApprovalModel.scan().exec();
     }
 
-    return driversApproval.map((driver) => {
+    const approvals = driversApproval.map((driver) => {
       const toJson = driver.toJSON();
       return {
         driverApprovalId: toJson.driverApprovalId,
         status: toJson.status,
-        reviewedDate: toJson.reviewedDate,
+        reviewedDate: toJson?.reviewedDate
+          ? new Date(toJson.reviewedDate)
+          : undefined,
         note: toJson.note,
         driverId: toJson.driverId,
         vehicleId: toJson.vehicleId,
-        createdAt: toJson.createdAt,
-        updatedAt: toJson.updatedAt,
+        createdAt: new Date(toJson.createdAt),
+        updatedAt: new Date(toJson.updatedAt),
       };
     });
+
+    return { approvals };
   }
 
   async getDriverInfoDetailById(

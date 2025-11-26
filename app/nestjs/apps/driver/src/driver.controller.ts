@@ -9,6 +9,7 @@ import { CommonService, getIdFromMetadata, TGrpcUser } from '@libs/common';
 import { GRPC_METHODS, PATTERNS } from '@libs/common/constants';
 import { GrpcBody, GrpcUser } from '@libs/common/decorators';
 import {
+  CreateDriverDto,
   GetAllTripsOfDriverDto,
   UpdateDriverApprovalDto,
   UpdateDriverStatusDto,
@@ -21,7 +22,6 @@ import {
   DRIVER_SERVICE_NAME,
   UpdateDriverStatusGrpcResponse,
 } from '@libs/common/proto/driver';
-import { CreateDriverRequest } from '@libs/common/proto/user';
 import {
   Controller,
   ParseFloatPipe,
@@ -78,10 +78,10 @@ export class DriverController {
 
   @MessagePattern(PATTERNS.DRIVER_SERVICE.CREATE)
   async handleCreateDriver(
-    @Payload('createDriverRequest') createDriverRequest: CreateDriverRequest,
+    @Payload('createDriverDto') createDriverDto: CreateDriverDto,
     @Payload('userId', ParseUUIDPipe) userId: string,
   ) {
-    return this.driverService.createDriver(createDriverRequest, userId);
+    return this.driverService.createDriver(createDriverDto, userId);
   }
 
   @MessagePattern(PATTERNS.DRIVER_SERVICE.GET_APPROVAL_STATUS)
@@ -147,12 +147,9 @@ export class DriverController {
   async updateDriverApproval(
     @GrpcBody(UpdateDriverApprovalDto)
     updateDriverApprovalDto: UpdateDriverApprovalDto,
-    metadata: Metadata,
   ) {
-    const driverId = getIdFromMetadata(metadata, 'driver-id', true);
     return this.driverService.updateDriverApprovalStatus(
       updateDriverApprovalDto,
-      driverId,
     );
   }
 

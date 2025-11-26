@@ -1,6 +1,7 @@
-import { IsUUID } from 'class-validator';
+import { IsNotEmpty, IsString, IsUUID } from 'class-validator';
 
 export class DeleteNotificationOfUserDto {
-  @IsUUID()
+  @IsString()
+  @IsNotEmpty()
   readonly notificationId: string;
 }

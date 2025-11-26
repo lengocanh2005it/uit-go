@@ -34,16 +34,13 @@ export class OutbotEventProcessor extends WorkerHost {
       if (!route) continue;
 
       try {
-        await lastValueFrom(
-          this.rabbitMqService.emit(route.service, route.pattern, {
-            ...(payloadIsObject(event.payload)
-              ? event.payload
-              : { payload: event.payload }),
-            eventId: event.id,
-          }),
-        );
-
-        event.status = OutboxStatus.SENT;
+        (this.rabbitMqService.emit(route.service, route.pattern, {
+          ...(payloadIsObject(event.payload)
+            ? event.payload
+            : { payload: event.payload }),
+          eventId: event.id,
+        }),
+          (event.status = OutboxStatus.SENT));
         event.sentAt = new Date();
       } catch (err) {
         console.error(`Failed to send event ${event.id}:`, err.message);
