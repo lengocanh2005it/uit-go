@@ -22,6 +22,7 @@ import { status } from '@grpc/grpc-js';
 import {
   buildGeoLocation,
   CommonService,
+  convertStringsToDates,
   generateNotificationContent,
   NotificationParams,
   SERVICES,
@@ -170,12 +171,16 @@ export class DriverService {
 
   async getDriverInfo(userId: string) {
     const existed = await this.driverModel.query('userId').eq(userId).exec();
+
     if (!existed.length)
       throw new RpcException({
         code: status.NOT_FOUND,
         message: 'Driver info not found.',
       });
-    return existed[0].toJSON();
+
+    return this.getDriverInfoDetailById({
+      driverId: existed[0].toJSON().driverId,
+    });
   }
 
   async getDriverInfoById(driverId: string) {
@@ -429,9 +434,7 @@ export class DriverService {
         vehicleId: toJson.vehicle_id,
         createdAt: new Date(toJson.createdAt),
         updatedAt: new Date(toJson.updatedAt),
-        reviewedDate: toJson.reviewed_date
-          ? new Date(toJson.reviewed_date)
-          : undefined,
+        reviewedDate: new Date(toJson.reviewed_date) ?? undefined,
       },
     };
   }
@@ -572,7 +575,7 @@ export class DriverService {
         driverApprovalId: toJson.driverApprovalId,
         status: toJson.status,
         reviewedDate: toJson?.reviewedDate
-          ? new Date(toJson.reviewedDate)
+          ? new Date(toJson?.reviewedDate)
           : undefined,
         note: toJson.note,
         driverId: toJson.driverId,
@@ -597,11 +600,12 @@ export class DriverService {
         message: 'Driver info not found.',
       });
 
-    const driverStatus = await this.driverStatusModel.get({
-      driverId,
-    });
+    const driverStatus = await this.driverStatusModel
+      .query('driverId')
+      .eq(driverId)
+      .exec();
 
-    if (!driverStatus)
+    if (!driverStatus.length)
       throw new RpcException({
         code: status.NOT_FOUND,
         message: 'Driver status info not found.',
@@ -623,12 +627,6 @@ export class DriverService {
       .eq(driverId)
       .exec();
 
-    if (!driverLocation.length)
-      throw new RpcException({
-        code: status.NOT_FOUND,
-        message: 'Driver location info not found.',
-      });
-
     const vehicle = await this.vehicleModel
       .query('driverId')
       .eq(driverId)
@@ -642,9 +640,11 @@ export class DriverService {
 
     return {
       ...(driverInfo.toJSON() as any),
-      driverStatus: driverStatus.toJSON() as any,
+      driverStatus: driverStatus[0].toJSON() as any,
       driverApproval: driverApproval[0].toJSON() as any,
-      driverLocation: driverLocation[0].toJSON() as any,
+      ...(driverLocation?.length > 0 && {
+        driverLocation: driverLocation[0].toJSON() as any,
+      }),
       vehicle: vehicle[0].toJSON() as any,
     };
   }

@@ -5,12 +5,12 @@
 // source: notification.proto
 
 /* eslint-disable */
-import { GrpcMethod, GrpcStreamMethod } from "@nestjs/microservices";
-import { wrappers } from "protobufjs";
-import { Observable } from "rxjs";
-import { Struct } from "./google/protobuf/struct";
+import { GrpcMethod, GrpcStreamMethod } from '@nestjs/microservices';
+import { wrappers } from 'protobufjs';
+import { Observable } from 'rxjs';
+import { Struct } from './google/protobuf/struct';
 
-export const protobufPackage = "notification";
+export const protobufPackage = 'notification';
 
 export interface MarkAsReadRequest {
   notificationId: string;
@@ -64,23 +64,33 @@ export interface GetNotificationsOfUserResponse {
   notifications: UserNotification[];
 }
 
-export const NOTIFICATION_PACKAGE_NAME = "notification";
+export const NOTIFICATION_PACKAGE_NAME = 'notification';
 
-wrappers[".google.protobuf.Timestamp"] = {
+wrappers['.google.protobuf.Timestamp'] = {
   fromObject(value: Date) {
-    return { seconds: value.getTime() / 1000, nanos: (value.getTime() % 1000) * 1e6 };
+    return {
+      seconds: value.getTime() / 1000,
+      nanos: (value.getTime() % 1000) * 1e6,
+    };
   },
   toObject(message: { seconds: number; nanos: number }) {
     return new Date(message.seconds * 1000 + message.nanos / 1e6);
   },
 } as any;
 
-wrappers[".google.protobuf.Struct"] = { fromObject: Struct.wrap, toObject: Struct.unwrap } as any;
+wrappers['.google.protobuf.Struct'] = {
+  fromObject: Struct.wrap,
+  toObject: Struct.unwrap,
+} as any;
 
 export interface NotificationServiceClient {
-  getNotificationsOfUser(request: GetNotificationsOfUserRequest): Observable<GetNotificationsOfUserResponse>;
+  getNotificationsOfUser(
+    request: GetNotificationsOfUserRequest,
+  ): Observable<GetNotificationsOfUserResponse>;
 
-  deleteNotificationOfUser(request: DeleteNotificationOfUserRequest): Observable<DeleteNotificationOfUserResponse>;
+  deleteNotificationOfUser(
+    request: DeleteNotificationOfUserRequest,
+  ): Observable<DeleteNotificationOfUserResponse>;
 
   markAsRead(request: MarkAsReadRequest): Observable<MarkAsReadResponse>;
 }
@@ -102,22 +112,43 @@ export interface NotificationServiceController {
 
   markAsRead(
     request: MarkAsReadRequest,
-  ): Promise<MarkAsReadResponse> | Observable<MarkAsReadResponse> | MarkAsReadResponse;
+  ):
+    | Promise<MarkAsReadResponse>
+    | Observable<MarkAsReadResponse>
+    | MarkAsReadResponse;
 }
 
 export function NotificationServiceControllerMethods() {
   return function (constructor: Function) {
-    const grpcMethods: string[] = ["getNotificationsOfUser", "deleteNotificationOfUser", "markAsRead"];
+    const grpcMethods: string[] = [
+      'getNotificationsOfUser',
+      'deleteNotificationOfUser',
+      'markAsRead',
+    ];
     for (const method of grpcMethods) {
-      const descriptor: any = Reflect.getOwnPropertyDescriptor(constructor.prototype, method);
-      GrpcMethod("NotificationService", method)(constructor.prototype[method], method, descriptor);
+      const descriptor: any = Reflect.getOwnPropertyDescriptor(
+        constructor.prototype,
+        method,
+      );
+      GrpcMethod('NotificationService', method)(
+        constructor.prototype[method],
+        method,
+        descriptor,
+      );
     }
     const grpcStreamMethods: string[] = [];
     for (const method of grpcStreamMethods) {
-      const descriptor: any = Reflect.getOwnPropertyDescriptor(constructor.prototype, method);
-      GrpcStreamMethod("NotificationService", method)(constructor.prototype[method], method, descriptor);
+      const descriptor: any = Reflect.getOwnPropertyDescriptor(
+        constructor.prototype,
+        method,
+      );
+      GrpcStreamMethod('NotificationService', method)(
+        constructor.prototype[method],
+        method,
+        descriptor,
+      );
     }
   };
 }
 
-export const NOTIFICATION_SERVICE_NAME = "NotificationService";
+export const NOTIFICATION_SERVICE_NAME = 'NotificationService';

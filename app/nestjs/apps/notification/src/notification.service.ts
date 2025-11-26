@@ -49,8 +49,6 @@ export class NotificationService {
       });
     }
 
-    console.log('Notification: ', notification);
-
     const updated = await this.userNotificationModel.findByIdAndUpdate(
       notificationId,
       {
@@ -70,20 +68,16 @@ export class NotificationService {
       id: updated._id.toString(),
       message: updated.message,
       read: updated.read,
-      readAt: updated.readAt ? new Date(updated.readAt) : undefined,
+      readAt: updated.readAt,
       data: updated.data ?? {},
-      createdAt: updated.createdAt ? new Date(updated.createdAt) : undefined,
-      updatedAt: updated.updatedAt ? new Date(updated.updatedAt) : undefined,
+      createdAt: updated.createdAt,
+      updatedAt: updated.updatedAt,
       notification: {
         id: notification.notification._id.toString(),
         title: notification.notification.title,
         type: notification.notification.type,
-        createdAt: notification.notification.createdAt
-          ? new Date(notification.notification.createdAt)
-          : undefined,
-        updatedAt: notification.notification.updatedAt
-          ? new Date(notification.notification.updatedAt)
-          : undefined,
+        createdAt: notification.notification.createdAt,
+        updatedAt: notification.notification.updatedAt,
       },
     };
   }
