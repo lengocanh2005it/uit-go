@@ -18,6 +18,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { QueueNamesOfTripService } from '@trip-service/constants';
+import { PrometheusModule } from '@willsoto/nestjs-prometheus';
 import { SnakeNamingStrategy } from 'typeorm-naming-strategies';
 import envConfig from './configs/env.config';
 import { OutboxEvent, Trip, TripRating, TripRequest } from './entities';
@@ -63,6 +64,7 @@ import { TripService } from './trip.service';
         name: QueueNamesOfTripService.driverAssigment,
       },
     ),
+    PrometheusModule.register(),
   ],
   controllers: [TripController],
   providers: [
