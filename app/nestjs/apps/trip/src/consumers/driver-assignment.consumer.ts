@@ -298,32 +298,6 @@ export class DriverAssignmentConsumer implements OnModuleInit, OnModuleDestroy {
               },
             );
 
-            await this.tripRepo.save(newTrip);
-
-            await this.tripRequestProducer.processTripRequest(
-              { tripRequestId: newTripRequest.id, sub: driverInfo.userId },
-              15000,
-            );
-
-            this.rabbitMqService.emit(
-              SERVICES.NOTIFICATION_SERVICE,
-              PATTERNS.NOTIFICATION_SERVICE.CREATE_NOTIFICATION,
-              {
-                userId: driverInfo.userId,
-                createNotificationDto: {
-                  type: NotificationTypeEnum.TRIP_REQUESTED,
-                  message,
-                  title,
-                },
-                data: {
-                  tripId: newTrip.id,
-                  tripRequestId: newTripRequest.id,
-                  passengerId,
-                  driverId: driver.driverId,
-                },
-              },
-            );
-
             tripCreated = true;
           },
           {
