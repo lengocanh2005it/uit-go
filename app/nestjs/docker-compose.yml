@@ -224,6 +224,10 @@ services:
       - "6379:6379"
     networks:
       - backend
+    volumes:
+      - redis-data:/data
+      - ./redis.conf:/usr/local/etc/redis/redis.conf
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
 
   k6:
     image: grafana/k6
@@ -282,3 +286,4 @@ volumes:
   driver-db-data:
   notification-db-data:
   grafana-data:
+  redis-data:
