@@ -31,6 +31,8 @@ To achieve all of the above while supporting long-term scalability targets (hype
 - TTL-based automatic cleanup
 - Fast lookup for geo-based filtering (e.g., nearest drivers)
 
+---
+
 ### Non-Functional Requirements
 
 - Latency: <5ms for cache reads/writes
