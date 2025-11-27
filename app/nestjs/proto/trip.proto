@@ -30,7 +30,7 @@ message Trip {
   string driver_id = 12;
   float fare_final = 13;
   float fare_estimate = 14;
-  TripStatus status = 15;
+  string status = 15;
 }
 
 message CancelTripRequest {
@@ -68,27 +68,8 @@ message GetEstimateResponse {
   string estimate_fare = 1;
 }
 
-enum TripStatus {
-  TRIP_STATUS_UNSPECIFIED = 0;
-  TRIP_STATUS_SEARCHING = 1;
-  TRIP_STATUS_ACCEPTED = 2;
-  TRIP_STATUS_ONGOING = 3;
-  TRIP_STATUS_COMPLETED = 4;
-  TRIP_STATUS_CANCELLED = 5;
-  TRIP_STATUS_ARRIVING = 6;
-  TRIP_STATUS_STARTED = 7;
-}
-
-enum TripRequestStatus {
-  TRIP_REQUEST_STATUS_UNSPECIFIED = 0;
-  TRIP_REQUEST_STATUS_ACCEPTED = 1;
-  TRIP_REQUEST_STATUS_REJECTED = 2;
-  TRIP_REQUEST_STATUS_TIMEOUT = 3;
-  TRIP_REQUEST_STATUS_PENDING = 4;
-}
-
 message UpdateTripRequestStatusRequest {
-  TripRequestStatus status = 1;
+  string status = 1;
   string trip_id = 2;
 }
 
@@ -97,7 +78,7 @@ message UpdateTripRequestStatusResponse {
 }
 
 message UpdateTripRequest {
-  optional TripStatus status = 1;
+  optional string status = 1;
   optional string note = 2;
   optional string destination_address = 3;
   optional float fare_final = 4;

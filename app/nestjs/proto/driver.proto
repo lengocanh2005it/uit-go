@@ -28,6 +28,7 @@ message NearbyDriver {
   double lat = 2;
   double lng = 3;
   double distance_km = 4;
+  optional VehicleCached vehicle = 5;
 }
 
 message FindAvailableDriversRequest {
@@ -52,15 +53,8 @@ message GetLocationOfDriverRespose {
 
 }
 
-enum DriverApprovalStatus {
-  DRIVER_APPROVAL_STATUS_UNSPECIFIED = 0;
-  DRIVER_APPROVAL_STATUS_PENDING = 1;
-  DRIVER_APPROVAL_STATUS_ACCEPTED = 2;
-  DRIVER_APPROVAL_STATUS_REJECTED = 3;
-}
-
 message GetDriverApprovalsRequest {
-  optional DriverApprovalStatus status = 1;
+  optional string status = 1;
 }
 
 message GetDriverApprovalsResponse {
@@ -79,7 +73,7 @@ message GetDriverApprovalsFormatted {
 }
 
 message UpdateDriverApprovalRequest {
-  DriverApprovalStatus status = 1;
+  string status = 1;
   optional string note = 2;
   string driver_approval_id = 3;
 }
@@ -100,17 +94,11 @@ message UpdateDriverApprovalResponse {
   UpdateDriverApprovalData data = 2;
 }
 
-enum DriverStatus {
-  DRIVER_STATUS_UNSPECIFIED = 0;
-  DRIVER_STATUS_ONLINE = 1;
-  DRIVER_STATUS_OFFLINE = 2;
-  DRIVER_STATUS_BUSY = 3;
-}
-
 message UpdateDriverStatusGrpcRequest {
-  DriverStatus status = 1;
+  string status = 1;
   string driver_id = 2;
   optional string current_location = 3;
+  optional string current_trip_id = 4;
 }
 
 message UpdateDriverStatusGrpcResponse {
@@ -140,7 +128,7 @@ message Driver {
 
 message DriverApproval {
   string driver_approval_id = 1;
-  DriverApprovalStatus status = 2;
+  string status = 2;
   google.protobuf.Timestamp reviewed_date = 3;
   optional string note = 4;
   string driver_id = 5;
@@ -164,11 +152,12 @@ message VehicleCached {
   string plate_number = 2;
   string brand = 3;
   string model = 4;
+  string color = 5;
 }
 
 message DriverStatusModel {
   string driver_id = 1;
-  DriverStatus status = 2;
+  string status = 2;
   google.protobuf.Timestamp last_seen_at = 3;
   string current_trip_id = 4;
   VehicleCached vehicle_cached = 5;
