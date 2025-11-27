@@ -10,6 +10,7 @@ import {
   REDLOCK_RETRY_DELAY,
   SERVICES,
 } from '@libs/common';
+import { FindAvailableDriversResponse } from '@libs/common/proto/driver'
 import { PATTERNS } from '@libs/common/constants';
 import {
   InjectRabbitMqService,
