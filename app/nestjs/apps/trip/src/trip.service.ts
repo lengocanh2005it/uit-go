@@ -370,6 +370,7 @@ export class TripService {
             payload: {
               driverId: tripRequest.trip.driverId,
               status: DriverStatusEnum.BUSY,
+              currentTripId: tripRequest.trip.id,
             },
             aggregateId: tripRequest.id,
             aggregateType: AggregateTypes.TRIP,

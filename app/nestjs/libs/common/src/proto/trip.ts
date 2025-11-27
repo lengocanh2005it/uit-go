@@ -64,7 +64,7 @@ export interface GetEstimateResponse {
 
 export interface UpdateTripRequestStatusRequest {
   status: string;
-  tripId: string;
+  tripRequestId: string;
 }
 
 export interface UpdateTripRequestStatusResponse {}

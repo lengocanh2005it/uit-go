@@ -133,6 +133,7 @@ export class DriverService {
     currentLocation?: string,
     currentTripId?: string,
   ) {
+    console.log('Status data: ', statusData);
     if (eventId?.trim()) {
       const exists = await this.processedEventModel.get({
         eventId: eventId.trim(),

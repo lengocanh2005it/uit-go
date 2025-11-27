@@ -3,7 +3,6 @@ import {
   DriverAssignmentDLQConsumer,
 } from '@/trip/src/consumers';
 import {
-  DriverAssignmentProcessor,
   TripRequestProcessor,
   TripStatusProcessor,
 } from '@/trip/src/processors';
@@ -72,7 +71,6 @@ import { TripService } from './trip.service';
     TripRequestProducer,
     TripStatusProcessor,
     TripStatusProducer,
-    DriverAssignmentProcessor,
     DriverAssignmentProducer,
     DriverAssignmentConsumer,
     DriverAssignmentDLQConsumer,
