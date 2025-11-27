@@ -234,6 +234,7 @@ services:
     container_name: k6
     volumes:
       - ../../infra/monitoring/k6:/scripts
+      - ./proto:/proto
     networks:
       - backend
     entrypoint: [""]
