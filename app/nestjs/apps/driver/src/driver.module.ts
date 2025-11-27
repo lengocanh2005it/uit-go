@@ -5,7 +5,7 @@ import { DynamooseModule } from 'nestjs-dynamoose';
 import envConfig from './configs/env.config';
 import { DriverController } from './driver.controller';
 import { DriverService } from './driver.service';
-import { PrometheusModule } from '@willsoto/nestjs-prometheus'
+import { PrometheusModule } from '@willsoto/nestjs-prometheus';
 import {
   DriverApprovalSchema,
   DriverLocationSchema,
@@ -84,4 +84,4 @@ import {
   controllers: [DriverController],
   providers: [DriverService],
 })
-export class DriverModule { }
+export class DriverModule {}
