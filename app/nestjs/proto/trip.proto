@@ -70,7 +70,7 @@ message GetEstimateResponse {
 
 message UpdateTripRequestStatusRequest {
   string status = 1;
-  string trip_id = 2;
+  string trip_request_id = 2;
 }
 
 message UpdateTripRequestStatusResponse {

@@ -296,6 +296,7 @@ export class DriverAssignmentConsumer implements OnModuleInit, OnModuleDestroy {
             },
             data: {
               tripId: newTrip.id,
+              tripRequestId: newTripRequest.id,
               passengerId,
               driverId: driver.driverId,
             },
