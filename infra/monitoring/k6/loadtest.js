@@ -9,7 +9,10 @@ export let options = {
 const REQUESTS_PER_VU = 5;
 
 const client = new grpc.Client();
-let isConnected = false;
+client.load(['/proto'], 'driver.proto');
+client.load(['/proto'], 'notification.proto');
+client.load(['/proto'], 'trip.proto');
+client.load(['/proto'], 'user.proto');
 
 function getRandomLatLng() {
     const lat = 10.75 + Math.random() * 0.02;
@@ -17,20 +20,8 @@ function getRandomLatLng() {
     return { lat, lng };
 }
 
-client.load(['/proto'], 'driver.proto');
-client.load(['/proto'], 'notification.proto');
-client.load(['/proto'], 'trip.proto');
-client.load(['/proto'], 'user.proto');
-
-function ensureConnected() {
-    if (!isConnected) {
-        client.connect('kong:9000', { plaintext: true });
-        isConnected = true;
-    }
-}
-
 export default function () {
-    ensureConnected();
+    client.connect('kong:9000', { plaintext: true });
 
     for (let i = 0; i < REQUESTS_PER_VU; i++) {
         const { lat, lng } = getRandomLatLng();
@@ -45,12 +36,8 @@ export default function () {
             'has drivers': (r) => r.message && r.message.count >= 0,
         });
 
-        sleep(1);
     }
-}
 
-export function teardown() {
-    if (isConnected) {
-        client.close();
-    }
+    client.close();
+    sleep(1);
 }
