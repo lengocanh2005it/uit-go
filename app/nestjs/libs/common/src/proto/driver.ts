@@ -13,27 +13,12 @@ import { Trip } from './trip';
 
 export const protobufPackage = 'driver';
 
-export enum DriverApprovalStatus {
-  DRIVER_APPROVAL_STATUS_UNSPECIFIED = 0,
-  DRIVER_APPROVAL_STATUS_PENDING = 1,
-  DRIVER_APPROVAL_STATUS_ACCEPTED = 2,
-  DRIVER_APPROVAL_STATUS_REJECTED = 3,
-  UNRECOGNIZED = -1,
-}
-
-export enum DriverStatus {
-  DRIVER_STATUS_UNSPECIFIED = 0,
-  DRIVER_STATUS_ONLINE = 1,
-  DRIVER_STATUS_OFFLINE = 2,
-  DRIVER_STATUS_BUSY = 3,
-  UNRECOGNIZED = -1,
-}
-
 export interface NearbyDriver {
   driverId: string;
   lat: number;
   lng: number;
   distanceKm: number;
+  vehicle?: VehicleCached | undefined;
 }
 
 export interface FindAvailableDriversRequest {
@@ -57,7 +42,7 @@ export interface GetLocationOfDriverRequest {
 export interface GetLocationOfDriverRespose {}
 
 export interface GetDriverApprovalsRequest {
-  status?: DriverApprovalStatus | undefined;
+  status?: string | undefined;
 }
 
 export interface GetDriverApprovalsResponse {
@@ -76,7 +61,7 @@ export interface GetDriverApprovalsFormatted {
 }
 
 export interface UpdateDriverApprovalRequest {
-  status: DriverApprovalStatus;
+  status: string;
   note?: string | undefined;
   driverApprovalId: string;
 }
@@ -98,9 +83,10 @@ export interface UpdateDriverApprovalResponse {
 }
 
 export interface UpdateDriverStatusGrpcRequest {
-  status: DriverStatus;
+  status: string;
   driverId: string;
   currentLocation?: string | undefined;
+  currentTripId?: string | undefined;
 }
 
 export interface UpdateDriverStatusGrpcResponse {
@@ -130,7 +116,7 @@ export interface Driver {
 
 export interface DriverApproval {
   driverApprovalId: string;
-  status: DriverApprovalStatus;
+  status: string;
   reviewedDate: Date | undefined;
   note?: string | undefined;
   driverId: string;
@@ -154,11 +140,12 @@ export interface VehicleCached {
   plateNumber: string;
   brand: string;
   model: string;
+  color: string;
 }
 
 export interface DriverStatusModel {
   driverId: string;
-  status: DriverStatus;
+  status: string;
   lastSeenAt: Date | undefined;
   currentTripId: string;
   vehicleCached: VehicleCached | undefined;

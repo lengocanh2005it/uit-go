@@ -30,7 +30,6 @@ import {
   RateTripResponse,
 } from '@libs/common/proto/trip';
 import {
-  driverStatusMapping,
   formatCurrencyVND,
   generateNotificationContent,
   NotificationParams,
@@ -414,10 +413,7 @@ export class TripService {
     const { data, cursor } = await paginator.paginate(qb);
 
     return {
-      data: data.map((d) => ({
-        ...d,
-        status: driverStatusMapping[d.status],
-      })),
+      data,
       afterCursor: cursor?.afterCursor ?? undefined,
     };
   };

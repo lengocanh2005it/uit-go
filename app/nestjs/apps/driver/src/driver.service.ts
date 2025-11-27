@@ -131,6 +131,7 @@ export class DriverService {
     statusData: DriverStatusEnum,
     eventId?: string,
     currentLocation?: string,
+    currentTripId?: string,
   ) {
     if (eventId?.trim()) {
       const exists = await this.processedEventModel.get({
@@ -161,12 +162,43 @@ export class DriverService {
       });
     }
 
-    await this.driverStatusModel.update({ driverId }, { status: statusData });
+    const vehicle = await this.vehicleModel
+      .query('driverId')
+      .eq(driverId)
+      .exec();
+
+    if (!vehicle.length)
+      throw new RpcException({
+        code: status.NOT_FOUND,
+        message: 'Vehicle info not found.',
+      });
+
+    const toVehicleToJson = vehicle[0].toJSON();
+
+    await this.driverStatusModel.update({ driverId }, {
+      status: statusData,
+      last_seen_at: new Date(),
+      ...(currentTripId?.trim() && { current_trip_id: currentTripId }),
+      vehicle_cached: {
+        vehicleId: toVehicleToJson.vehicleId,
+        plateNumber: toVehicleToJson.plateNumber,
+        brand: toVehicleToJson.brand,
+        model: toVehicleToJson.model,
+        color: toVehicleToJson.color,
+      },
+    } as any);
 
     if (currentLocation?.trim() && statusData === DriverStatusEnum.ONLINE) {
       const { lon, lat } =
         await this.commonService.getCoordinates(currentLocation);
       await this.updateLocationOfDriver(driverId, lat, lon);
+    }
+
+    if (
+      statusData === DriverStatusEnum.BUSY ||
+      statusData === DriverStatusEnum.OFFLINE
+    ) {
+      await this.redisService.srem('online_drivers', driverId);
     }
 
     if (eventId?.trim()) {
@@ -258,12 +290,15 @@ export class DriverService {
     await this.driverLocationModel.update(
       { driverId, hashPrefix: hash_prefix },
       {
-        geoHash: geo_hash,
+        geo_hash,
         lat,
         lng,
-      },
+      } as any,
       { return: 'item' },
     );
+
+    await this.redisService.geoAdd('drivers:locations', lng, lat, driverId);
+    await this.redisService.sadd('online_drivers', driverId);
   }
 
   async createDriver(data: CreateDriverDto, userId: string) {
@@ -349,11 +384,9 @@ export class DriverService {
     const updated = await this.driverApprovalModel.update(
       { driverApprovalId },
       {
-        $SET: {
-          reviewed_date: new Date(),
-          status: statusData,
-          note,
-        },
+        reviewed_date: new Date(),
+        status: statusData,
+        note,
       } as any,
     );
 
@@ -485,7 +518,6 @@ export class DriverService {
 
     const keyLat = lat.toFixed(3);
     const keyLng = lng.toFixed(3);
-
     const cacheKey = `avail:${keyLat}:${keyLng}:${maxRadiusKm}`;
     const cached = await this.redisService.get(cacheKey);
 
@@ -500,26 +532,43 @@ export class DriverService {
       lat,
       maxRadiusKm,
       'km',
-      topN * 2,
+      topN * 3,
     );
 
     if (!geoDrivers.length) return { count: 0, drivers: [] };
 
     const driverIds = geoDrivers.map((d) => d.member);
     const onlineMap = await this.redisService.areDriversOnline(driverIds);
+    const keys: DriverStatusKey[] = driverIds.map((id) => ({ driverId: id }));
+    const driverStatuses = await this.driverStatusModel.batchGet(keys);
+
+    const driverStatusMap = new Map(
+      driverStatuses.map((ds) => [ds.toJSON().driver_id, ds]),
+    );
+
+    const geoPosPromises = geoDrivers.map((d) =>
+      this.redisService.geoPos('drivers:locations', d.member),
+    );
+
+    const geoPositions = await Promise.all(geoPosPromises);
     const drivers: NearbyDriver[] = [];
 
-    for (const d of geoDrivers) {
-      if (!onlineMap[d.member]) continue;
-      const pos = await this.redisService.geoPos('drivers:locations', d.member);
+    for (let i = 0; i < geoDrivers.length; i++) {
+      const d = geoDrivers[i];
 
+      if (!onlineMap[d.member]) continue;
+
+      const pos = geoPositions[i];
       if (!pos) continue;
+
+      const ds = driverStatusMap.get(d.member);
 
       drivers.push({
         driverId: d.member,
         lat: pos.lat,
         lng: pos.lng,
         distanceKm: d.distance,
+        vehicle: ds?.toJSON()?.vehicle_cached,
       });
 
       if (drivers.length >= topN) break;
@@ -692,14 +741,11 @@ export class DriverService {
         ? rating
         : (currentRating * totalTrip + rating) / (totalTrip + 1);
 
-    await this.driverModel.update(
-      { driverId },
-      {
-        rating: Number(newAverage.toFixed(2)),
-        totalTrip: totalTrip + 1,
-        updatedAt: new Date(),
-      },
-    );
+    await this.driverModel.update({ driverId }, {
+      rating: Number(newAverage.toFixed(2)),
+      total_trip: totalTrip + 1,
+      updatedAt: new Date(),
+    } as any);
 
     await this.processedEventModel.create({
       eventId,
