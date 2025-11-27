@@ -36,6 +36,7 @@ export const DriverStatusSchema = new Schema(
         plateNumber: String,
         brand: String,
         model: String,
+        color: String,
       },
       map: 'vehicleCached',
     },
