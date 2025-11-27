@@ -1,6 +1,4 @@
 import { DriverStatusEnum } from '@libs/common/enums';
-import { driverStatusMapping } from '@libs/common/utils';
-import { Transform } from 'class-transformer';
 import {
   IsEnum,
   IsNotEmpty,
@@ -11,7 +9,6 @@ import {
 
 export class UpdateDriverStatusDto {
   @IsEnum(DriverStatusEnum)
-  @Transform(({ value }) => driverStatusMapping[value])
   readonly status!: DriverStatusEnum;
 
   @IsOptional()
@@ -21,4 +18,8 @@ export class UpdateDriverStatusDto {
 
   @IsUUID()
   readonly driverId: string;
+
+  @IsOptional()
+  @IsUUID()
+  readonly currentTripId?: string;
 }

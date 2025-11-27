@@ -1,5 +1,4 @@
 import { DriverApprovalStatusEnum } from '@libs/common/enums';
-import { driverApprovalStatusMapping } from '@libs/common/utils';
 import { Transform } from 'class-transformer';
 import {
   IsEnum,
@@ -11,7 +10,6 @@ import {
 
 export class UpdateDriverApprovalDto {
   @IsEnum(DriverApprovalStatusEnum)
-  @Transform(({ value }) => driverApprovalStatusMapping[value])
   readonly status: DriverApprovalStatusEnum;
 
   @IsOptional()

@@ -16,7 +16,7 @@ message User {
   string id = 1;
   string email = 2;
   string password = 3;
-  UserRole role = 4;
+  string role = 4;
   google.protobuf.Timestamp created_at = 5;
   google.protobuf.Timestamp updated_at = 6;
 }
@@ -42,13 +42,6 @@ message GetMeResponse {
   google.protobuf.Timestamp updated_at = 5;
   optional driver.DriverInfo driver_info = 6;
   UserProfile profile = 7;
-}
-
-enum UserRole {
-  USER_ROLE_UNSPECIFIED = 0;
-  USER_ROLE_CUSTOMER = 1;
-  USER_ROLE_DRIVER = 2;
-  USER_ROLE_ADMIN = 3;
 }
 
 message UpdateProfileRequest {
@@ -84,7 +77,7 @@ message CreateDriverRequest {
 message RegisterRequest {
   string email = 1;
   string password = 2;
-  UserRole role = 3;
+  string role = 3;
   string full_name = 4;
   string phone_number = 5;
   string address = 6;

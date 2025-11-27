@@ -12,19 +12,11 @@ import { DriverInfo } from './driver';
 
 export const protobufPackage = 'user';
 
-export enum UserRole {
-  USER_ROLE_UNSPECIFIED = 0,
-  USER_ROLE_CUSTOMER = 1,
-  USER_ROLE_DRIVER = 2,
-  USER_ROLE_ADMIN = 3,
-  UNRECOGNIZED = -1,
-}
-
 export interface User {
   id: string;
   email: string;
   password: string;
-  role: UserRole;
+  role: string;
   createdAt: Date | undefined;
   updatedAt: Date | undefined;
 }
@@ -83,7 +75,7 @@ export interface CreateDriverRequest {
 export interface RegisterRequest {
   email: string;
   password: string;
-  role: UserRole;
+  role: string;
   fullName: string;
   phoneNumber: string;
   address: string;

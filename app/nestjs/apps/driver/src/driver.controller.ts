@@ -48,12 +48,14 @@ export class DriverController {
     @Payload('status') status: DriverStatusEnum,
     @Payload('eventId') eventId: string,
     @Payload('currentLocation') currentLocation?: string,
+    @Payload('currentTripId') currentTripId?: string,
   ) {
     await this.driverService.updateDriverStatus(
       driverId,
       status,
       eventId,
       currentLocation,
+      currentTripId
     );
   }
 
@@ -107,6 +109,7 @@ export class DriverController {
       status: statusData,
       driverId,
       currentLocation,
+      currentTripId,
     } = updateDriverStatusDto;
 
     if (statusData === DriverStatusEnum.ONLINE && !currentLocation?.trim())
@@ -119,6 +122,7 @@ export class DriverController {
       driverId,
       statusData,
       currentLocation,
+      currentTripId,
     );
 
     return {

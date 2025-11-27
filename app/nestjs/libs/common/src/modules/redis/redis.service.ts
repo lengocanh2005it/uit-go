@@ -164,4 +164,8 @@ export class RedisService {
     });
     return map;
   }
+
+  async srem(key: string, ...members: string[]): Promise<number> {
+    return this.redisClient.srem(key, ...members);
+  }
 }
