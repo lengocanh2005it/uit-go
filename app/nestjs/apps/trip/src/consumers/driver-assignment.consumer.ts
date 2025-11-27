@@ -12,7 +12,7 @@ import {
 import { PATTERNS } from '@libs/common/constants';
 import {
   InjectPulsarService,
-  InjectRabbitMqService
+  InjectRabbitMqService,
 } from '@libs/common/decorators';
 import { CreateTripRequestDto } from '@libs/common/dto';
 import { NotificationTypeEnum } from '@libs/common/enums/notification';
@@ -259,6 +259,11 @@ export class DriverAssignmentConsumer implements OnModuleInit, OnModuleDestroy {
               newTrip,
             );
 
+            await this.tripRequestProducer.processTripRequest(
+              { tripRequestId: newTripRequest.id, sub: passengerId },
+              15000,
+            );
+
             const { message, title } = generateNotificationContent(
               NotificationTypeEnum.TRIP_REQUESTED,
               {
@@ -272,6 +277,28 @@ export class DriverAssignmentConsumer implements OnModuleInit, OnModuleDestroy {
               PATTERNS.DRIVER_SERVICE.GET_BY_ID,
               { driverId: driver.driverId },
             );
+
+            this.rabbitMqService.emit(
+              SERVICES.NOTIFICATION_SERVICE,
+              PATTERNS.NOTIFICATION_SERVICE.CREATE_NOTIFICATION,
+              {
+                userId: driverInfo.userId,
+                createNotificationDto: {
+                  type: NotificationTypeEnum.TRIP_REQUESTED,
+                  message,
+                  title,
+                },
+                data: {
+                  tripId: newTrip.id,
+                  tripRequestId: newTripRequest.id,
+                  passengerId,
+                  driverId: driver.driverId,
+                  note,
+                },
+              },
+            );
+
+            await this.tripRepo.save(newTrip);
 
             await this.tripRequestProducer.processTripRequest(
               { tripRequestId: newTripRequest.id, sub: driverInfo.userId },
@@ -298,8 +325,6 @@ export class DriverAssignmentConsumer implements OnModuleInit, OnModuleDestroy {
             );
 
             tripCreated = true;
-
-            console.log('Trip created successfully.')
           },
           {
             ttl: 50000,

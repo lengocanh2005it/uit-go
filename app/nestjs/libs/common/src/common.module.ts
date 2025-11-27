@@ -1,7 +1,11 @@
 import { ThrottlerGrpcGuard } from '@libs/common/guards';
 import { PulsarModule } from '@libs/common/modules/pulsar/pulsar.module';
 import { RedisService } from '@libs/common/modules/redis/redis.service';
-import { REDIS_SERVICE_TOKEN, REDLOCK_RETRY_COUNT, REDLOCK_RETRY_DELAY } from '@libs/common/utils';
+import {
+  REDIS_SERVICE_TOKEN,
+  REDLOCK_RETRY_COUNT,
+  REDLOCK_RETRY_DELAY,
+} from '@libs/common/utils';
 import { HttpModule } from '@nestjs/axios';
 import { BullModule } from '@nestjs/bullmq';
 import { Global, Module } from '@nestjs/common';
