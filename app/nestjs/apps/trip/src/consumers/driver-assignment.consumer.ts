@@ -7,21 +7,17 @@ import {
   generateNotificationContent,
   PULSAR_MAX_REDELIVER_COUNT,
   PULSAR_REDELIVER_TIMEOUT,
-  REDLOCK_RETRY_COUNT,
-  REDLOCK_RETRY_DELAY,
   SERVICES,
 } from '@libs/common';
 import { PATTERNS } from '@libs/common/constants';
 import {
   InjectPulsarService,
   InjectRabbitMqService,
-  InjectRedisService,
 } from '@libs/common/decorators';
 import { CreateTripRequestDto } from '@libs/common/dto';
 import { NotificationTypeEnum } from '@libs/common/enums/notification';
 import { PulsarService } from '@libs/common/modules/pulsar/pulsar.service';
 import { RabbitMQService } from '@libs/common/modules/rabbitmq/rabbitmq.service';
-import { RedisService } from '@libs/common/modules/redis/redis.service';
 import { FindAvailableDriversResponse } from '@libs/common/proto/driver';
 import {
   Injectable,
@@ -33,9 +29,9 @@ import { RpcException } from '@nestjs/microservices';
 import { InjectRepository } from '@nestjs/typeorm';
 import { addSeconds } from 'date-fns';
 import { ObjectType } from 'nestjs-dynamoose';
+import { RedlockService } from 'nestjs-redlock-universal';
 import CircuitBreaker from 'opossum';
 import { Consumer, Message } from 'pulsar-client';
-import Redlock from 'redlock';
 import { Repository } from 'typeorm';
 
 @Injectable()
@@ -47,17 +43,16 @@ export class DriverAssignmentConsumer implements OnModuleInit, OnModuleDestroy {
     [payload: { lat: number; lng: number }],
     FindAvailableDriversResponse
   >;
-  private readonly redlock: Redlock;
 
   constructor(
     @InjectPulsarService() private readonly pulsarService: PulsarService,
-    @InjectRedisService() private readonly redisService: RedisService,
     @InjectRepository(Trip) private readonly tripRepo: Repository<Trip>,
     @InjectRepository(TripRequest)
     private readonly tripRequestRepo: Repository<TripRequest>,
     @InjectRabbitMqService() private readonly rabbitMqService: RabbitMQService,
     private readonly commonService: CommonService,
     private readonly tripRequestProducer: TripRequestProducer,
+    private readonly redlockService: RedlockService,
   ) {
     this.breaker = new CircuitBreaker(
       (payload: { lat: number; lng: number }) =>
@@ -70,11 +65,6 @@ export class DriverAssignmentConsumer implements OnModuleInit, OnModuleDestroy {
     );
 
     this.breaker.fallback(() => ({ count: 0, drivers: [] }));
-
-    this.redlock = new Redlock([this.redisService.getClient() as any], {
-      retryCount: REDLOCK_RETRY_COUNT,
-      retryDelay: REDLOCK_RETRY_DELAY,
-    });
   }
 
   async onModuleInit() {
@@ -234,92 +224,115 @@ export class DriverAssignmentConsumer implements OnModuleInit, OnModuleDestroy {
     let tripCreated = false;
 
     for (const driver of availableDrivers.drivers) {
-      let lock: Redlock.Lock | null = null;
       try {
-        lock = await this.redlock.acquire(
-          [`locks:driver:${driver.driverId}`],
-          5000,
-        );
+        await this.redlockService.using(
+          `locks:driver:${driver.driverId}`,
+          async (signal) => {
+            if (signal?.aborted) {
+              throw new RpcException({
+                code: status.ABORTED,
+                message: 'Driver is currently busy, please try again later.',
+              });
+            }
 
-        const newTrip = this.tripRepo.create({
-          originAddress,
-          destinationAddress,
-          originLat: originGeo.lat,
-          originLng: originGeo.lon,
-          destinationLat: destinationGeo.lat,
-          destinationLng: destinationGeo.lon,
-          fareEstimate,
-          fareFinal: fareEstimate,
-          driverId: driver.driverId,
-          passengerId,
-          note,
-        });
-
-        await this.tripRepo.save(newTrip);
-
-        const newTripRequest = await this.createTripRequest(
-          {
-            expiresTime: addSeconds(new Date(), 15),
-            tripId: newTrip.id,
-          },
-          newTrip,
-        );
-
-        await this.tripRequestProducer.processTripRequest(
-          { tripRequestId: newTripRequest.id, sub: passengerId },
-          15000,
-        );
-
-        const { message, title } = generateNotificationContent(
-          NotificationTypeEnum.TRIP_REQUESTED,
-          {
-            pickupLocation: originAddress,
-            dropoffLocation: destinationAddress,
-          },
-        );
-
-        const driverInfo = await this.rabbitMqService.send<ObjectType>(
-          SERVICES.DRIVER_SERVICE,
-          PATTERNS.DRIVER_SERVICE.GET_BY_ID,
-          { driverId: driver.driverId },
-        );
-
-        this.rabbitMqService.emit(
-          SERVICES.NOTIFICATION_SERVICE,
-          PATTERNS.NOTIFICATION_SERVICE.CREATE_NOTIFICATION,
-          {
-            userId: driverInfo.userId,
-            createNotificationDto: {
-              type: NotificationTypeEnum.TRIP_REQUESTED,
-              message,
-              title,
-            },
-            data: {
-              tripId: newTrip.id,
-              tripRequestId: newTripRequest.id,
-              passengerId,
+            const newTrip = this.tripRepo.create({
+              originAddress,
+              destinationAddress,
+              originLat: originGeo.lat,
+              originLng: originGeo.lon,
+              destinationLat: destinationGeo.lat,
+              destinationLng: destinationGeo.lon,
+              fareEstimate,
+              fareFinal: fareEstimate,
               driverId: driver.driverId,
-            },
+              passengerId,
+              note,
+            });
+
+            await this.tripRepo.save(newTrip);
+
+            const newTripRequest = await this.createTripRequest(
+              {
+                expiresTime: addSeconds(new Date(), 15),
+                tripId: newTrip.id,
+              },
+              newTrip,
+            );
+
+            await this.tripRequestProducer.processTripRequest(
+              { tripRequestId: newTripRequest.id, sub: passengerId },
+              15000,
+            );
+
+            const { message, title } = generateNotificationContent(
+              NotificationTypeEnum.TRIP_REQUESTED,
+              {
+                pickupLocation: originAddress,
+                dropoffLocation: destinationAddress,
+              },
+            );
+
+            const driverInfo = await this.rabbitMqService.send<ObjectType>(
+              SERVICES.DRIVER_SERVICE,
+              PATTERNS.DRIVER_SERVICE.GET_BY_ID,
+              { driverId: driver.driverId },
+            );
+
+            this.rabbitMqService.emit(
+              SERVICES.NOTIFICATION_SERVICE,
+              PATTERNS.NOTIFICATION_SERVICE.CREATE_NOTIFICATION,
+              {
+                userId: driverInfo.userId,
+                createNotificationDto: {
+                  type: NotificationTypeEnum.TRIP_REQUESTED,
+                  message,
+                  title,
+                },
+                data: {
+                  tripId: newTrip.id,
+                  tripRequestId: newTripRequest.id,
+                  passengerId,
+                  driverId: driver.driverId,
+                  note,
+                },
+              },
+            );
+
+            await this.tripRepo.save(newTrip);
+
+            await this.tripRequestProducer.processTripRequest(
+              { tripRequestId: newTripRequest.id, sub: driverInfo.userId },
+              15000,
+            );
+
+            this.rabbitMqService.emit(
+              SERVICES.NOTIFICATION_SERVICE,
+              PATTERNS.NOTIFICATION_SERVICE.CREATE_NOTIFICATION,
+              {
+                userId: driverInfo.userId,
+                createNotificationDto: {
+                  type: NotificationTypeEnum.TRIP_REQUESTED,
+                  message,
+                  title,
+                },
+                data: {
+                  tripId: newTrip.id,
+                  tripRequestId: newTripRequest.id,
+                  passengerId,
+                  driverId: driver.driverId,
+                },
+              },
+            );
+
+            tripCreated = true;
+          },
+          {
+            ttl: 50000,
           },
         );
 
-        tripCreated = true;
-        if (lock) {
-          try {
-            await lock.unlock();
-          } catch (unlockErr) {
-            this.logger.warn('Failed to unlock redlock (ignored)', unlockErr);
-          }
-        }
-        break;
+        if (tripCreated) break;
       } catch (err) {
-        if (lock) {
-          try {
-            await lock.unlock();
-          } catch (unlockErr) {
-            this.logger.warn('Failed to unlock after error', unlockErr);
-          }
-        }
         this.logger.warn(
           `Driver ${driver.driverId} busy or error, trying next driver. cause: ${err?.message ?? err}`,
         );
