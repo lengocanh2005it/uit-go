@@ -55,7 +55,7 @@ export class DriverController {
       status,
       eventId,
       currentLocation,
-      currentTripId
+      currentTripId,
     );
   }
 

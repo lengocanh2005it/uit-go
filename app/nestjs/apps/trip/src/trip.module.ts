@@ -3,7 +3,6 @@ import {
   DriverAssignmentDLQConsumer,
 } from '@/trip/src/consumers';
 import {
-  DriverAssignmentProcessor,
   TripRequestProcessor,
   TripStatusProcessor,
 } from '@/trip/src/processors';
@@ -19,12 +18,12 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { QueueNamesOfTripService } from '@trip-service/constants';
+import { PrometheusModule } from '@willsoto/nestjs-prometheus';
 import { SnakeNamingStrategy } from 'typeorm-naming-strategies';
 import envConfig from './configs/env.config';
 import { OutboxEvent, Trip, TripRating, TripRequest } from './entities';
 import { TripController } from './trip.controller';
 import { TripService } from './trip.service';
-import { PrometheusModule } from '@willsoto/nestjs-prometheus'
 
 @Module({
   imports: [
@@ -65,7 +64,7 @@ import { PrometheusModule } from '@willsoto/nestjs-prometheus'
         name: QueueNamesOfTripService.driverAssigment,
       },
     ),
-    PrometheusModule.register()
+    PrometheusModule.register(),
   ],
   controllers: [TripController],
   providers: [
@@ -74,10 +73,9 @@ import { PrometheusModule } from '@willsoto/nestjs-prometheus'
     TripRequestProducer,
     TripStatusProcessor,
     TripStatusProducer,
-    DriverAssignmentProcessor,
     DriverAssignmentProducer,
     DriverAssignmentConsumer,
     DriverAssignmentDLQConsumer,
   ],
 })
-export class TripModule { }
+export class TripModule {}

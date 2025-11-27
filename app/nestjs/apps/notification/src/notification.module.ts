@@ -11,7 +11,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 import { NotificationController } from './notification.controller';
 import { NotificationService } from './notification.service';
-import { PrometheusModule } from '@willsoto/nestjs-prometheus'
+import { PrometheusModule } from '@willsoto/nestjs-prometheus';
 
 @Module({
   imports: [
@@ -37,9 +37,9 @@ import { PrometheusModule } from '@willsoto/nestjs-prometheus'
         schema: UserNotificationSchema,
       },
     ]),
-    PrometheusModule.register()
+    PrometheusModule.register(),
   ],
   controllers: [NotificationController],
   providers: [NotificationService],
 })
-export class NotificationModule { }
+export class NotificationModule {}
