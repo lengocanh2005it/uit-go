@@ -1,6 +1,4 @@
 import { TripStatusEnum } from '@libs/common/enums';
-import { tripStatusMapping } from '@libs/common/utils';
-import { Transform } from 'class-transformer';
 import {
   IsEnum,
   IsNotEmpty,
@@ -16,7 +14,6 @@ export class UpdateTripDto {
 
   @IsOptional()
   @IsEnum(TripStatusEnum)
-  @Transform(({ value }) => tripStatusMapping[value])
   readonly status?: TripStatusEnum;
 
   @IsOptional()

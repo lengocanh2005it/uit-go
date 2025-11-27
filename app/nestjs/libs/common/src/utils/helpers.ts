@@ -239,3 +239,36 @@ export function generateNotificationContent(
       };
   }
 }
+
+export function convertStringsToDates(
+  obj: any,
+  keys: string[] = [
+    'createdAt',
+    'updatedAt',
+    'birthDay',
+    'licenseExpiry',
+    'reviewedDate',
+    'lastSeenAt',
+  ],
+): any {
+  if (obj === null || obj === undefined) return obj;
+
+  if (typeof obj !== 'object') return obj;
+
+  const result: any = Array.isArray(obj) ? [] : {};
+
+  for (const key of Object.keys(obj)) {
+    const val = obj[key];
+    if (val === null || val === undefined) {
+      result[key] = val;
+    } else if (keys.includes(key) && typeof val === 'string') {
+      result[key] = new Date(val);
+    } else if (typeof val === 'object') {
+      result[key] = convertStringsToDates(val, keys); // recursive
+    } else {
+      result[key] = val;
+    }
+  }
+
+  return result;
+}

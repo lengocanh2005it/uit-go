@@ -6,14 +6,21 @@ import {
   AssignDriverDto,
   CommonService,
   generateNotificationContent,
+  REDLOCK_RETRY_COUNT,
+  REDLOCK_RETRY_DELAY,
   SERVICES,
 } from '@libs/common';
 import { FindAvailableDriversResponse } from '@libs/common/proto/driver'
 import { PATTERNS } from '@libs/common/constants';
-import { InjectRabbitMqService } from '@libs/common/decorators';
+import {
+  InjectRabbitMqService,
+  InjectRedisService,
+} from '@libs/common/decorators';
 import { CreateTripRequestDto } from '@libs/common/dto';
 import { NotificationTypeEnum } from '@libs/common/enums/notification';
 import { RabbitMQService } from '@libs/common/modules/rabbitmq/rabbitmq.service';
+import { RedisService } from '@libs/common/modules/redis/redis.service';
+import { FindAvailableDriversResponse } from '@libs/common/proto/driver';
 import { OnWorkerEvent, Processor, WorkerHost } from '@nestjs/bullmq';
 import { RpcException } from '@nestjs/microservices';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -22,6 +29,7 @@ import { addSeconds } from 'date-fns';
 import { ObjectType } from 'nestjs-dynamoose';
 import CircuitBreaker from 'opossum';
 import { Repository } from 'typeorm';
+import Redlock from 'redlock';
 
 @Processor(QueueNamesOfTripService.driverAssigment)
 export class DriverAssignmentProcessor extends WorkerHost {
@@ -29,6 +37,7 @@ export class DriverAssignmentProcessor extends WorkerHost {
     [payload: { lat: number; lng: number }],
     FindAvailableDriversResponse
   >;
+  private redlock: Redlock;
 
   constructor(
     @InjectRabbitMqService() private readonly rabbitMqService: RabbitMQService,
@@ -37,6 +46,7 @@ export class DriverAssignmentProcessor extends WorkerHost {
     @InjectRepository(TripRequest)
     private readonly tripRequestRepo: Repository<TripRequest>,
     private readonly tripRequestProducer: TripRequestProducer,
+    @InjectRedisService() private readonly redisService: RedisService,
   ) {
     super();
 
@@ -57,6 +67,11 @@ export class DriverAssignmentProcessor extends WorkerHost {
       count: 0,
       drivers: [],
     }));
+
+    this.redlock = new Redlock([this.redisService.getClient() as any], {
+      retryCount: REDLOCK_RETRY_COUNT,
+      retryDelay: REDLOCK_RETRY_DELAY,
+    });
   }
 
   async process(job: Job<AssignDriverDto>) {
@@ -81,78 +96,97 @@ export class DriverAssignmentProcessor extends WorkerHost {
       });
     }
 
-    const driver = availableDrivers.drivers[0];
-
     const fareEstimate = await this.commonService.getEstimatedFare(
       originAddress,
       destinationAddress,
     );
 
-    const newTrip = this.tripRepo.create({
-      originAddress,
-      destinationAddress,
-      originLat: originAddressGeoCode?.lat ?? 0,
-      originLng: originAddressGeoCode?.lon ?? 0,
-      destinationLat: destinationAddressGeoCode?.lat ?? 0,
-      destinationLng: destinationAddressGeoCode?.lon ?? 0,
-      fareEstimate,
-      fareFinal: fareEstimate,
-      driverId: driver.driverId,
-      passengerId,
-      note,
-    });
+    let tripCreated = false;
 
-    await this.tripRepo.save(newTrip);
+    for (const driver of availableDrivers.drivers) {
+      let lock: any;
+      try {
+        lock = await this.lockDriver(driver.driverId);
 
-    const newTripRequesst = await this.createTripRequest(
-      {
-        expiresTime: addSeconds(new Date(), 15),
-        tripId: newTrip.id,
-      },
-      newTrip,
-    );
-
-    await this.tripRequestProducer.processTripRequest(
-      {
-        tripRequestId: newTripRequesst.id,
-        sub: passengerId,
-      },
-      15000,
-    );
-
-    const { message, title } = generateNotificationContent(
-      NotificationTypeEnum.TRIP_REQUESTED,
-      {
-        pickupLocation: originAddress,
-        dropoffLocation: destinationAddress,
-      },
-    );
-
-    const driverInfo = await this.rabbitMqService.send<ObjectType>(
-      SERVICES.DRIVER_SERVICE,
-      PATTERNS.DRIVER_SERVICE.GET_BY_ID,
-      {
-        driverId: driver.driverId,
-      },
-    );
-
-    this.rabbitMqService.emit(
-      SERVICES.NOTIFICATION_SERVICE,
-      PATTERNS.NOTIFICATION_SERVICE.CREATE_NOTIFICATION,
-      {
-        userId: driverInfo.userId,
-        createNotificationDto: {
-          type: NotificationTypeEnum.TRIP_REQUESTED,
-          message,
-          title,
-        },
-        data: {
-          tripId: newTrip.id,
-          passengerId,
+        const newTrip = this.tripRepo.create({
+          originAddress,
+          destinationAddress,
+          originLat: originAddressGeoCode?.lat ?? 0,
+          originLng: originAddressGeoCode?.lon ?? 0,
+          destinationLat: destinationAddressGeoCode?.lat ?? 0,
+          destinationLng: destinationAddressGeoCode?.lon ?? 0,
+          fareEstimate,
+          fareFinal: fareEstimate,
           driverId: driver.driverId,
-        },
-      },
-    );
+          passengerId,
+          note,
+        });
+
+        await this.tripRepo.save(newTrip);
+
+        const newTripRequest = await this.createTripRequest(
+          {
+            expiresTime: addSeconds(new Date(), 15),
+            tripId: newTrip.id,
+          },
+          newTrip,
+        );
+
+        await this.tripRequestProducer.processTripRequest(
+          {
+            tripRequestId: newTripRequest.id,
+            sub: passengerId,
+          },
+          15000,
+        );
+
+        const { message, title } = generateNotificationContent(
+          NotificationTypeEnum.TRIP_REQUESTED,
+          {
+            pickupLocation: originAddress,
+            dropoffLocation: destinationAddress,
+          },
+        );
+
+        const driverInfo = await this.rabbitMqService.send<ObjectType>(
+          SERVICES.DRIVER_SERVICE,
+          PATTERNS.DRIVER_SERVICE.GET_BY_ID,
+          { driverId: driver.driverId },
+        );
+
+        this.rabbitMqService.emit(
+          SERVICES.NOTIFICATION_SERVICE,
+          PATTERNS.NOTIFICATION_SERVICE.CREATE_NOTIFICATION,
+          {
+            userId: driverInfo.userId,
+            createNotificationDto: {
+              type: NotificationTypeEnum.TRIP_REQUESTED,
+              message,
+              title,
+            },
+            data: {
+              tripId: newTrip.id,
+              passengerId,
+              driverId: driver.driverId,
+            },
+          },
+        );
+
+        tripCreated = true;
+        await lock.release();
+        break;
+      } catch (err) {
+        if (lock) await lock.release().catch(() => {});
+        continue;
+      }
+    }
+
+    if (!tripCreated) {
+      throw new RpcException({
+        code: status.NOT_FOUND,
+        message: 'No available drivers could be locked.',
+      });
+    }
   }
 
   @OnWorkerEvent('completed')
@@ -202,4 +236,8 @@ export class DriverAssignmentProcessor extends WorkerHost {
     newTripRequest.trip = trip;
     return this.tripRequestRepo.save(newTripRequest);
   };
+
+  private async lockDriver(driverId: string) {
+    return this.redlock.acquire([`locks:driver:${driverId}`], 5000);
+  }
 }

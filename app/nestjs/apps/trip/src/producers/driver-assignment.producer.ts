@@ -1,31 +1,32 @@
-import {
-  JobNamesOfTripService,
-  QueueNamesOfTripService,
-} from '@/trip/src/constants';
-import { AssignDriverDto, MAX_RETRY } from '@libs/common';
-import { InjectQueue } from '@nestjs/bullmq';
-import { Injectable } from '@nestjs/common';
-import { Queue } from 'bullmq';
+import { AssignDriverDto } from '@libs/common';
+import { InjectPulsarService } from '@libs/common/decorators';
+import { PulsarService } from '@libs/common/modules/pulsar/pulsar.service';
+import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { Producer } from 'pulsar-client';
 
 @Injectable()
-export class DriverAssignmentProducer {
+export class DriverAssignmentProducer implements OnModuleInit, OnModuleDestroy {
+  private producer: Producer;
+
   constructor(
-    @InjectQueue(QueueNamesOfTripService.driverAssigment)
-    private readonly driverAssignmentQueue: Queue,
+    @InjectPulsarService() private readonly pulsarService: PulsarService,
   ) {}
 
+  async onModuleInit() {
+    this.producer = await this.pulsarService.createProducer('trip-create');
+  }
+
+  async onModuleDestroy() {
+    if (this.producer) {
+      await this.producer.flush();
+      await this.producer.close();
+    }
+  }
+
   async assignDriver(assignDriverDto: AssignDriverDto) {
-    await this.driverAssignmentQueue.add(
-      JobNamesOfTripService.processDriverAssignment,
-      assignDriverDto,
-      {
-        removeOnComplete: true,
-        attempts: MAX_RETRY,
-        backoff: {
-          type: 'exponential',
-          delay: 1000,
-        },
-      },
-    );
+    await this.producer.send({
+      data: Buffer.from(JSON.stringify(assignDriverDto)),
+      partitionKey: assignDriverDto.passengerId,
+    });
   }
 }

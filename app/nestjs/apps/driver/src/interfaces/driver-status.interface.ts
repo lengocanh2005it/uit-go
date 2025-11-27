@@ -9,6 +9,7 @@ export interface VehicleCached {
   plateNumber: string;
   brand: string;
   model: string;
+  color: string;
 }
 
 export interface DriverStatus extends DriverStatusKey {

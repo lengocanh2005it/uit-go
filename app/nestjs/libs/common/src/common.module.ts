@@ -1,3 +1,5 @@
+import { ThrottlerGrpcGuard } from '@libs/common/guards';
+import { PulsarModule } from '@libs/common/modules/pulsar/pulsar.module';
 import { HttpModule } from '@nestjs/axios';
 import { BullModule } from '@nestjs/bullmq';
 import { Global, Module } from '@nestjs/common';
@@ -23,6 +25,7 @@ import { RedisModule } from './modules/redis/redis.module';
     }),
     RabbitMQModule,
     RedisModule,
+    PulsarModule,
     BullModule.forRootAsync({
       useFactory: (configService: ConfigService) => ({
         connection: {
@@ -42,7 +45,7 @@ import { RedisModule } from './modules/redis/redis.module';
       }),
     }),
   ],
-  providers: [CommonService],
+  providers: [CommonService, ThrottlerGrpcGuard],
   exports: [CommonService],
 })
 export class CommonModule {}

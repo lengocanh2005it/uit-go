@@ -1,4 +1,8 @@
 import {
+  DriverAssignmentConsumer,
+  DriverAssignmentDLQConsumer,
+} from '@/trip/src/consumers';
+import {
   DriverAssignmentProcessor,
   TripRequestProcessor,
   TripStatusProcessor,
@@ -72,6 +76,8 @@ import { PrometheusModule } from '@willsoto/nestjs-prometheus'
     TripStatusProducer,
     DriverAssignmentProcessor,
     DriverAssignmentProducer,
+    DriverAssignmentConsumer,
+    DriverAssignmentDLQConsumer,
   ],
 })
 export class TripModule { }

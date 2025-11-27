@@ -11,27 +11,6 @@ import { Observable } from 'rxjs';
 
 export const protobufPackage = 'trip';
 
-export enum TripStatus {
-  TRIP_STATUS_UNSPECIFIED = 0,
-  TRIP_STATUS_SEARCHING = 1,
-  TRIP_STATUS_ACCEPTED = 2,
-  TRIP_STATUS_ONGOING = 3,
-  TRIP_STATUS_COMPLETED = 4,
-  TRIP_STATUS_CANCELLED = 5,
-  TRIP_STATUS_ARRIVING = 6,
-  TRIP_STATUS_STARTED = 7,
-  UNRECOGNIZED = -1,
-}
-
-export enum TripRequestStatus {
-  TRIP_REQUEST_STATUS_UNSPECIFIED = 0,
-  TRIP_REQUEST_STATUS_ACCEPTED = 1,
-  TRIP_REQUEST_STATUS_REJECTED = 2,
-  TRIP_REQUEST_STATUS_TIMEOUT = 3,
-  TRIP_REQUEST_STATUS_PENDING = 4,
-  UNRECOGNIZED = -1,
-}
-
 export interface Trip {
   id: string;
   originAddress: string;
@@ -47,7 +26,7 @@ export interface Trip {
   driverId: string;
   fareFinal: number;
   fareEstimate: number;
-  status: TripStatus;
+  status: string;
 }
 
 export interface CancelTripRequest {
@@ -84,16 +63,16 @@ export interface GetEstimateResponse {
 }
 
 export interface UpdateTripRequestStatusRequest {
-  status: TripRequestStatus;
+  status: string;
   tripId: string;
 }
 
 export interface UpdateTripRequestStatusResponse {}
 
 export interface UpdateTripRequest {
-  status?: TripStatus | undefined;
-  note: string | undefined;
-  destinationAddress: string | undefined;
+  status?: string | undefined;
+  note?: string | undefined;
+  destinationAddress?: string | undefined;
   fareFinal?: number | undefined;
   tripId: string;
 }
@@ -103,7 +82,7 @@ export interface UpdateTripResponse {}
 export interface CreateTripRequest {
   originAddress: string;
   destinationAddress: string;
-  note: string | undefined;
+  note?: string | undefined;
 }
 
 export interface Customer {

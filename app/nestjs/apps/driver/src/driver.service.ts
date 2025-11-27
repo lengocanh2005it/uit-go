@@ -17,10 +17,12 @@ import {
   Vehicle,
   VehicleKey,
 } from '@/driver/src/interfaces';
+import { DriverApprovalSchema } from '@/driver/src/models';
 import { status } from '@grpc/grpc-js';
 import {
   buildGeoLocation,
   CommonService,
+  convertStringsToDates,
   generateNotificationContent,
   NotificationParams,
   SERVICES,
@@ -32,6 +34,7 @@ import {
   InjectRedisService,
 } from '@libs/common/decorators';
 import {
+  CreateDriverDto,
   GetAllTripsOfDriverDto,
   UpdateDriverApprovalDto,
 } from '@libs/common/dto';
@@ -47,8 +50,8 @@ import {
   GetDriverApprovalsResponse,
   DriverLocation as IDriverLocation,
   NearbyDriver,
+  UpdateDriverApprovalResponse,
 } from '@libs/common/proto/driver';
-import { CreateDriverRequest } from '@libs/common/proto/user';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { RpcException } from '@nestjs/microservices';
@@ -127,53 +130,98 @@ export class DriverService {
     driverId: string,
     statusData: DriverStatusEnum,
     eventId?: string,
+    currentLocation?: string,
+    currentTripId?: string,
   ) {
     if (eventId?.trim()) {
-      const exists = await this.getProcessedEvent(eventId);
+      const exists = await this.processedEventModel.get({
+        eventId: eventId.trim(),
+      });
       if (exists) {
         console.log(`Skipped duplicate event: ${eventId}`);
         return;
       }
     }
 
-    const findDriver = await this.driverModel.get({ driverId });
+    const [driver, driverStatus] = await Promise.all([
+      this.driverModel.get({ driverId }),
+      this.driverStatusModel.get({ driverId }),
+    ]);
 
-    if (!findDriver) {
+    if (!driver) {
       throw new RpcException({
         code: status.NOT_FOUND,
         message: 'Driver info not found.',
       });
     }
 
-    const findDriverStatusRecord = await this.driverStatusModel.get({
-      driverId,
-    });
-
-    if (!findDriverStatusRecord?.toJSON()) {
+    if (!driverStatus?.toJSON()) {
       throw new RpcException({
         code: status.NOT_FOUND,
         message: 'Driver status info not found.',
       });
     }
 
-    await this.driverStatusModel.update({ driverId }, { status: statusData });
+    const vehicle = await this.vehicleModel
+      .query('driverId')
+      .eq(driverId)
+      .exec();
+
+    if (!vehicle.length)
+      throw new RpcException({
+        code: status.NOT_FOUND,
+        message: 'Vehicle info not found.',
+      });
+
+    const toVehicleToJson = vehicle[0].toJSON();
+
+    await this.driverStatusModel.update({ driverId }, {
+      status: statusData,
+      last_seen_at: new Date(),
+      ...(currentTripId?.trim() && { current_trip_id: currentTripId }),
+      vehicle_cached: {
+        vehicleId: toVehicleToJson.vehicleId,
+        plateNumber: toVehicleToJson.plateNumber,
+        brand: toVehicleToJson.brand,
+        model: toVehicleToJson.model,
+        color: toVehicleToJson.color,
+      },
+    } as any);
+
+    if (currentLocation?.trim() && statusData === DriverStatusEnum.ONLINE) {
+      const { lon, lat } =
+        await this.commonService.getCoordinates(currentLocation);
+      await this.updateLocationOfDriver(driverId, lat, lon);
+    }
+
+    if (
+      statusData === DriverStatusEnum.BUSY ||
+      statusData === DriverStatusEnum.OFFLINE
+    ) {
+      await this.redisService.srem('online_drivers', driverId);
+    }
 
     if (eventId?.trim()) {
-      await this.processedEventModel.create({
-        eventId,
-        createdAt: new Date(),
-      });
+      try {
+        await this.processedEventModel.create({ eventId: eventId.trim() });
+      } catch (err) {
+        if (err.name !== 'ConditionalCheckFailedException') throw err;
+      }
     }
   }
 
   async getDriverInfo(userId: string) {
     const existed = await this.driverModel.query('userId').eq(userId).exec();
+
     if (!existed.length)
       throw new RpcException({
         code: status.NOT_FOUND,
         message: 'Driver info not found.',
       });
-    return existed[0].toJSON();
+
+    return this.getDriverInfoDetailById({
+      driverId: existed[0].toJSON().driverId,
+    });
   }
 
   async getDriverInfoById(driverId: string) {
@@ -220,38 +268,40 @@ export class DriverService {
 
   async updateLocationOfDriver(driverId: string, lat: number, lng: number) {
     const { hash_prefix, geo_hash } = buildGeoLocation(lat, lng);
-    const existingRecord = await this.driverLocationModel.get({
-      driverId,
-      hashPrefix: hash_prefix,
-    });
 
-    if (!existingRecord) {
-      await this.driverLocationModel.create({
-        geoHash: geo_hash,
-        hashPrefix: hash_prefix,
-        driverId,
-        createdAt: new Date(),
-        updatedAt: new Date(),
+    const existingRecords = await this.driverLocationModel
+      .query('driverId')
+      .eq(driverId)
+      .exec();
+
+    if (existingRecords?.length) {
+      const deleteRequests = existingRecords
+        .filter((r) => r.hashPrefix !== hash_prefix)
+        .map((r) =>
+          this.driverLocationModel.delete({
+            driverId,
+            hashPrefix: r.hashPrefix,
+          }),
+        );
+
+      await Promise.all(deleteRequests);
+    }
+
+    await this.driverLocationModel.update(
+      { driverId, hashPrefix: hash_prefix },
+      {
+        geo_hash,
         lat,
         lng,
-      });
-    } else {
-      await this.driverLocationModel.update(
-        {
-          driverId,
-          hashPrefix: hash_prefix,
-        },
-        {
-          updatedAt: new Date(),
-          lat,
-          lng,
-          geoHash: geo_hash,
-        },
-      );
-    }
+      } as any,
+      { return: 'item' },
+    );
+
+    await this.redisService.geoAdd('drivers:locations', lng, lat, driverId);
+    await this.redisService.sadd('online_drivers', driverId);
   }
 
-  async createDriver(data: CreateDriverRequest, userId: string) {
+  async createDriver(data: CreateDriverDto, userId: string) {
     const existed = await this.driverModel.query('userId').eq(userId).exec();
 
     if (existed.length > 0) {
@@ -271,7 +321,7 @@ export class DriverService {
       rating: 0,
       totalTrip: 0,
       licenseNumber: data.licenseNumber,
-      licenseExpiry: data.licenseExpiry ?? new Date(),
+      licenseExpiry: new Date(data.licenseExpiry) ?? new Date(),
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -313,36 +363,42 @@ export class DriverService {
 
   async updateDriverApprovalStatus(
     updateDriverApprovalDto: UpdateDriverApprovalDto,
-    driverId: string,
-  ) {
-    const { status: statusData, note } = updateDriverApprovalDto;
+  ): Promise<UpdateDriverApprovalResponse> {
+    const {
+      status: statusData,
+      note,
+      driverApprovalId,
+    } = updateDriverApprovalDto;
 
-    const driverApproval = await this.driverApprovalModel
-      .query('driverId')
-      .eq(driverId)
-      .exec();
+    const driverApproval = await this.driverApprovalModel.get({
+      driverApprovalId,
+    });
 
-    if (driverApproval.length === 0) {
+    if (!driverApproval) {
       throw new RpcException({
         code: status.NOT_FOUND,
         message: 'Driver approval record not found.',
       });
     }
 
-    const approvalRecord = driverApproval[0];
     const updated = await this.driverApprovalModel.update(
-      { driverApprovalId: approvalRecord.driverApprovalId },
+      { driverApprovalId },
       {
+        reviewed_date: new Date(),
         status: statusData,
         note,
-        reviewedDate: new Date(),
-        updatedAt: new Date(),
-      },
+      } as any,
     );
 
-    const driver: any = await this.getDriverInfoDetailById({
-      driverId: approvalRecord.driverId,
-    });
+    const driverId = driverApproval.toJSON().driverId;
+
+    const driver = await this.driverModel.get({ driverId });
+
+    if (!driver)
+      throw new RpcException({
+        code: status.NOT_FOUND,
+        message: `Driver info not found.`,
+      });
 
     let typeNotif: NotificationTypeEnum | null = null;
     let params: NotificationParams = {};
@@ -363,23 +419,64 @@ export class DriverService {
         SERVICES.NOTIFICATION_SERVICE,
         PATTERNS.NOTIFICATION_SERVICE.CREATE_NOTIFICATION,
         {
-          userId: driver.userId,
+          userId: driver.toJSON().userId,
           createNotificationDto: {
             type: typeNotif,
             message: messageNotif,
             title: titleNotif,
           },
           data: {
-            driverId: approvalRecord.driverId,
-            userId: driver.userId,
+            driverId,
+            userId: driver.toJSON().userId,
           },
         },
       );
+
+      if (statusData === DriverApprovalStatusEnum.ACCEPTED) {
+        const userInfo = await this.rabbitMqService.send(
+          SERVICES.USER_SERVICE,
+          PATTERNS.USER_SERVICE.GET_PROFILE_BY_USER_ID,
+          {
+            userId: driver.toJSON().userId,
+          },
+        );
+        const { message, title } = generateNotificationContent(
+          NotificationTypeEnum.ACCOUNT_CREATED,
+          {
+            userName: userInfo.profile.fullName,
+          },
+        );
+
+        this.rabbitMqService.emit(
+          SERVICES.NOTIFICATION_SERVICE,
+          PATTERNS.NOTIFICATION_SERVICE.CREATE_NOTIFICATION,
+          {
+            userId: driver.toJSON().userId,
+            createNotificationDto: {
+              type: NotificationTypeEnum.ACCOUNT_CREATED,
+              message,
+              title,
+            },
+            data: {},
+          },
+        );
+      }
     }
+
+    const toJson = updated.toJSON();
 
     return {
       message: `Driver approval updated to ${statusData}`,
-      data: updated,
+      data: {
+        driverApprovalId: toJson.driver_approval_id,
+        status: toJson.status,
+        note: toJson.note ?? undefined,
+        driverId: toJson.driver_id,
+        vehicleId: toJson.vehicle_id,
+        createdAt: new Date(toJson.createdAt),
+        updatedAt: new Date(toJson.updatedAt),
+        reviewedDate: new Date(toJson.reviewed_date) ?? undefined,
+      },
     };
   }
 
@@ -421,7 +518,6 @@ export class DriverService {
 
     const keyLat = lat.toFixed(3);
     const keyLng = lng.toFixed(3);
-
     const cacheKey = `avail:${keyLat}:${keyLng}:${maxRadiusKm}`;
     const cached = await this.redisService.get(cacheKey);
 
@@ -436,26 +532,43 @@ export class DriverService {
       lat,
       maxRadiusKm,
       'km',
-      topN * 2,
+      topN * 3,
     );
 
     if (!geoDrivers.length) return { count: 0, drivers: [] };
 
     const driverIds = geoDrivers.map((d) => d.member);
     const onlineMap = await this.redisService.areDriversOnline(driverIds);
+    const keys: DriverStatusKey[] = driverIds.map((id) => ({ driverId: id }));
+    const driverStatuses = await this.driverStatusModel.batchGet(keys);
+
+    const driverStatusMap = new Map(
+      driverStatuses.map((ds) => [ds.toJSON().driver_id, ds]),
+    );
+
+    const geoPosPromises = geoDrivers.map((d) =>
+      this.redisService.geoPos('drivers:locations', d.member),
+    );
+
+    const geoPositions = await Promise.all(geoPosPromises);
     const drivers: NearbyDriver[] = [];
 
-    for (const d of geoDrivers) {
-      if (!onlineMap[d.member]) continue;
-      const pos = await this.redisService.geoPos('drivers:locations', d.member);
+    for (let i = 0; i < geoDrivers.length; i++) {
+      const d = geoDrivers[i];
 
+      if (!onlineMap[d.member]) continue;
+
+      const pos = geoPositions[i];
       if (!pos) continue;
+
+      const ds = driverStatusMap.get(d.member);
 
       drivers.push({
         driverId: d.member,
         lat: pos.lat,
         lng: pos.lng,
         distanceKm: d.distance,
+        vehicle: ds?.toJSON()?.vehicle_cached,
       });
 
       if (drivers.length >= topN) break;
@@ -500,9 +613,9 @@ export class DriverService {
 
   async getDriversApproval(
     getDriverApprovalsDto: GetDriverApprovalsDto,
-  ): Promise<GetDriverApprovalsResponse[]> {
+  ): Promise<GetDriverApprovalsResponse> {
     const { status } = getDriverApprovalsDto;
-    let driversApproval: Item<DriverApproval & DriverApprovalKey>[] = [];
+    let driversApproval: any[] = [];
 
     if (status) {
       driversApproval = await this.driverApprovalModel
@@ -513,19 +626,23 @@ export class DriverService {
       driversApproval = await this.driverApprovalModel.scan().exec();
     }
 
-    return driversApproval.map((driver) => {
+    const approvals = driversApproval.map((driver) => {
       const toJson = driver.toJSON();
       return {
         driverApprovalId: toJson.driverApprovalId,
         status: toJson.status,
-        reviewedDate: toJson.reviewedDate,
+        reviewedDate: toJson?.reviewedDate
+          ? new Date(toJson?.reviewedDate)
+          : undefined,
         note: toJson.note,
         driverId: toJson.driverId,
         vehicleId: toJson.vehicleId,
-        createdAt: toJson.createdAt,
-        updatedAt: toJson.updatedAt,
+        createdAt: new Date(toJson.createdAt),
+        updatedAt: new Date(toJson.updatedAt),
       };
     });
+
+    return { approvals };
   }
 
   async getDriverInfoDetailById(
@@ -540,11 +657,12 @@ export class DriverService {
         message: 'Driver info not found.',
       });
 
-    const driverStatus = await this.driverStatusModel.get({
-      driverId,
-    });
+    const driverStatus = await this.driverStatusModel
+      .query('driverId')
+      .eq(driverId)
+      .exec();
 
-    if (!driverStatus)
+    if (!driverStatus.length)
       throw new RpcException({
         code: status.NOT_FOUND,
         message: 'Driver status info not found.',
@@ -566,12 +684,6 @@ export class DriverService {
       .eq(driverId)
       .exec();
 
-    if (!driverLocation.length)
-      throw new RpcException({
-        code: status.NOT_FOUND,
-        message: 'Driver location info not found.',
-      });
-
     const vehicle = await this.vehicleModel
       .query('driverId')
       .eq(driverId)
@@ -585,9 +697,11 @@ export class DriverService {
 
     return {
       ...(driverInfo.toJSON() as any),
-      driverStatus: driverStatus.toJSON() as any,
+      driverStatus: driverStatus[0].toJSON() as any,
       driverApproval: driverApproval[0].toJSON() as any,
-      driverLocation: driverLocation[0].toJSON() as any,
+      ...(driverLocation?.length > 0 && {
+        driverLocation: driverLocation[0].toJSON() as any,
+      }),
       vehicle: vehicle[0].toJSON() as any,
     };
   }
@@ -627,18 +741,14 @@ export class DriverService {
         ? rating
         : (currentRating * totalTrip + rating) / (totalTrip + 1);
 
-    await this.driverModel.update(
-      { driverId },
-      {
-        rating: Number(newAverage.toFixed(2)),
-        totalTrip: totalTrip + 1,
-        updatedAt: new Date(),
-      },
-    );
+    await this.driverModel.update({ driverId }, {
+      rating: Number(newAverage.toFixed(2)),
+      total_trip: totalTrip + 1,
+      updatedAt: new Date(),
+    } as any);
 
     await this.processedEventModel.create({
       eventId,
-      createdAt: new Date(),
     });
 
     this.logger.log(

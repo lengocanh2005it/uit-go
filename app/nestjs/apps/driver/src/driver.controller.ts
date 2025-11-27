@@ -4,11 +4,12 @@ import {
   GetDriverInfoDetailByIdDto,
   GetLocationOfDriverDto,
 } from '@/driver/src/dto';
-import { Metadata } from '@grpc/grpc-js';
-import { CommonService, getIdFromMetadata, TGrpcUser } from '@libs/common';
+import { status } from '@grpc/grpc-js';
+import { TGrpcUser } from '@libs/common';
 import { GRPC_METHODS, PATTERNS } from '@libs/common/constants';
 import { GrpcBody, GrpcUser } from '@libs/common/decorators';
 import {
+  CreateDriverDto,
   GetAllTripsOfDriverDto,
   UpdateDriverApprovalDto,
   UpdateDriverStatusDto,
@@ -21,7 +22,6 @@ import {
   DRIVER_SERVICE_NAME,
   UpdateDriverStatusGrpcResponse,
 } from '@libs/common/proto/driver';
-import { CreateDriverRequest } from '@libs/common/proto/user';
 import {
   Controller,
   ParseFloatPipe,
@@ -34,23 +34,29 @@ import {
   GrpcMethod,
   MessagePattern,
   Payload,
+  RpcException,
 } from '@nestjs/microservices';
 import { DriverService } from './driver.service';
 
 @Controller()
 export class DriverController {
-  constructor(
-    private readonly driverService: DriverService,
-    private readonly commonService: CommonService,
-  ) {}
+  constructor(private readonly driverService: DriverService) {}
 
   @EventPattern(PATTERNS.DRIVER_SERVICE.UPDATE_STATUS)
   async updateDriverStatus(
     @Payload('driverId', ParseUUIDPipe) driverId: string,
     @Payload('status') status: DriverStatusEnum,
     @Payload('eventId') eventId: string,
+    @Payload('currentLocation') currentLocation?: string,
+    @Payload('currentTripId') currentTripId?: string,
   ) {
-    await this.driverService.updateDriverStatus(driverId, status, eventId);
+    await this.driverService.updateDriverStatus(
+      driverId,
+      status,
+      eventId,
+      currentLocation,
+      currentTripId
+    );
   }
 
   @EventPattern(PATTERNS.DRIVER_SERVICE.UPDATE_RATE)
@@ -58,7 +64,7 @@ export class DriverController {
     @Payload('updateDriverRateDto') updateDriverRateDto: UpdateDriverRateDto,
     @Payload('eventId', ParseUUIDPipe) eventId: string,
   ) {
-    await this.driverService.handleDriverRatedEvent(
+    return this.driverService.handleDriverRatedEvent(
       updateDriverRateDto,
       eventId,
     );
@@ -78,10 +84,10 @@ export class DriverController {
 
   @MessagePattern(PATTERNS.DRIVER_SERVICE.CREATE)
   async handleCreateDriver(
-    @Payload('createDriverRequest') createDriverRequest: CreateDriverRequest,
+    @Payload('createDriverDto') createDriverDto: CreateDriverDto,
     @Payload('userId', ParseUUIDPipe) userId: string,
   ) {
-    return this.driverService.createDriver(createDriverRequest, userId);
+    return this.driverService.createDriver(createDriverDto, userId);
   }
 
   @MessagePattern(PATTERNS.DRIVER_SERVICE.GET_APPROVAL_STATUS)
@@ -99,18 +105,25 @@ export class DriverController {
     @GrpcBody(UpdateDriverStatusDto)
     updateDriverStatusDto: UpdateDriverStatusDto,
   ): Promise<UpdateDriverStatusGrpcResponse> {
-    const { status, driverId } = updateDriverStatusDto;
-    await this.driverService.updateDriverStatus(driverId, status);
+    const {
+      status: statusData,
+      driverId,
+      currentLocation,
+      currentTripId,
+    } = updateDriverStatusDto;
 
-    if (status === DriverStatusEnum.ONLINE) {
-      const { latitude, longitude } =
-        await this.commonService.getServerLocation();
-      await this.driverService.updateLocationOfDriver(
-        driverId,
-        latitude,
-        longitude,
-      );
-    }
+    if (statusData === DriverStatusEnum.ONLINE && !currentLocation?.trim())
+      throw new RpcException({
+        code: status.INVALID_ARGUMENT,
+        message: 'Current location is required to set status to ONLINE.',
+      });
+
+    await this.driverService.updateDriverStatus(
+      driverId,
+      statusData,
+      currentLocation,
+      currentTripId,
+    );
 
     return {
       message: 'Status updated successfully.',
@@ -147,12 +160,9 @@ export class DriverController {
   async updateDriverApproval(
     @GrpcBody(UpdateDriverApprovalDto)
     updateDriverApprovalDto: UpdateDriverApprovalDto,
-    metadata: Metadata,
   ) {
-    const driverId = getIdFromMetadata(metadata, 'driver-id', true);
     return this.driverService.updateDriverApprovalStatus(
       updateDriverApprovalDto,
-      driverId,
     );
   }
 

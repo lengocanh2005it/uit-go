@@ -36,32 +36,15 @@ export const DriverStatusSchema = new Schema(
         plateNumber: String,
         brand: String,
         model: String,
+        color: String,
       },
       map: 'vehicleCached',
     },
   },
   {
     timestamps: {
-      createdAt: {
-        created_at: {
-          type: {
-            value: Date,
-            settings: {
-              storage: 'iso',
-            },
-          },
-        },
-      },
-      updatedAt: {
-        updated_at: {
-          type: {
-            value: Date,
-            settings: {
-              storage: 'iso',
-            },
-          },
-        },
-      },
+      createdAt: 'createdAt',
+      updatedAt: 'updatedAt',
     },
   },
 );

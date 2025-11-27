@@ -1,8 +1,7 @@
-import { PipeTransform, Injectable, ArgumentMetadata } from '@nestjs/common';
+import { Metadata, status } from '@grpc/grpc-js';
+import { ArgumentMetadata, Injectable, PipeTransform } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
-import { validate } from 'class-validator';
-import { plainToInstance } from 'class-transformer';
-import { status, Metadata } from '@grpc/grpc-js';
+import { validate, ValidationError } from 'class-validator';
 
 @Injectable()
 export class GrpcValidationPipe implements PipeTransform {
@@ -18,21 +17,35 @@ export class GrpcValidationPipe implements PipeTransform {
 
     if (!metatype || !this.toValidate(metatype)) return value;
 
-    const object = plainToInstance(metatype, value);
-    const errors = await validate(object);
+    const errors = await validate(value, {
+      whitelist: true,
+      forbidNonWhitelisted: true,
+    });
 
     if (errors.length > 0) {
-      const message = errors
-        .map((e) => Object.values(e.constraints || {}))
-        .flat()
-        .join(', ');
+      const message = this.flattenValidationErrors(errors).join(', ');
       throw new RpcException({
         code: status.INVALID_ARGUMENT,
         message,
       });
     }
 
-    return object;
+    return value;
+  }
+
+  private flattenValidationErrors(errors: ValidationError[]): string[] {
+    const result: string[] = [];
+
+    for (const error of errors) {
+      if (error.constraints) {
+        result.push(...Object.values(error.constraints));
+      }
+      if (error.children && error.children.length) {
+        result.push(...this.flattenValidationErrors(error.children));
+      }
+    }
+
+    return result;
   }
 
   private toValidate(metatype: any): boolean {

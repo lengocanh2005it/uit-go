@@ -16,7 +16,16 @@ export interface MarkAsReadRequest {
   notificationId: string;
 }
 
-export interface MarkAsReadResponse {}
+export interface MarkAsReadResponse {
+  notification: Notification | undefined;
+  createdAt: Date | undefined;
+  message: string;
+  read: boolean;
+  readAt: Date | undefined;
+  data?: { [key: string]: any } | undefined;
+  updatedAt: Date | undefined;
+  id: string;
+}
 
 export interface DeleteNotificationOfUserRequest {
   notificationId: string;
@@ -44,6 +53,7 @@ export interface UserNotification {
   data?: { [key: string]: any } | undefined;
   userId: string;
   updatedAt: Date | undefined;
+  id: string;
 }
 
 export interface GetNotificationsOfUserRequest {

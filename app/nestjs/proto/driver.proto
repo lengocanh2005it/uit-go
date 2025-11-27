@@ -4,7 +4,6 @@ package driver;
 
 import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
-import "google/protobuf/wrappers.proto";
 import "trip.proto";
 
 service DriverService {
@@ -29,6 +28,7 @@ message NearbyDriver {
   double lat = 2;
   double lng = 3;
   double distance_km = 4;
+  optional VehicleCached vehicle = 5;
 }
 
 message FindAvailableDriversRequest {
@@ -53,22 +53,19 @@ message GetLocationOfDriverRespose {
 
 }
 
-enum DriverApprovalStatus {
-  DRIVER_APPROVAL_STATUS_UNSPECIFIED = 0;
-  DRIVER_APPROVAL_STATUS_PENDING = 1;
-  DRIVER_APPROVAL_STATUS_ACCEPTED = 2;
-  DRIVER_APPROVAL_STATUS_REJECTED = 3;
-}
-
 message GetDriverApprovalsRequest {
-  optional DriverApprovalStatus status = 1;
+  optional string status = 1;
 }
 
 message GetDriverApprovalsResponse {
+  repeated GetDriverApprovalsFormatted approvals = 1;
+}
+
+message GetDriverApprovalsFormatted {
   string driver_approval_id = 1;
   string status = 2;
-  optional google.protobuf.Timestamp reviewed_date = 3;
-  google.protobuf.StringValue note = 4;
+  google.protobuf.Timestamp reviewed_date = 3;
+  optional string note = 4;
   string driver_id = 5;
   string vehicle_id = 6;
   google.protobuf.Timestamp created_at = 7;
@@ -76,24 +73,32 @@ message GetDriverApprovalsResponse {
 }
 
 message UpdateDriverApprovalRequest {
-  DriverApprovalStatus status = 1;
-  google.protobuf.StringValue note = 2;
+  string status = 1;
+  optional string note = 2;
+  string driver_approval_id = 3;
+}
+
+message UpdateDriverApprovalData {
+  string driver_approval_id = 1;
+  string status = 2;
+  google.protobuf.Timestamp reviewed_date = 3;
+  optional string note = 4;
+  string driver_id = 5;
+  string vehicle_id = 6;
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp updated_at = 8;
 }
 
 message UpdateDriverApprovalResponse {
-
-}
-
-enum DriverStatus {
-  DRIVER_STATUS_UNSPECIFIED = 0;
-  DRIVER_STATUS_ONLINE = 1;
-  DRIVER_STATUS_OFFLINE = 2;
-  DRIVER_STATUS_BUSY = 3;
+  string message = 1;
+  UpdateDriverApprovalData data = 2;
 }
 
 message UpdateDriverStatusGrpcRequest {
-  DriverStatus status = 1;
+  string status = 1;
   string driver_id = 2;
+  optional string current_location = 3;
+  optional string current_trip_id = 4;
 }
 
 message UpdateDriverStatusGrpcResponse {
@@ -102,11 +107,11 @@ message UpdateDriverStatusGrpcResponse {
 }
 
 message GetAllTripsOfDriverRequest {
-  google.protobuf.StringValue after_cursor = 1;
+  optional string after_cursor = 1;
 }
 
 message GetAllTripsOfDriverResponse {
-  google.protobuf.StringValue after_cursor = 1;
+  optional string after_cursor = 1;
   repeated trip.Trip data = 2;
 }
 
@@ -123,9 +128,9 @@ message Driver {
 
 message DriverApproval {
   string driver_approval_id = 1;
-  DriverApprovalStatus status = 2;
-  optional google.protobuf.Timestamp reviewed_date = 3;
-  google.protobuf.StringValue note = 4;
+  string status = 2;
+  google.protobuf.Timestamp reviewed_date = 3;
+  optional string note = 4;
   string driver_id = 5;
   string vehicle_id = 6;
   google.protobuf.Timestamp created_at = 7;
@@ -147,11 +152,12 @@ message VehicleCached {
   string plate_number = 2;
   string brand = 3;
   string model = 4;
+  string color = 5;
 }
 
 message DriverStatusModel {
   string driver_id = 1;
-  DriverStatus status = 2;
+  string status = 2;
   google.protobuf.Timestamp last_seen_at = 3;
   string current_trip_id = 4;
   VehicleCached vehicle_cached = 5;

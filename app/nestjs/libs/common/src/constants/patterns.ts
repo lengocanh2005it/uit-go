@@ -13,6 +13,7 @@ export const PATTERNS = {
     FIND_AVAILABLE: 'driver.find-available',
     UPDATE_RATE: 'driver.rated',
     GET_BY_ID: 'driver.get-by-id',
+    UPDATE_LOCATION: 'driver.update-location',
   },
   NOTIFICATION_SERVICE: {
     CREATE_NOTIFICATION: 'notification.create-notification',

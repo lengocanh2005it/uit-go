@@ -21,7 +21,7 @@ import {
 import { Injectable } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 
 @Injectable()
 export class NotificationService {
@@ -36,8 +36,10 @@ export class NotificationService {
     const { notificationId } = markAsReadDto;
 
     const notification = await this.userNotificationModel
-      .findById(notificationId)
-      .populate('notification')
+      .findOne({
+        _id: new Types.ObjectId(notificationId),
+      })
+      .populate<{ notification: NotificationDocument }>('notification')
       .exec();
 
     if (!notification) {
@@ -62,8 +64,6 @@ export class NotificationService {
         message: `Can't update the notification.`,
       });
 
-    const notif = updated.notification as unknown as NotificationDocument;
-
     return {
       id: updated._id.toString(),
       message: updated.message,
@@ -73,11 +73,11 @@ export class NotificationService {
       createdAt: updated.createdAt,
       updatedAt: updated.updatedAt,
       notification: {
-        id: notif._id.toString(),
-        title: notif.title,
-        type: notif.type,
-        createdAt: notif.createdAt,
-        updatedAt: notif.updatedAt,
+        id: notification.notification._id.toString(),
+        title: notification.notification.title,
+        type: notification.notification.type,
+        createdAt: notification.notification.createdAt,
+        updatedAt: notification.notification.updatedAt,
       },
     };
   }
@@ -87,7 +87,9 @@ export class NotificationService {
   ): Promise<DeleteNotificationOfUserResponse> {
     const { notificationId } = deleteNotificationDto;
 
-    const notif = await this.userNotificationModel.findById(notificationId);
+    const notif = await this.userNotificationModel.findOne({
+      _id: new Types.ObjectId(notificationId),
+    });
 
     if (!notif)
       throw new RpcException({
@@ -95,7 +97,9 @@ export class NotificationService {
         message: `Notification not found.`,
       });
 
-    await this.userNotificationModel.findOneAndDelete({ id: notificationId });
+    await this.userNotificationModel.findOneAndDelete({
+      _id: new Types.ObjectId(notificationId),
+    });
 
     return {
       message: 'The notification has been deleted successfully.',

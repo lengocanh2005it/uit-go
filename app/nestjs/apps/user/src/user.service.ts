@@ -1,8 +1,8 @@
 import { CreateUserDto, LoginUserDto, UpdateProfileDto } from '@/user/src/dto';
 import { status } from '@grpc/grpc-js';
 import {
+  convertStringsToDates,
   generateNotificationContent,
-  grpcRoleToUserRoleMapping,
   NotificationParams,
   SERVICES,
   TGrpcUser,
@@ -30,6 +30,7 @@ import CircuitBreaker from 'opossum';
 import { DataSource, EntityManager, Repository } from 'typeorm';
 import { OutboxEvent, User, UserProfile } from './entities';
 import { NotificationTypeEnum } from '@libs/common/enums/notification';
+import { instanceToPlain } from 'class-transformer';
 
 @Injectable()
 export class UserService {
@@ -87,7 +88,7 @@ export class UserService {
           SERVICES.DRIVER_SERVICE,
           PATTERNS.DRIVER_SERVICE.CREATE,
           {
-            createDriverRequest,
+            createDriverDto: createDriverRequest,
             userId,
           },
         ),
@@ -133,7 +134,7 @@ export class UserService {
     const user = this.userRepo.create({
       email,
       password: hashedPassword,
-      role: grpcRoleToUserRoleMapping[role],
+      role,
     });
 
     await this.userRepo.save(user);
@@ -228,7 +229,7 @@ export class UserService {
 
   public login = async (loginUserDto: LoginUserDto): Promise<LoginResponse> => {
     return this.dataSource.transaction(async (manager) => {
-      const { email, password } = loginUserDto;
+      const { email, password, currentLocation } = loginUserDto;
 
       const user = await manager
         .getRepository(User)
@@ -248,7 +249,14 @@ export class UserService {
           message: 'Invalid credentials',
         });
 
-      if (user.role === UserRole.DRIVER) {
+      if (user.role === UserRole.DRIVER && !currentLocation?.trim()) {
+        throw new RpcException({
+          code: status.INVALID_ARGUMENT,
+          message: 'Driver must provide current location when logging in.',
+        });
+      }
+
+      if (user.role === UserRole.DRIVER && currentLocation?.trim()) {
         const driverApproval = await this.getDriverApprovalStatusBreaker.fire(
           user.id,
         );
@@ -281,7 +289,7 @@ export class UserService {
         secret: this.configService.get<string>('jwt_secret', ''),
       });
 
-      if (user.role === UserRole.DRIVER) {
+      if (user.role === UserRole.DRIVER && currentLocation?.trim()) {
         const driverInfo = await this.getDriverInfoBreaker.fire(user.id);
 
         await this.createNewOutbox(
@@ -290,6 +298,7 @@ export class UserService {
             payload: {
               driverId: driverInfo.driverId,
               status: DriverStatusEnum.ONLINE,
+              currentLocation,
             },
             aggregateId: user.id,
             aggregateType: 'USER',
@@ -318,13 +327,26 @@ export class UserService {
         message: 'User not found.',
       });
 
-    let formattedUser: any = omit(user, ['password']);
+    let formattedUser: any = {
+      ...omit(user, ['password']),
+      createdAt: user.createdAt?.toISOString(),
+      updatedAt: user.updatedAt?.toISOString(),
+      profile: user.profile
+        ? {
+            ...user.profile,
+            birthDay: user.profile.birthDay?.toISOString(),
+          }
+        : undefined,
+    };
 
     if (user.role === UserRole.DRIVER) {
       formattedUser.driverInfo = await this.getDriverInfoBreaker.fire(user.id);
     }
 
-    return formattedUser;
+    let plainUser: any = instanceToPlain(formattedUser);
+    plainUser = convertStringsToDates(plainUser);
+
+    return plainUser;
   };
 
   async updateProfile(grpcUser: TGrpcUser, updateProfileDto: UpdateProfileDto) {

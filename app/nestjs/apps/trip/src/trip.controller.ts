@@ -13,7 +13,7 @@ import {
   UpdateTripDto,
   UpdateTripRequestStatusDto,
 } from '@libs/common/dto';
-import { JwtGrpcGuard } from '@libs/common/guards';
+import { JwtGrpcGuard, ThrottlerGrpcGuard } from '@libs/common/guards';
 import { GrpcValidationPipe } from '@libs/common/pipes';
 import { TRIP_SERVICE_NAME } from '@libs/common/proto/trip';
 import { Controller, ParseUUIDPipe, UseGuards, UsePipes } from '@nestjs/common';
@@ -32,7 +32,7 @@ export class TripController {
   }
 
   @GrpcMethod(TRIP_SERVICE_NAME, GRPC_METHODS.TRIP_SERVICE.CREATE_TRIP)
-  @UseGuards(JwtGrpcGuard)
+  @UseGuards(JwtGrpcGuard, ThrottlerGrpcGuard)
   @UsePipes(GrpcValidationPipe)
   async createTrip(
     @GrpcBody(CreateTripDto) createTripDto: CreateTripDto,
