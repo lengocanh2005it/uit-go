@@ -42,7 +42,7 @@ export default function () {
 
         check(response, {
             'status is OK': (r) => r.status === grpc.StatusOK,
-            'has drivers': (r) => r.message && r.message.count >= 0,
+            'has drivers': (r) => r.message && r.message.count > 0,
         });
 
         sleep(1);
