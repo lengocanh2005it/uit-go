@@ -230,16 +230,25 @@ services:
     command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
 
   k6:
-    image: grafana/k6
+    image: grafana/k6:latest
     container_name: k6
     volumes:
       - ../../infra/monitoring/k6:/scripts
       - ./proto:/proto
     networks:
       - backend
-    entrypoint: [""]
-    command: ["k6", "run", "/scripts/loadtest.js"]
+    environment:  
+      K6_PROMETHEUS_RW_SERVER_URL: http://prometheus:9090/api/v1/write
+    entrypoint: ["k6"]
+    command:
+      [
+        "run",
+        "--out",
+        "experimental-prometheus-rw",
+        "/scripts/loadtest.js"
+      ]
     depends_on:
+      - prometheus
       - user-service
       - trip-service
       - driver-service
@@ -254,6 +263,10 @@ services:
       - ../../infra/monitoring/prometheus:/etc/prometheus
     ports:
       - "9090:9090"
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--web.enable-remote-write-receiver'
+      - '--web.enable-lifecycle'
 
   grafana:
     image: grafana/grafana
