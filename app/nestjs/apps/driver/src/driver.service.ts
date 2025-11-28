@@ -517,72 +517,69 @@ export class DriverService {
       25,
     );
 
-    const keyLat = lat.toFixed(3);
-    const keyLng = lng.toFixed(3);
-    const cacheKey = `avail:${keyLat}:${keyLng}:${maxRadiusKm}`;
-    const cached = await this.redisService.get(cacheKey);
+    const allDrivers = await this.driverStatusModel.scan().exec();
 
-    if (cached) {
-      this.logger.debug(`Cache hit for location ${lat},${lng}`);
-      return JSON.parse(cached) as FindAvailableDriversResponse;
+    const driversInRadius: {
+      driverId: string;
+      distanceKm: number;
+      vehicle?: any;
+      lat: number;
+      lng: number;
+    }[] = [];
+
+    for (const driverStatus of allDrivers) {
+      if (driverStatus.status !== DriverStatusEnum.ONLINE) continue;
+
+      const driverId = driverStatus.driverId;
+
+      const driverLocations = await this.driverLocationModel
+        .scan({ driver_id: driverId })
+        .exec();
+
+      if (!driverLocations.length) continue;
+
+      for (const loc of driverLocations) {
+        const R = 6371;
+        const dLat = ((loc.lat - lat) * Math.PI) / 180;
+        const dLng = ((loc.lng - lng) * Math.PI) / 180;
+        const a =
+          Math.sin(dLat / 2) ** 2 +
+          Math.cos((lat * Math.PI) / 180) *
+            Math.cos((loc.lat * Math.PI) / 180) *
+            Math.sin(dLng / 2) ** 2;
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        const distanceKm = R * c;
+
+        if (distanceKm <= maxRadiusKm) {
+          driversInRadius.push({
+            driverId,
+            distanceKm,
+            vehicle: driverStatus.vehicleCached,
+            lat: loc.lat,
+            lng: loc.lng,
+          });
+        }
+      }
     }
 
-    const geoDrivers = await this.redisService.geoRadiusWithDistance(
-      'drivers:locations',
-      lng,
-      lat,
-      maxRadiusKm,
-      'km',
-      topN * 3,
-    );
+    driversInRadius.sort((a, b) => a.distanceKm - b.distanceKm);
 
-    if (!geoDrivers.length) return { count: 0, drivers: [] };
-
-    const driverIds = geoDrivers.map((d) => d.member);
-    const onlineMap = await this.redisService.areDriversOnline(driverIds);
-    const keys: DriverStatusKey[] = driverIds.map((id) => ({ driverId: id }));
-    const driverStatuses = await this.driverStatusModel.batchGet(keys);
-
-    const driverStatusMap = new Map(
-      driverStatuses.map((ds) => [ds.toJSON().driver_id, ds]),
-    );
-
-    const geoPosPromises = geoDrivers.map((d) =>
-      this.redisService.geoPos('drivers:locations', d.member),
-    );
-
-    const geoPositions = await Promise.all(geoPosPromises);
-    const drivers: NearbyDriver[] = [];
-
-    for (let i = 0; i < geoDrivers.length; i++) {
-      const d = geoDrivers[i];
-
-      if (!onlineMap[d.member]) continue;
-
-      const pos = geoPositions[i];
-      if (!pos) continue;
-
-      const ds = driverStatusMap.get(d.member);
-
-      drivers.push({
-        driverId: d.member,
-        lat: pos.lat,
-        lng: pos.lng,
-        distanceKm: d.distance,
-        vehicle: ds?.toJSON()?.vehicle_cached,
+    const nearbyDrivers: NearbyDriver[] = [];
+    for (let i = 0; i < Math.min(topN, driversInRadius.length); i++) {
+      const d = driversInRadius[i];
+      nearbyDrivers.push({
+        driverId: d.driverId,
+        lat: d.lat,
+        lng: d.lng,
+        distanceKm: d.distanceKm,
+        vehicle: d.vehicle,
       });
-
-      if (drivers.length >= topN) break;
     }
 
-    const result: FindAvailableDriversResponse = {
-      count: drivers.length,
-      drivers,
+    return {
+      count: nearbyDrivers.length,
+      drivers: nearbyDrivers,
     };
-
-    await this.redisService.set(cacheKey, JSON.stringify(result), 30);
-
-    return result;
   }
 
   async getLocationOfDriver(
