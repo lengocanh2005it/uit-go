@@ -605,7 +605,7 @@ uit-go/
 
 ### 🔑 1. Get Private Keys
 
-Contact your team to obtain the private keys for each service's encrypted `.env` files.
+Contact our team to obtain the private keys for each service's encrypted `.env` files.
 
 ---
 
@@ -632,7 +632,7 @@ npm run gen:proto
 - **New library**:
 
 ```bash
-  cd /app/nestjs/libs
+  cd /app/nestjs/apps
   nest generate lib <lib_name>
 ```
 
