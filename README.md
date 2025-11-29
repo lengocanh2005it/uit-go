@@ -724,7 +724,7 @@ All project documentation is centrally organized in the `/docs` directory for ea
   - ADR-002: API Gateway Choice – Kong Gateway
   - ADR-003: Database Choice – Polyglot Persistence
   - ADR-004: Observability Stack – Grafana and Prometheus
-  - ADR-005: K6 Load Testing
+  - ADR-005: K6 for Load Testing
   - ADR-006: Monorepo Structure for Microservice Management
   - ADR-007: Infrastructure as Code with Terraform
   - ADR-008: Redis Adoption – Low-Latency Caching & Realtime Scalability
