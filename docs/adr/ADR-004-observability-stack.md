@@ -113,6 +113,8 @@ After evaluating multiple options, the team selected Prometheus + Grafana as the
 
 > Prometheus provides efficient metric collection and storage with powerful query capabilities, while Grafana offers rich visualization and dashboarding. This combination delivers comprehensive monitoring coverage for all system components with minimal operational overhead, enabling the team to maintain system reliability and performance—fully aligned with Module A objectives.
 
+---
+
 ### Trade-offs
 
 | What We Sacrifice   | Impact                                        | Mitigation Strategy                                     |
@@ -120,6 +122,8 @@ After evaluating multiple options, the team selected Prometheus + Grafana as the
 | Long-term storage   | Default Prometheus retention is 15 days       | Implement Thanos for long-term retention if needed      |
 | Push-based metrics  | Pull model may not suit all services          | Use Pushgateway for short-lived jobs                    |
 | Alert management	  | Can become complex at scale                   | Document alerting rules and use GitOps for management   |
+
+---
 
 ### Positive Consequences
 
@@ -135,6 +139,8 @@ After evaluating multiple options, the team selected Prometheus + Grafana as the
 - ❌ Additional operational overhead for maintaining monitoring stack
 - ❌ Learning curve for PromQL and dashboard configuration
 - ❌ Long-term storage requires additional components
+
+---
 
 ## Validation and Measurement
 
