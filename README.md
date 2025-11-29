@@ -711,3 +711,69 @@ npm run build
 ```
 
 ---
+
+# 📚 Documentation
+
+All project documentation is centrally organized in the `/docs` directory for easy reference and navigation:
+
+- [ARCHITECTURE.md](/docs/ARCHITECTURE.md) — Detailed system architecture
+- [REPORT.md](/docs/REPORT.md) — Project report with trade-offs analysis
+- [ADR/](/docs/adr/) — Architectural Decision Records
+
+  - ADR-001: Choosing RabbitMQ Instead of Kafka for Event-Driven Messaging
+  - ADR-002: API Gateway Choice – Kong Gateway
+  - ADR-003: Database Choice – Polyglot Persistence
+  - ADR-004: Observability Stack – Grafana and Prometheus
+  - ADR-005: K6 Load Testing
+  - ADR-006: Monorepo Structure for Microservice Management
+  - ADR-007: Infrastructure as Code with Terraform
+  - ADR-008: Redis Adoption – Low-Latency Caching & Realtime Scalability
+  - ADR-009: Choose gRPC Over REST For Client-Facing Communication
+
+- [IMAGES/](/docs/images/) — Project diagrams, flowcharts, and visual assets
+
+---
+
+# 👥 Team Members
+
+**Course**: SE360 – Cloud Computing and Modern Application Development  
+**University**: University of Information Technology (**UIT**)  
+**Class**: SE360.Q11  
+**Semester**: 1st Semester, 2025-2026
+
+| Name               | Student ID | Responsibilities                                                                                              |
+| ------------------ | ---------- | ------------------------------------------------------------------------------------------------------------- |
+| Lê Ngọc Anh        | 23520048   | Project Init, Trip Service, Notification Service, Terraform, Docker Compose, Documentation                    |
+| Lê Văn Bảo         | 23520112   | Kong API Gateway, Database Design, Driver Service, Prometheus + Grafana Integration, Documentation            |
+| Nguyễn Bá Tuấn Anh | 23520054   | User Service, RabbitMQ + Apache Pulsar Integration, K6 Load Test, Redis Geo Hashing + DynamoDB, Documentation |
+
+---
+
+# 📄 License
+
+This project is licensed under the MIT License — see the [LICENSE](/docs/LICENSE) file for details.
+
+---
+
+# 🙏 Acknowledgments
+
+- **NestJS** — for providing a powerful and modular backend framework.
+- **Kong API Gateway** — for enabling reliable and scalable API traffic management.
+- **Docker** — for containerization and simplified local development.
+- **Redis** — for caching, real-time location tracking, and distributed locks.
+- **RabbitMQ & Apache Pulsar** — for supporting asynchronous messaging and event-driven workflows.
+- **gRPC** — for fast and efficient client-facing APIs.
+- **Course Instructor** — for continuous guidance and valuable insights throughout the project.
+
+---
+
+# 📞 Contact
+
+For questions or support, please reach out to:
+
+- Email: 23520048@gm.uit.edu.vn
+- Repository: https://github.com/lengocanh2005it/uit-go.git
+
+---
+
+Built with ❤️ by a team of 3 aspiring Software Engineers
