@@ -53,6 +53,8 @@ UIT-Go simulates a real-world ride-sharing platform (similar to Uber/Grab) with 
 - **Event-Driven Communication**: Asynchronous messaging with RabbitMQ
 - **Module A Focus**: Scalability & Performance
 
+---
+
 ## 🔑 Key Features
 
 - 🔐 **Authentication & API Gateway**: Kong handles routing, request validation, and JWT-based authentication
@@ -190,3 +192,143 @@ Before you begin, ensure the following tools and services are installed and avai
   - Grafana & Prometheus (if used locally)
 
 ---
+
+# 🚀 Installation & Setup
+
+### 1. Clone the Repository
+
+```bash
+git clone https://github.com/lengocanh2005it/uit-go.git
+cd uit-go/app/nestjs
+```
+
+### 2. Install Dependencies
+
+```bash
+npm install
+```
+
+### 3. Configure Global Environment Variable
+
+Set a common decryption key for all encrypted `.env` files. This key will be used by **all services**:
+
+```bash
+export DOTENV_PRIVATE_KEY="your_private_key_here"
+```
+
+### 4. Configure Environment Variables for Each Service
+
+Before running a service, set the decryption key for its encrypted `.env` file. The `.env` files are located as follows:
+
+- **Driver Service**: `/apps/driver/.env`
+- **Trip Service**: `/apps/trip/.env`
+- **User Service**: `/apps/user/.env`
+- **Notification Service**: `/apps/notification/.env`
+
+Export the key for each service before starting it:
+
+```bash
+# Driver Service
+export DOTENV_PRIVATE_KEY="your_private_key_here"
+
+# Trip Service
+export DOTENV_PRIVATE_KEY="your_private_key_here"
+
+# User Service
+export DOTENV_PRIVATE_KEY="your_private_key_here"
+
+# Notification Service
+export DOTENV_PRIVATE_KEY="your_private_key_here"
+
+```
+
+### 5. Create Secrets Folder and Key Files
+
+For secure local development, create a `secrets` folder to store your keys and database password:
+
+```bash
+mkdir -p /secrets
+```
+
+Inside the `secrets` folder, create the following files:
+
+- `dotenv_driver_key.txt` – Paste the **DOTENV_PRIVATE_KEY** for **Driver Service**
+- `dotenv_trip_key.txt` – Paste the **DOTENV_PRIVATE_KEY** for **Trip Service**
+- `dotenv_user_key.txt` – Paste the **DOTENV_PRIVATE_KEY** for **User Service**
+- `dotenv_notification_key.txt` – Paste the **DOTENV_PRIVATE_KEY** for **Notification Service**
+- `mongo_root_password.txt` – Paste your **MongoDB root password**
+
+You can create and populate these files using the following commands:
+
+```bash
+echo "your_driver_private_key_here" > /secrets/dotenv_driver_key.txt
+echo "your_trip_private_key_here" > /secrets/dotenv_trip_key.txt
+echo "your_user_private_key_here" > /secrets/dotenv_user_key.txt
+echo "your_notification_private_key_here" > /secrets/dotenv_notification_key.txt
+echo "your_mongo_root_password_here" > /secrets/mongo_root_password.txt
+```
+
+---
+
+# 🏃 Running the Application
+
+Before running the services, make sure you are in the `/app/nestjs` folder. If not, navigate there:
+
+```bash
+cd /app/nestjs
+```
+
+### 1. Start All Services with Docker Compose
+
+You have two options to build and start all services and infrastructure containers.
+
+**Option 1: Using the npm helper script**
+
+```bash
+npm run up
+```
+
+This command will:
+
+- Build all Docker images for the services
+- Start local infrastructure containers (PostgreSQL, MySQL, MongoDB, Redis, RabbitMQ, Pulsar)
+- Launch all NestJS backend services
+
+**Option 2: Manual build and start with dotenvx**
+
+```bash
+npm run build
+dotenvx run -- docker compose up -d
+```
+
+This approach will:
+
+- Build all backend service images separately
+- Use **dotenvx** to provide the encrypted **.env** keys to the containers
+- Start the Docker Compose stack in detached mode
+
+### 2. Verify Running Services
+
+Check that all containers are up and running:
+
+```bash
+docker ps
+```
+
+You should see containers for all services and infrastructure listed above.
+
+![Running Services with Docker Compose](docs/images/docker-ps.png)
+
+> Screenshot showing all backend services and infrastructure containers running via Docker Compose.
+
+### 3. Stop the Application
+
+To stop all running services and containers, you can use one of the following commands:
+
+```bash
+# Using the npm helper script
+npm run down
+
+# Or using Docker Compose directly
+docker compose down
+```
