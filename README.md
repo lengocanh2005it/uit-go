@@ -28,18 +28,19 @@ The system architecture is designed following **Module A: Scalability & Performa
 ## 📋 Table of Contents
 
 1. [Project Overview](#project-overview)
-2. [Architecture](#architecture)
-3. [Technology Stack](#technology-stack)
-4. [Prerequisites](#prerequisites)
-5. [Installation & Setup](#installation--setup)
-6. [Running the Application](#running-the-application)
-7. [Testing Inter-Service Communication](#testing-inter-service-communication)
-8. [Project Structure](#project-structure)
-9. [Development Guide](#development-guide)
-10. [Troubleshooting](#troubleshooting)
-11. [Documentation](#documentation)
-12. [Team Members](#team-members)
-13. [License](#license)
+2. [Key Features](#key-features)
+3. [Architecture](#architecture)
+4. [Technology Stack](#technology-stack)
+5. [Prerequisites](#prerequisites)
+6. [Installation & Setup](#installation--setup)
+7. [Running the Application](#running-the-application)
+8. [Testing Inter-Service Communication](#testing-inter-service-communication)
+9. [Project Structure](#project-structure)
+10. [Development Guide](#development-guide)
+11. [Troubleshooting](#troubleshooting)
+12. [Documentation](#documentation)
+13. [Team Members](#team-members)
+14. [License](#license)
 
 ---
 
@@ -74,3 +75,118 @@ UIT-Go is built following a **cloud-native microservices architecture**, compose
 ---
 
 ## 🛠 Technology Stack
+
+UIT-Go is built using a modern cloud-native stack, combining microservices, message-driven communication, caching, and observability tools to ensure high scalability and performance.
+
+### **Backend & Core Framework**
+
+- **NestJS (TypeScript)**
+- **gRPC** – client-facing API communication
+- **Opossum** – circuit breaking for service resilience
+- **BullMQ** – background job & queue processing
+
+### **Databases & Storage**
+
+- **PostgreSQL** – relational data (User/Trip)
+- **MySQL** – service-specific structured storage
+- **MongoDB** – flexible notification/event documents
+- **DynamoDB** – high-performance geolocation & driver data
+- **TypeORM** – ORM for PostgreSQL/MySQL
+
+### **Caching, Locking & Real-time**
+
+- **Redis** – caching, rate limiting
+- **Redis Geospatial** – real-time driver location tracking
+- **Redlock** – distributed locking to prevent race conditions
+
+### **Messaging & Streaming**
+
+- **RabbitMQ** – inter-service asynchronous communication
+- **Apache Pulsar** – event streaming used specifically for trip creation workflows
+- **amqplib** – RabbitMQ client for Node.js
+- **pulsar-client** – Apache Pulsar messaging client
+
+### **API Communication**
+
+- **@grpc/grpc-js** – gRPC client/server implementation
+
+### **API Gateway & Security**
+
+- **Kong API Gateway** – routing, authentication, rate limiting, JWT validation
+- **helmet**, **cors** – security middleware (optional)
+
+### **Containerization & DevOps**
+
+- **Docker** – containerized microservices
+- **Docker Compose** – local orchestration
+
+### **Monitoring, Metrics & Performance**
+
+- **Prometheus** – metrics collection
+- **Grafana** – dashboards & visualization
+- **k6** – performance & load testing
+
+### **Utilities & Developer Tools**
+
+- **class-validator**, **class-transformer** – DTO validation & transformation
+- **dotenv** – environment variable management
+- **winston / pino** – logging
+
+---
+
+# 📦 Prerequisites
+
+Before you begin, ensure the following tools and services are installed and available in your development environment:
+
+### **Core Requirements**
+
+- **Node.js (v20.x or higher)** – Runtime for all backend services ([Download](https://nodejs.org/en/download/))
+- **npm (v10.x or higher)** – Package manager (bundled with Node.js)
+- **Docker Desktop (v24.x or higher)** – Required for local infrastructure (DBs, Redis, RabbitMQ, Pulsar...) ([Download](https://www.docker.com/products/docker-desktop))
+- **Git** – Version control ([Download](https://git-scm.com/downloads))
+
+---
+
+### **Infrastructure & Cloud Tools**
+
+- **Terraform (v1.8+)** – Infrastructure-as-Code for managing cloud resources ([Download](https://developer.hashicorp.com/terraform/downloads))
+- **AWS CLI** – Required if deploying on AWS (ECS/EKS, DynamoDB, S3, etc.) ([Download](https://aws.amazon.com/cli/))
+
+---
+
+### **Databases & Message Brokers**
+
+(You can run most of them via Docker Compose)
+
+- **PostgreSQL** – For User/Trip relational data
+- **MySQL** – For service-specific relational storage
+- **MongoDB** – For notifications/events
+- **Redis** – Caching, rate limiting, distributed locks (Redlock), job queues (BullMQ)
+- **RabbitMQ** – Main inter-service message broker
+- **Apache Pulsar (optional)** – Used only for Trip Creation event streaming
+- **DynamoDB** – High-performance geolocation storage (if running locally, use DynamoDB Local or AWS)
+
+---
+
+### **Optional but Recommended Tools**
+
+- Visual Studio Code + extensions:
+
+  - NestJS Snippets
+  - ESLint
+  - Prisma / SQL Tools
+  - Terraform
+
+- Database Clients:
+
+  - pgAdmin / DBeaver / TablePlus
+
+- API Testing Tools:
+
+  - Postman / Insomnia
+
+- Realtime Debugging / Monitoring:
+
+  - Grafana & Prometheus (if used locally)
+
+---
