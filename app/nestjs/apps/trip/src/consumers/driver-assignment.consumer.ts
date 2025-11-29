@@ -259,11 +259,6 @@ export class DriverAssignmentConsumer implements OnModuleInit, OnModuleDestroy {
               newTrip,
             );
 
-            await this.tripRequestProducer.processTripRequest(
-              { tripRequestId: newTripRequest.id, sub: passengerId },
-              15000,
-            );
-
             const { message, title } = generateNotificationContent(
               NotificationTypeEnum.TRIP_REQUESTED,
               {
@@ -276,6 +271,11 @@ export class DriverAssignmentConsumer implements OnModuleInit, OnModuleDestroy {
               SERVICES.DRIVER_SERVICE,
               PATTERNS.DRIVER_SERVICE.GET_BY_ID,
               { driverId: driver.driverId },
+            );
+
+            await this.tripRequestProducer.processTripRequest(
+              { tripRequestId: newTripRequest.id, sub: driverInfo.userId },
+              15000,
             );
 
             this.rabbitMqService.emit(
