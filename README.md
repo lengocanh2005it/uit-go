@@ -518,3 +518,85 @@ GEOPOS drivers:locations <driver_id_here>
 ```
 
 ---
+
+# 📁 Project Structure
+
+```text
+uit-go/
+├── app/
+│   ├── kong/                  # API Gateway (Kong)
+│   │   ├── Dockerfile         # Dockerfile for Kong
+│   │   └── kong.yml           # Kong configuration
+│   ├── nestjs/                # NestJS backend services
+│   │   ├── apps/
+│   │   │   ├── driver/        # Driver & location service
+│   │   │   │   ├── .env       # Encrypted environment file
+│   │   │   │   ├── Dockerfile
+│   │   │   │   └── Dockerfile.db
+│   │   │   ├── notification/  # Notification service
+│   │   │   │   ├── .env
+│   │   │   │   ├── Dockerfile
+│   │   │   │   ├── Dockerfile.db
+│   │   │   │   └── entrypoint.sh
+│   │   │   ├── trip/          # Trip management service
+│   │   │   │   ├── .env
+│   │   │   │   ├── Dockerfile
+│   │   │   │   ├── Dockerfile.db
+│   │   │   │   └── entrypoint.sh
+│   │   │   └── user/          # User management service
+│   │   │       ├── .env
+│   │   │       ├── Dockerfile
+│   │   │       ├── Dockerfile.db
+│   │   │       └── entrypoint.sh
+│   │   ├── dist/              # Build output
+│   │   ├── libs/
+│   │   │   └── common/        # Shared library for all services
+│   │   │       └── src/
+│   │   │           ├── configs/
+│   │   │           ├── constants/
+│   │   │           ├── decorators/
+│   │   │           ├── enums/
+│   │   │           ├── guards/
+│   │   │           ├── pipes/
+│   │   │           ├── utils/
+│   │   │           ├── common.module.ts
+│   │   │           ├── common.service.ts
+│   │   │           └── index.ts
+│   │   ├── .env               # Global environment for NestJS
+│   │   ├── proto/             # gRPC proto definitions
+│   │   ├── scripts/           # Setup and build scripts
+│   │   ├── docker-compose.yml # Local development compose file
+│   │   ├── .dockerignore
+│   │   ├── nest-cli.json
+│   │   ├── package-lock.json
+│   │   ├── package.json
+│   │   └── redis.conf         # Redis configuration
+├── docs/                      # Documentation
+│   ├── adr/                   # Architectural Decision Records
+│   ├── images/                # Images for README/ARCHITECTURE.md
+│   ├── ARCHITECTURE.md        # Detailed architecture document
+│   └── REPORT.md              # Project report
+├── infra/                     # Infrastructure as Code (Terraform)
+│   ├── modules/
+│   │   ├── dynamodb/          # DynamoDB module
+│   │   ├── ecs_services/      # ECS Services module
+│   │   ├── iam/               # IAM module
+│   │   ├── kong/              # Kong infrastructure module
+│   │   ├── rabbitmq/          # RabbitMQ module
+│   │   ├── rds/               # RDS module
+│   │   ├── redis/             # Redis module
+│   │   └── vpc/               # VPC network module
+│   ├── monitoring/
+│   │   ├── k6/                # Load testing scripts
+│   │   └── prometheus/        # Prometheus configuration
+│   ├── .terraform.lock.hcl
+│   ├── main.tf
+│   ├── outputs.tf
+│   ├── providers.tf
+│   ├── terraform.tfvars
+│   └── variables.tf
+└── README.md                  # Project README
+
+```
+
+---
