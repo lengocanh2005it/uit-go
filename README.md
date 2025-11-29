@@ -332,3 +332,189 @@ npm run down
 # Or using Docker Compose directly
 docker compose down
 ```
+
+# 🧪 Testing Inter-Service Communication
+
+### 1. Health Check
+
+Each backend service exposes a **gRPC Health Checking Service**. You can test it via **Kong gRPC proxy** using `grpcurl`.
+
+```bash
+# Check Driver Service
+grpcurl -plaintext localhost:9000 driver.DriverService.Health/Check
+# Expected Response:
+# {
+#   "status": "SERVING"
+# }
+
+# Check Trip Service
+grpcurl -plaintext localhost:9000 trip.TripService.Health/Check
+# Expected Response:
+# {
+#   "status": "SERVING"
+# }
+
+# Check User Service
+grpcurl -plaintext localhost:9000 user.UserService.Health/Check
+# Expected Response:
+# {
+#   "status": "SERVING"
+# }
+
+# Check Notification Service
+grpcurl -plaintext localhost:9000 notification.NotificationService.Health/Check
+# Expected Response:
+# {
+#   "status": "SERVING"
+# }
+
+```
+
+---
+
+### 2. Test Authentication Flow
+
+**Register a new passenger or driver using **gRPC** via Kong proxy (`localhost:9000`):**
+
+```bash
+grpcurl -plaintext -d '{
+  "email": "passenger@test.com",
+  "password": "Test@1234",
+  "full_name": "Test User",
+  "phone_number": "+84901234567",
+  "address": "123 Main St, HCMC",
+  "role": "customer",
+  "birth_day": "1990-01-01"
+}' localhost:9000 user.UserService.Register
+
+# Expected Response:
+# {
+#   "message": "Your account has been created.",
+#   "success": true,
+#   "data": {
+#     "sub": "b61f72cd-725c-44af-9a8e-70c48777f307",
+#     "full_name": "Test User",
+#     "email": "passenger@test.com",
+#     "role": "customer"
+#   }
+# }
+```
+
+**Login a passenger or driver using **gRPC** via Kong proxy (`localhost:9000`):**
+
+```bash
+grpcurl -plaintext -d '{
+  "email": "passenger@test.com",
+  "password": "Test@1234"
+}' localhost:9000 user.UserService.Login
+
+# Expected Response:
+# {
+#   "message": "Login successful.",
+#   "data": {
+#     "access_token": "jwt-access-token",
+#   }
+# }
+
+```
+
+Save the returned **`access_token`** for subsequent requests.
+
+---
+
+### 3. Test Trip Creation Flow (Trip Service → Driver Service) via gRPC
+
+**Create a Trip Request using gRPC via Kong proxy (`localhost:9000`):**
+
+```bash
+grpcurl -plaintext \
+  -H "Authorization: Bearer <your_access_token>" \
+  -d '{
+    "original_address": "123 Main St, HCMC",
+    "destination_address": "456 Nguyen Trai, HCMC"
+  }' localhost:9000 trip.TripService.CreateTrip
+
+  # Expected Response:
+# {
+#   "message": "Your trip request is being processed. You will receive a notification as soon as there is an update."
+# }
+```
+
+**What happens behind the scenes:**
+
+1. **Request → Kong API Gateway (gRPC)**
+   - Client sends a gRPC request to create a trip via Kong.
+2. **Trip Service → DriverAssignmentProducer**
+   - Trip Service publishes a new trip creation event to the assignment producer.
+3. **DriverAssignmentProducer → Apache Pulsar**
+   - The event is streamed through Pulsar to trigger driver assignment workflows.
+4. **Circuit Breaker → RabbitMQ Broker → Driver Service**
+   - Using **Opossum**, the event is sent to RabbitMQ.
+   - Driver Service consumes the event, searches nearby drivers via **Redis Geospatial**, and returns an array of available drivers.
+5. **DriverAssignmentConsumer → Create Trip with Concurrency Control**
+   - Loops over available drivers.
+   - Uses **Redlock** + **Opossum** to avoid race conditions.
+   - Creates a new trip and new trip request.
+6. **RabbitMQ → Notification Service**
+   - Trip creation triggers events in RabbitMQ to generate **in-app notifications** for both the assigned driver and the passenger.
+
+---
+
+### 4. Test RabbitMQ Message Flow
+
+Access RabbitMQ Management UI:
+
+- URL: http://localhost:15672
+- Username: **`guest`**
+- Password: **`guest`**
+
+Navigate to Queues tab to see:
+
+- **`trip.q`** - Trip events
+- **`driver.q`** - Driver events
+- **`notification.q`** - Notification events
+- **`user.q`** - User events
+
+---
+
+### 5. Test Driver Status Update (gRPC)
+
+Update driver status using **gRPC** via Kong proxy (`localhost:9000`) with **Authorization header**:
+
+```bash
+grpcurl -plaintext \
+  -H "Authorization: Bearer <your_access_token>" \
+  -d '{
+    "driver_id": "caa29287-b8cd-4ad0-bf71-f2d1bd54944d",
+    "status": "online",
+    "current_location": "120 Nguyễn Huệ, Phường Bến Nghé, Quận 1, TP. Hồ Chí Minh"
+  }' localhost:9000 driver.DriverService.UpdateDriverStatusGrpc
+
+# Expected Response:
+# {
+#   "message": "Status updated successfully.",
+#   "data": {
+#     "driverId": "faee5492-2d5f-4c1b-9e01-fd8875dea633",
+#     "status": "online"
+#   }
+# }
+
+```
+
+**Verify in Redis:**
+
+**_Connect to the Redis container and check the driver’s current location using Redis Geospatial commands:_**
+
+```bash
+# Enter the Redis container
+docker exec -it redis redis-cli
+
+# Check driver location by ID
+GEOPOS drivers:locations <driver_id_here>
+
+# Expected Output:
+# 1) 1) "106.7034"    # longitude
+#    2) "10.7766"     # latitude
+```
+
+---
