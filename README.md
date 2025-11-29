@@ -600,3 +600,114 @@ uit-go/
 ```
 
 ---
+
+# 💻 Development Guide
+
+### 🔑 1. Get Private Keys
+
+Contact your team to obtain the private keys for each service's encrypted `.env` files.
+
+---
+
+### ⚡ 2. Generate gRPC TypeScript Definitions
+
+This will regenerate TypeScript definitions for all gRPC services.
+
+```bash
+cd /app/nestjs
+npm run gen:proto
+```
+
+---
+
+### 🛠 3. Create a New Service or Library
+
+- **New service**:
+
+```bash
+  cd /app/nestjs/apps
+  nest generate app <service_name>
+```
+
+- **New library**:
+
+```bash
+  cd /app/nestjs/libs
+  nest generate lib <lib_name>
+```
+
+---
+
+### 🏃 4. Run a Service in Development Mode
+
+```bash
+  cd /app/nestjs/apps/<service_name>
+  export DOTENV_PRIVATE_KEY="your_private_key_here"
+  npm run start:dev
+```
+
+---
+
+# 🐛 Troubleshooting
+
+### Issue: Docker containers fail to start
+
+**Solution:**
+
+```bash
+# Remove all containers and volumes
+docker-compose down -v
+
+# Rebuild and start all containers
+docker-compose up --build
+```
+
+---
+
+### Issue: Port already in use
+
+**Solution:**
+
+```bash
+# Check which process is using the port (example: 5432)
+netstat -ano | findstr :5432
+
+# Kill the process (replace <PID> with actual PID)
+taskkill /PID <PID> /F
+
+# Or change the port in docker-compose.yml
+```
+
+---
+
+### Issue: RabbitMQ connection refused
+
+**Solution:**
+
+```bash
+# Restart RabbitMQ container
+docker-compose restart rabbitmq
+
+# Check RabbitMQ logs
+docker-compose logs rabbitmq
+
+# Ensure the container is running
+docker ps | grep rabbitmq
+```
+
+---
+
+### Issue: gRPC method not implemented
+
+**Solution:**
+
+```bash
+# Regenerate TypeScript definitions from proto files
+cd /app/nestjs
+npm run gen:proto
+
+# Rebuild all backend services
+npm run build
+```
+
+---
