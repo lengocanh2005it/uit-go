@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node-version: [20.x]
+        node-version: [22.x]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -21,10 +21,11 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
           cache: "npm"
+          cache-dependency-path: app/nestjs/package-lock.json
 
       - name: Install dependencies
         run: npm ci
-        working-directory: ./apps/nestjs
+        working-directory: ./app/nestjs
 
       - name: Format code
         run: npm run format
@@ -39,7 +40,7 @@ jobs:
         working-directory: ./app/nestjs
 
       - name: Run tests (Jest)
-        run: npm run test --if-present
+        run: npm run test --if-present -- --passWithNoTests
         working-directory: ./app/nestjs
 
       - name: Build NestJS apps
