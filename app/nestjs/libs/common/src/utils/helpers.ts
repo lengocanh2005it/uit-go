@@ -232,6 +232,11 @@ export function generateNotificationContent(
           params.comment ? ` and commented: "${params.comment}".` : '.'
         }.`,
       };
+    case NotificationTypeEnum.DRIVER_FOUND:
+      return {
+        title: 'Driver Found',
+        message: `We found a driver for your trip. Driver ${params.driverName} is reviewing your request.`,
+      };
     default:
       return {
         title: 'New Notification',
