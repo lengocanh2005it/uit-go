@@ -2,6 +2,7 @@ import {
   GetDriverApprovalsDto,
   GetDriverInfoDetailByIdDto,
   GetLocationOfDriverDto,
+  UpdateDriverLocationDto,
 } from '@/driver/src/dto';
 import {
   Driver,
@@ -51,6 +52,7 @@ import {
   DriverLocation as IDriverLocation,
   NearbyDriver,
   UpdateDriverApprovalResponse,
+  UpdateDriverLocationResponse,
 } from '@libs/common/proto/driver';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -133,7 +135,6 @@ export class DriverService {
     currentLocation?: string,
     currentTripId?: string,
   ) {
-    console.log('Status data: ', statusData);
     if (eventId?.trim()) {
       const exists = await this.processedEventModel.get({
         eventId: eventId.trim(),
@@ -192,7 +193,7 @@ export class DriverService {
     if (currentLocation?.trim() && statusData === DriverStatusEnum.ONLINE) {
       const { lon, lat } =
         await this.commonService.getCoordinates(currentLocation);
-      await this.updateLocationOfDriver(driverId, lat, lon);
+      await this.updateLocationOfDriver(driverId, lat, lon, statusData);
     }
 
     if (
@@ -212,6 +213,8 @@ export class DriverService {
   }
 
   async getDriverInfo(userId: string) {
+    console.log('Method getDriverInfoById trong Driver Service được gọi!!!');
+
     const existed = await this.driverModel.query('userId').eq(userId).exec();
 
     if (!existed.length)
@@ -267,7 +270,12 @@ export class DriverService {
     return record;
   }
 
-  async updateLocationOfDriver(driverId: string, lat: number, lng: number) {
+  async updateLocationOfDriver(
+    driverId: string,
+    lat: number,
+    lng: number,
+    status: DriverStatusEnum,
+  ) {
     const { hash_prefix, geo_hash } = buildGeoLocation(lat, lng);
 
     const existingRecords = await this.driverLocationModel
@@ -299,7 +307,12 @@ export class DriverService {
     );
 
     await this.redisService.geoAdd('drivers:locations', lng, lat, driverId);
-    await this.redisService.sadd('online_drivers', driverId);
+
+    if (status === DriverStatusEnum.ONLINE) {
+      await this.redisService.sadd('online_drivers', driverId);
+    } else {
+      await this.redisService.srem('online_drivers', driverId);
+    }
   }
 
   async createDriver(data: CreateDriverDto, userId: string) {
@@ -359,6 +372,10 @@ export class DriverService {
 
     return {
       mesasge: 'Driver created successfully.',
+      data: {
+        driverApprovalId,
+        driverId,
+      },
     };
   }
 
@@ -755,5 +772,51 @@ export class DriverService {
     this.logger.log(
       `Updated driver ${driverId} rating: ${newAverage.toFixed(2)} (from ${totalTrip + 1} trips)`,
     );
+  }
+
+  async updateDriverLocation(
+    updateDriverLocationDto: UpdateDriverLocationDto,
+    grpcUser: TGrpcUser,
+  ): Promise<UpdateDriverLocationResponse> {
+    const { currentLocation } = updateDriverLocationDto;
+    const { sub } = grpcUser;
+
+    const driverInfo = await this.getDriverInfo(sub);
+
+    if (!driverInfo)
+      throw new RpcException({
+        code: status.NOT_FOUND,
+        message: `Driver info not found.`,
+      });
+
+    const { lat, lon } =
+      await this.commonService.getCoordinates(currentLocation);
+    const { hash_prefix, geo_hash } = buildGeoLocation(lat, lon);
+
+    await this.driverLocationModel.update(
+      { driverId: driverInfo.driverId, hashPrefix: hash_prefix },
+      {
+        geo_hash,
+        lat,
+        lng: lon,
+      } as any,
+      { return: 'item' },
+    );
+
+    await this.redisService.geoAdd(
+      'drivers:locations',
+      lon,
+      lat,
+      driverInfo.driverId,
+    );
+
+    return {
+      message: 'Your location has been successfully updated on the system.',
+      success: true,
+      data: {
+        lat,
+        lng: lon,
+      },
+    };
   }
 }

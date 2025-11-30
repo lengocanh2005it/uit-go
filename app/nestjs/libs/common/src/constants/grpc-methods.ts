@@ -22,6 +22,7 @@ export const GRPC_METHODS = {
     GET_DRIVER_APPROVALS: 'getDriverApprovals',
     GET_DRIVER_INFO_DETAIL_BY_ID: 'getDriverInfoDetailById',
     FIND_AVAILABLE_DRIVERS: 'findAvailableDrivers',
+    UPDATE_DRIVER_LOCATION: 'updateDriverLocation',
   },
   NOTIFICATION_SERVICE: {
     GET_NOTIFICATIONS_OF_USER: 'getNotificationsOfUser',

@@ -33,13 +33,6 @@ export class OutbotEventProcessor extends WorkerHost {
       const route = EventRoutingMap[event.eventType];
       if (!route) continue;
 
-      console.log({
-        ...(payloadIsObject(event.payload)
-          ? event.payload
-          : { payload: event.payload }),
-        eventId: event.id,
-      });
-
       this.rabbitMqService.emit(route.service, route.pattern, {
         ...(payloadIsObject(event.payload)
           ? event.payload

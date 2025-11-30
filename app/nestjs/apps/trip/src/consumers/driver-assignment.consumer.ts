@@ -27,7 +27,7 @@ import {
 } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
 import { InjectRepository } from '@nestjs/typeorm';
-import { addSeconds } from 'date-fns';
+import { addMinutes, addSeconds } from 'date-fns';
 import { ObjectType } from 'nestjs-dynamoose';
 import { RedlockService } from 'nestjs-redlock-universal';
 import CircuitBreaker from 'opossum';
@@ -253,7 +253,7 @@ export class DriverAssignmentConsumer implements OnModuleInit, OnModuleDestroy {
 
             const newTripRequest = await this.createTripRequest(
               {
-                expiresTime: addSeconds(new Date(), 15),
+                expiresTime: addMinutes(new Date(), 1),
                 tripId: newTrip.id,
               },
               newTrip,
@@ -273,10 +273,44 @@ export class DriverAssignmentConsumer implements OnModuleInit, OnModuleDestroy {
               { driverId: driver.driverId },
             );
 
+            const userInfo = await this.rabbitMqService.send(
+              SERVICES.USER_SERVICE,
+              PATTERNS.USER_SERVICE.GET_PROFILE_BY_USER_ID,
+              {
+                userId: driverInfo.userId,
+              },
+            );
+
             await this.tripRequestProducer.processTripRequest(
               { tripRequestId: newTripRequest.id, sub: driverInfo.userId },
-              15000,
+              60000,
             );
+
+            if (userInfo) {
+              const { message: msgNotif, title: titleNotif } =
+                generateNotificationContent(NotificationTypeEnum.DRIVER_FOUND, {
+                  driverName: userInfo?.profile?.fullName ?? '',
+                });
+
+              this.rabbitMqService.emit(
+                SERVICES.NOTIFICATION_SERVICE,
+                PATTERNS.NOTIFICATION_SERVICE.CREATE_NOTIFICATION,
+                {
+                  userId: newTrip.passengerId,
+                  createNotificationDto: {
+                    type: NotificationTypeEnum.DRIVER_FOUND,
+                    message: msgNotif,
+                    title: titleNotif,
+                  },
+                  data: {
+                    tripId: newTrip.id,
+                    passengerId,
+                    driverId: driver.driverId,
+                    note,
+                  },
+                },
+              );
+            }
 
             this.rabbitMqService.emit(
               SERVICES.NOTIFICATION_SERVICE,
@@ -301,7 +335,7 @@ export class DriverAssignmentConsumer implements OnModuleInit, OnModuleDestroy {
             tripCreated = true;
           },
           {
-            ttl: 50000,
+            ttl: 5000,
           },
         );
 

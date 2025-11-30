@@ -12,11 +12,10 @@ import { Global, Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { RedlockModule } from 'nestjs-redlock-universal';
-import { NodeRedisAdapter } from 'redlock-universal';
+import { IoredisAdapter } from 'redlock-universal';
 import { CommonService } from './common.service';
 import { RabbitMQModule } from './modules/rabbitmq/rabbitmq.module';
 import { RedisModule } from './modules/redis/redis.module';
-import { IoredisAdapter } from 'redlock-universal';
 
 @Global()
 @Module({
@@ -58,7 +57,7 @@ import { IoredisAdapter } from 'redlock-universal';
       inject: [REDIS_SERVICE_TOKEN],
       useFactory: (redisService: RedisService) => ({
         nodes: [new IoredisAdapter(redisService.getClient())],
-        defaultTtl: 50000,
+        defaultTtl: 5000,
         retryAttempts: REDLOCK_RETRY_COUNT,
         retryDelay: REDLOCK_RETRY_DELAY,
       }),

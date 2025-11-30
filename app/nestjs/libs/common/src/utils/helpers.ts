@@ -223,7 +223,7 @@ export function generateNotificationContent(
     case NotificationTypeEnum.DRIVER_REQUEST_TIMEOUT:
       return {
         title: 'Request Timed Out',
-        message: `You did not respond to the trip request from ${params.userName} within 15 seconds. The request has been sent to another driver.`,
+        message: `You did not respond to the trip request from ${params.userName} within 1 minutes. The request has been sent to another driver.`,
       };
     case NotificationTypeEnum.TRIP_RATED:
       return {
@@ -231,6 +231,11 @@ export function generateNotificationContent(
         message: `Your passenger rated the trip ${params.rating} stars${
           params.comment ? ` and commented: "${params.comment}".` : '.'
         }.`,
+      };
+    case NotificationTypeEnum.DRIVER_FOUND:
+      return {
+        title: 'Driver Found',
+        message: `We found a driver for your trip. Driver ${params.driverName} is reviewing your request.`,
       };
     default:
       return {

@@ -43,6 +43,10 @@ export class UserService {
     [CreateDriverRequest: CreateDriverDto, userId: string],
     | {
         message: string;
+        data: {
+          driverApprovalId: string;
+          driverId: string;
+        };
       }
     | undefined
   >;
@@ -146,6 +150,9 @@ export class UserService {
 
     await this.profileRepo.save(profile);
 
+    let driverApprovalId: string = '';
+    let driverId: string = '';
+
     if (
       user.role === UserRole.DRIVER &&
       createDriverDto &&
@@ -161,6 +168,9 @@ export class UserService {
           code: status.INTERNAL,
           message: 'Driver info created failed.',
         });
+
+      driverApprovalId = driverInfo.data.driverApprovalId;
+      driverId = driverInfo.data.driverId;
     }
 
     const savedUser = await this.getUser(user.id);
@@ -207,6 +217,13 @@ export class UserService {
           message: messageNotif,
           title: titleNotif,
         },
+        ...(driverApprovalId?.trim() &&
+          driverId?.trim() && {
+            data: {
+              driverApprovalId,
+              driverId,
+            },
+          }),
       },
     );
 

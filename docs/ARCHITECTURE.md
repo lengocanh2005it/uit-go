@@ -1,132 +1,100 @@
-# UIT-Go Architecture (Module A - Scalability & Performance)
+# UIT-Go Architecture (Current Codebase Alignment)
 
-This document aligns the UIT-Go system with the SE360 requirements (skeleton microservices + deep dive into Module A).
+This document aligns the UIT-Go system with the SE360 requirements (skeleton microservices + deep dive into Module A)
 
-## System Overview
-- **Architecture style:** gRPC-based microservices in a NestJS monorepo. Kong acts as the API gateway; AWS ingress (API Gateway + ALB) is discussed only in Module A.
-- **Core services:** User, Trip, Driver, Notification. Each owns its database (polyglot persistence).
-- **Data plane:** gRPC for client calls; RabbitMQ for RPC-style calls and events; Pulsar for trip creation stream; BullMQ (Redis) for delayed/retried jobs; Redis geospatial cache for fast driver lookup.
-- **Resilience and performance pillars (Module A focus):**
-  - Asynchronous workflows (Pulsar topic `trip-create`, RabbitMQ events, BullMQ timers) to absorb bursty demand.
-  - Geospatial caching + DynamoDB durability for driver locations.
-  - Circuit breakers (`opossum`), idempotency records, and outbox pattern for reliable cross-service delivery.
-  - Multi-AZ data stores and active/passive brokers to remove single points of failure.
-
-## Runtime Topology (Local)
-| Component | Responsibility | Interface | Persistence/State |
+## Service Inventory (Local runtime)
+| Component | Responsibilities | Interfaces | Persistence/State |
 | --- | --- | --- | --- |
-| Kong API Gateway | Edge ingress and routing to services | HTTP/gRPC | Stateless |
-| User Service | Auth (JWT), user/profile CRUD, optional driver onboarding trigger | gRPC; RabbitMQ RPC to Driver/Notification | PostgreSQL |
-| Trip Service | Trip lifecycle, fare estimation, driver assignment orchestration, ratings | gRPC; Pulsar producer/consumer; RabbitMQ RPC/events; BullMQ timers | MySQL |
-| Driver Service | Driver/vehicle records, approval, status/location tracking, availability search | gRPC; RabbitMQ consumers/RPC | DynamoDB Local + Redis (geo cache) |
-| Notification Service | Notification templates and user notifications | gRPC; RabbitMQ consumer | MongoDB |
-| Messaging | Reliable async bus and geo cache | RabbitMQ; Redis/Redlock | Broker state; in-memory cache |
-| Streaming | Trip creation queue with DLQ | Pulsar topic `trip-create` + DLQ | Persistent log |
-| Observability | Metrics, logs, dashboards | Prometheus/Grafana, service logs | Managed locally |
-| Load Testing | Traffic generation for perf validation | k6 -> Kong API Gateway | Stateless |
+| Kong API Gateway | gRPC ingress/proxy configured declaratively (`app/kong/kong.yml`) | gRPC on 9000 -> `/user.UserService`, `/trip.TripService`, `/driver.DriverService`, `/notification.NotificationService` | Stateless |
+| User Service | Auth/login, profile CRUD, driver onboarding trigger, outbox publisher, metrics | gRPC 50051 via Kong; RabbitMQ RPC to Driver for approvals/info/create; emits notifications via RabbitMQ; BullMQ outbox job | PostgreSQL (`User`, `UserProfile`, `OutboxEvent`) |
+| Trip Service | Trip lifecycle, fare estimation, driver assignment orchestration, ratings, metrics | gRPC 50052 via Kong; Pulsar producer/consumer on `trip-create` (+ DLQ); RabbitMQ RPC/events to Driver/User/Notification; BullMQ queues (`trip_request_queue`, `trip_status_queue`, outbox); Redlock via Redis | MySQL (`Trip`, `TripRequest`, `TripRating`, `OutboxEvent`) |
+| Driver Service | Driver/vehicle records, approvals, status/location updates, available-driver search, dedup of processed events, metrics | gRPC 50053 via Kong; RabbitMQ RPC/events (`find_available`, `create`, `get-info`, `update-status`, `update-rate`, etc.); Redis geospatial + availability cache | DynamoDB Local (`driver`, `driver_status`, `driver_location`, `driver_approval`, `vehicle`, `processed_event`); Redis sets `drivers:locations`, `online_drivers` |
+| Notification Service | Notification templates and user notifications | gRPC 50054 via Kong; RabbitMQ event consumer `notification.create-notification` | MongoDB (`Notification`, `UserNotification`) |
+| Messaging & Async | Internal RPC/events, streaming, background jobs | RabbitMQ queues `${service}_queue`; Pulsar topic `trip-create` + DLQ; BullMQ on Redis (outbox + trip timers) | Broker state + Redis |
 
 ## Local Runtime Diagram
 ```mermaid
 graph TD
-Gateway[Kong API Gateway]
-User[UserService\nPostgres]
-Driver[DriverService\nDynamoDB Local + Redis]
-Trip[TripService\nMySQL + Redis]
-Notif[NotificationService\nMongoDB]
-RMQ[RabbitMQ]
-Metrics[Prometheus/Grafana]
-k6[k6 Load Test]
+  k6[k6 Load Test] -->|gRPC| Kong
 
-Gateway -->|HTTP/REST| User
-Gateway -->|HTTP/REST| Trip
-Gateway -->|HTTP/REST| Driver
-Gateway -->|HTTP/REST| Notif
+  Kong[Kong gRPC Gateway] -->|/user.UserService| User
+  Kong -->|/trip.TripService| Trip
+  Kong -->|/driver.DriverService| Driver
+  Kong -->|/notification.NotificationService| Notif
 
-Trip <-->|gRPC| Driver
-User <-->|gRPC| Driver
-Trip -->|events| RMQ
-Driver -->|events| RMQ
-Notif -->|consumes| RMQ
+  User[User Service<br/>PostgreSQL] -->|RPC/events| RMQ[(RabbitMQ)]
+  Trip[Trip Service<br/>MySQL] -->|RPC/events| RMQ
+  Driver[Driver Service<br/>DynamoDB + Redis Geo] -->|RPC/events| RMQ
+  Notif[Notification Service<br/>MongoDB] -->|consumes| RMQ
 
-User --> Postgres[(Postgres)]
-Driver --> Dynamo[(DynamoDB Local)]
-Driver --> Redis[(Redis)]
-Trip --> MySQL[(MySQL)]
-Notif --> Mongo[(MongoDB)]
+  Trip -->|produce/consume<br/>`trip-create`| Pulsar[(Pulsar)]
+  Trip -->|jobs/outbox/timeouts| Bull[(BullMQ on Redis)]
+  Bull -.-> Redis[(Redis cache/locks)]
+  Driver -->|geo cache + online set| Redis
 
-Metrics <-->|scrape| User
-Metrics <-->|scrape| Driver
-Metrics <-->|scrape| Trip
-Metrics <-->|scrape| Notif
-k6 --> Gateway
+  Prom[Prometheus] -->|scrape| User
+  Prom -->|scrape| Trip
+  Prom -->|scrape| Driver
+  Prom -->|scrape| Notif
+  Graf[Grafana] --> Prom
 ```
 
-## Communication Patterns (Local)
-- **Ingress:** Kong routes gRPC services (`/user.UserService`, `/trip.TripService`, `/driver.DriverService`, `/notification.NotificationService`).
-- **Sync calls:** gRPC from clients; RabbitMQ RPC between services (e.g., driver info, profile lookup, available drivers) wrapped in circuit breakers and fallbacks.
-- **Async and buffering:**
-  - **Pulsar:** Trip creation and driver assignment (`trip-create` topic) with DLQ for passenger failure notification.
-  - **RabbitMQ events:** Driver status updates, driver rating updates, notification creation, and other cross-service events. Outbox tables + BullMQ workers publish every 5s.
-  - **BullMQ (Redis):** Delayed jobs (trip request timeout, staged status transitions) and recurring outbox publisher.
-- **Geo and caching:** Redis stores driver geo positions (`drivers:locations`) and online set; Redlock ensures exclusive driver assignment. DynamoDB stores durable driver/location/status with `ProcessedEvent` to skip duplicates.
+## Communication & Reliability Patterns
+- **gRPC ingress:** Kong proxies HTTP/2 traffic on 9000 to service gRPC servers (50051–50054). Protos live in `app/nestjs/proto`. `JwtGrpcGuard` enforces authentication; `ThrottlerGrpcGuard` rate-limits trip creation per passenger.
+- **RabbitMQ RPC/events:** Nest microservice transport over queues named `${service}_queue` (see `libs/common/constants/patterns.ts`). Used for driver onboarding/lookup, driver status/rate updates, trip/notification events. Circuit breakers (`opossum`) wrap outbound calls in User/Trip services.
+- **Pulsar streaming:** `trip-create` topic drives driver assignment; DLQ `trip-create-dlq` handled by `DriverAssignmentDLQConsumer` to notify passengers after retries.
+- **BullMQ on Redis:** Repeating outbox publisher every 5s, trip request timeout handling (`trip_request_queue`), trip status transitions (`trip_status_queue`), and outbox processors in User/Trip services.
+- **Redis usage:** Geospatial driver positions (`drivers:locations`), availability set (`online_drivers`), cached availability results (30s), distributed locks via Redlock during assignment, per-user throttling counters, BullMQ backing store.
+- **Reliability/consistency:** Outbox tables drive idempotent event delivery; driver service stores `processed_event` records to drop duplicates; Redlock prevents double-assigning drivers; fallbacks on circuit breakers return safe defaults.
 
-## Data & Persistence (Polyglot)
-- **User:** PostgreSQL (TypeORM) entities `User`, `UserProfile`, `OutboxEvent`; JWT configuration shared via `CommonModule`.
-- **Trip:** MySQL (TypeORM) entities `Trip`, `TripRequest`, `TripRating`, `OutboxEvent`; fare estimation via `CommonService`; outbox emits driver status/rating updates.
-- **Driver:** DynamoDB tables for driver, status, location (geohash), approval, vehicle, processed events; Redis mirrors online/geo state for low-latency search.
-- **Notification:** MongoDB collections `Notification`, `UserNotification`; events consumed from RabbitMQ.
+## Data & Persistence
+| Area | Storage | Notes |
+| --- | --- | --- |
+| User | PostgreSQL via TypeORM (`User`, `UserProfile`, `OutboxEvent`) | Outbox events published through BullMQ + RabbitMQ |
+| Trip | MySQL via TypeORM (`Trip`, `TripRequest`, `TripRating`, `OutboxEvent`) | Uses Redlock + RabbitMQ for driver status propagation and notifications |
+| Driver | DynamoDB Local via Dynamoose (`driver`, `driver_status`, `driver_location`, `driver_approval`, `vehicle`, `processed_event`) | Redis mirrors geo + availability for low-latency search |
+| Notification | MongoDB via Mongoose (`Notification`, `UserNotification`) | Consumes events and serves gRPC reads/writes |
+| Shared | Redis, RabbitMQ, Pulsar | Redis for cache/locks/BullMQ; RabbitMQ for RPC/events; Pulsar for trip assignment stream |
 
-## Core Flows (Performance-Oriented)
-1) **User onboarding/login**
-   - Register creates user + profile; if driver, emits RabbitMQ command to create driver records and triggers admin notification.
-   - Login issues JWT; driver login validates approval via RabbitMQ. If online, an outbox event updates driver status in Driver Service.
-2) **Trip request and driver assignment**
-   - `createTrip` gRPC -> Trip Service -> publishes to Pulsar `trip-create`.
-   - Consumer resolves geo (Geoapify via `CommonService`), fetches available drivers via RabbitMQ, locks a driver with Redlock, persists `Trip` + `TripRequest`, schedules timeout, and notifies the driver.
-   - DLQ consumer notifies passenger if retries exhausted.
-3) **Trip lifecycle**
-   - Status transitions persisted in MySQL; BullMQ can delay transitions (e.g., ARRIVING).
-   - Outbox events propagate driver status updates (busy/online) to Driver Service; processed-event table avoids duplicates.
-   - Notifications fire on request, arriving, started, completed, cancelled.
-4) **Ratings and cancellations**
-   - Ratings create `TripRating` and emit outbox events for Driver Service to recompute averages and notify drivers.
-   - Cancellations publish notifications and, when needed, reset driver availability.
-  
-## Trip Flow (Sequence)
-```mermaid
-sequenceDiagram
-autonumber
-participant C as Client (via Kong)
-participant U as UserService
-participant T as TripService
-participant D as DriverService
-participant Q as RabbitMQ
-participant N as NotificationService
+## Core Flows (Repository Implementation)
+1) **Identity & driver onboarding**
+   - `Register` (gRPC) creates user + profile in PostgreSQL; optional driver info triggers RabbitMQ `driver.create` RPC guarded by circuit breakers.
+   - Login issues JWT; driver login validates approval status via RabbitMQ. When a driver logs in with location, an outbox event (`UPDATE_DRIVER_STATUS`) is emitted for Driver Service.
 
-C->>T: CreateTrip(origin, destination)
-T->>D: FindAvailableDrivers(lat,lng) (gRPC)
-D-->>T: Nearby drivers list
-T-->>Q: trip.created / searching
-Q-->>N: event consumed (notify drivers)
-opt Driver accepts
-  C->>T: DriverAccept(tripId)
-  T->>D: UpdateDriverStatusGrpc(BUSY, driverId)
-  T-->>Q: trip.accepted
-  Q-->>N: notify passenger/driver
-end
-loop During trip
-  D->>T: Status/location updates (gRPC) or T polls/cache
-  T-->>Q: trip.status.changed
-  Q-->>N: live updates
-end
-C->>T: CompleteTrip(tripId, fare)
-T->>D: UpdateDriverStatusGrpc(ONLINE, driverId)
-T-->>Q: trip.completed
-Q-->>N: send completion + receipt
-C->>T: RateTrip(tripId, rating)
-T-->>Q: trip.rated (optional)
-Q-->>N: notify driver (optional)
-```
+2) **Trip request & driver assignment**
+   - `CreateTrip` (gRPC) enqueues payload to Pulsar `trip-create` (partitioned by passenger).
+   - `DriverAssignmentConsumer` geocodes addresses (Geoapify via `CommonService`), fetches available drivers via RabbitMQ `driver.find-available` (Redis geo search + cache), locks a driver with Redlock, persists `Trip` + `TripRequest` in MySQL, and schedules a 15s timeout job in BullMQ.
+   - Notifications for passenger/driver are emitted via RabbitMQ. DLQ consumer sends failure notice if assignment exhausts retries.
+
+3) **Trip lifecycle & status**
+   - gRPC methods update trips (cancel, status changes, ratings). `TripStatusProcessor` handles delayed status jobs; `TripRequestProcessor` cancels timed-out requests and notifies both parties.
+   - Outbox events propagate driver status and rating updates to Driver Service (`UPDATE_STATUS`, `UPDATE_RATE`) and fan-out notifications.
+
+4) **Driver availability & location**
+   - gRPC endpoints update driver status/location; data persisted in DynamoDB and mirrored to Redis geo set + `online_drivers`.
+   - `findAvailableDrivers` (RPC or gRPC) queries Redis geospatial, filters by online set, caches results for 30s, and returns coordinates plus cached vehicle data.
+
+5) **Notifications**
+   - `notification.create-notification` events from User/Trip produce Notification + UserNotification documents in MongoDB. gRPC endpoints allow mark-as-read, delete, and list with JWT guard.
+
+6) **Outbox & deduplication**
+   - User/Trip services write `OutboxEvent` rows; BullMQ repeaters enqueue processor jobs every 5s to emit to RabbitMQ and mark events sent.
+   - Driver Service records `processed_event` IDs to avoid reprocessing status/rate updates.
+
+## Observability & Ops
+- `@willsoto/nestjs-prometheus` exposes per-service metrics scraped by Prometheus in `docker-compose.yml`; Grafana dashboards consume Prometheus.
+- Health/diagnostic endpoints: gRPC services wired for Nest microservice health (and Kong routes for gRPC). 
+- Load testing: `infra/monitoring/k6/loadtest.js` exercised via the `k6` container in compose.
+
+## Local Runtime & Configuration
+- Orchestration: `app/nestjs/docker-compose.yml` runs Kong, four services, RabbitMQ (5672/15672), Redis (6379), Pulsar (6650/8080), PostgreSQL (5433), MySQL (3307), DynamoDB Local (8005), MongoDB (27017), Prometheus (9090), Grafana (3000), k6.
+- Secrets/keys: Docker secrets in `app/nestjs/secrets/*.txt` provide encrypted `.env` keys and Mongo root password; each service reads env via `@nestjs/config`.
+- gRPC routes: defined in `app/kong/kong.yml`; protos in `app/nestjs/proto`.
+- Security: JWT secrets per service; Redis-backed throttling on trip creation.
+
+## Known Gaps vs Desired State
+- Notification database is MongoDB in Docker; Terraform does not yet provision DocumentDB/Atlas.
+- Only Kong acts as ingress; AWS API Gateway is not configured in code/IaC (referenced only in Module A plan).
 
 ## Module A: Scalability & Performance Design
 ![uit-go.drawio.png](./images/uit-go.drawio.png)
@@ -142,12 +110,12 @@ Q-->>N: notify driver (optional)
   - Targets: sustain 1k+ trip-create req/s during spikes with <200 ms p95 for driver availability lookup; keep RabbitMQ publish->consume under 70 ms for status updates.
 
 ## Deployment
-- **Local/dev:** `app/nestjs/docker-compose.yml` runs Kong, services, Postgres (5433), MySQL (3307), DynamoDB local (8005), MongoDB (27017), RabbitMQ (5672/15672), Redis (6379), Pulsar (6650/8080). Each service has its Dockerfile and secrets via Docker secrets.
-- **AWS (per draw.io):**
-  - VPC with public (API Gateway/ALB/NAT) and private subnets across AZ A/B.
-  - ECS Fargate tasks for User, Trip, Driver, Notification in both AZs behind ALB -> Kong.
-  - Data layer: RDS Postgres primary/standby, RDS MySQL primary/standby, DocumentDB primary/replica, DynamoDB global service, ElastiCache Redis primary/replica, RabbitMQ active/passive.
-  - Observability: CloudWatch Logs, Managed Prometheus/Grafana dashboards; K9s/ECS console for runtime ops.
+- **Local/dev:** `app/nestjs/docker-compose.yml` (see ports above) builds Kong + services and starts PostgreSQL, MySQL, DynamoDB Local, MongoDB, RabbitMQ, Redis, Pulsar, Prometheus, Grafana, k6.
+- **AWS (Terraform in `infra/`):**
+  - VPC with public/private subnets across AZs via `modules/vpc`.
+  - RDS MySQL/PostgreSQL (`modules/rds`), DynamoDB (`modules/dynamodb`), Redis/ElastiCache (`modules/redis`), RabbitMQ on EC2 (`modules/rabbitmq`), Kong on EC2 (`modules/kong`).
+  - ECS/Fargate service definitions in `modules/ecs_services` (gRPC services behind internal networking).
+  - Observability: Prometheus/Grafana configs under `infra/monitoring/`. Notification database cloud provisioning (e.g., DocumentDB/Atlas) is not yet defined in Terraform.
 
 ## Trade-offs and Decisions (selected)
 - **gRPC + Kong vs REST:** Chosen for low latency and strong contracts between microservices; complexity is higher than REST but fits performance goals.
