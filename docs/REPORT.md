@@ -51,7 +51,7 @@ The **UIT-Go** backend system is a cloud-native microservices platform designed 
 
 ### Core Value Proposition
 
-UIT-Go demonstrates **informed architectural decision-making** - a critical skill for System Engineers. Every technology choice is justified with quantitative analysis of performance, scalability, and complexity trade-offs (see [ADR/ directory](./docs/adr/)).
+UIT-Go demonstrates **informed architectural decision-making** - a critical skill for System Engineers. Every technology choice is justified with quantitative analysis of performance, scalability, and complexity trade-offs (see [ADR/ directory](./adr/)).
 
 **Primary Learning Objective Achieved:** Understanding that cloud-native architecture requires **strategic trade-offs** between performance, scalability, complexity, and cost - and documenting these decisions transparently.
 
@@ -62,47 +62,48 @@ UIT-Go demonstrates **informed architectural decision-making** - a critical skil
 ### 2.1. High-Level Architecture
 
 The UIT-Go backend follows a **cloud-native microservices pattern** with clear separation of concerns and multiple communication protocols:
+```mermaid
+graph TD
+  k6[k6 Load Test] -->|gRPC| Kong
 
-```
-External Layer:
-  - Mobile/Web Clients → gRPC via Kong API Gateway
+  Kong[Kong gRPC Gateway] -->|/user.UserService| User
+  Kong -->|/trip.TripService| Trip
+  Kong -->|/driver.DriverService| Driver
+  Kong -->|/notification.NotificationService| Notif
 
-Application Layer (Docker):
-  ┌─────────────────┐
-  │ Kong API Gateway│ (Port 9000) - gRPC routing, JWT validation, rate limiting
-  └────────┬────────┘
-           │
-     ┌─────┴─────┬─────────┬──────────┬─────────────┐
-     ▼           ▼         ▼          ▼             ▼
-  ┌──────┐   ┌──────┐   ┌─────┐   ┌─────────┐   ┌────────────┐
-  │ User │   │ Trip │   │Driver│   │Notification│ │ (Background)│
-  │Service│   │Service│  │Service│ │ Service   │ │ BullMQ Jobs │
-  └───┬───┘   └───┬──┘   └──┬──┘   └────┬────┘   └────────────┘
-      │           │         │          │
-      └─── gRPC ──┘         └── Redis ─┘
-            │                   (Geo)  │
-            │                          │
-    ┌───────┴──────────┐       ┌───────┴──────────┐
-    │ RabbitMQ Events  │       │ Apache Pulsar    │
-    │ (uitgo.events)   │       │ (trip-create)    │
-    └──────────────────┘       └──────────────────┘
+  User[User Service<br/>PostgreSQL] -->|RPC/events| RMQ[(RabbitMQ)]
+  Trip[Trip Service<br/>MySQL] -->|RPC/events| RMQ
+  Driver[Driver Service<br/>DynamoDB + Redis Geo] -->|RPC/events| RMQ
+  Notif[Notification Service<br/>MongoDB] -->|consumes| RMQ
 
-Data Layer:
-  - User DB (PostgreSQL)
-  - Trip DB (MySQL) 
-  - Driver DB (DynamoDB + Redis Geospatial)
-  - Notification DB (MongoDB)
+  Trip -->|produce/consume<br/>`trip-create`| Pulsar[(Pulsar)]
+  Trip -->|jobs/outbox/timeouts| Bull[(BullMQ on Redis)]
+  Bull -.-> Redis[(Redis cache/locks)]
+  Driver -->|geo cache + online set| Redis
+
+  Prom[Prometheus] -->|scrape| User
+  Prom -->|scrape| Trip
+  Prom -->|scrape| Driver
+  Prom -->|scrape| Notif
+  Graf[Grafana] --> Prom
 ```
 
-### 2.2. Service Responsibilities
+### 2.2. Component Responsibilities
 
-| Service | Key Technologies | Primary Function |
+| Component | Key Technologies | Primary Function |
 |---------|------------------|------------------|
 | **Kong Gateway** | Kong, gRPC proxy | External gRPC endpoint, authentication gateway |
 | **User Service** | NestJS, TypeORM, PostgreSQL, gRPC | User registration, login, profile management |
 | **Trip Service** | NestJS, TypeORM, MySQL, gRPC, Pulsar | Trip lifecycle, driver matching, fare calculation |
 | **Driver Service** | NestJS, DynamoDB, Redis, gRPC, RabbitMQ | Driver management, real-time location tracking |
 | **Notification Service** | NestJS, MongoDB, RabbitMQ | In-app and push notifications |
+| **RabbitMQ** | Message Broker | RabbitMQ, AMQP protocol | Internal event-driven communication between microservices |
+| **Apache Pulsar** | Message Broker | Apache Pulsar, Streaming protocol | High-volume trip creation event streaming with durability |
+| **BullMQ** | Background Job Queue | BullMQ, Redis, Queue management | Managing background jobs (trip timeouts, outbox pattern, retries) |
+| **Redis** | In-Memory Data Store | Redis, Geospatial indexes | Geospatial queries, caching, distributed locking, session storage |
+| **Prometheus** | Monitoring | Prometheus, Metrics collection | System metrics collection, storage, and alerting |
+| **Grafana** | Visualization | Grafana, Dashboard engine | Metrics visualization, monitoring dashboards, analytics |
+| **K6** | Load Testing | K6, Performance testing | Performance and load testing for gRPC endpoints and system scalability |
 
 ### 2.3. Communication Patterns
 
@@ -169,7 +170,7 @@ Our approach:
 - ❌ **Complexity:** Proto file management, binary debugging
 - ✅ **Benefit:** Superior performance on user-critical paths
 
-**ADR Reference:** [ADR-009: Choose gRPC Over REST](./docs/adr/ADR-009-choose-grpc-over-rest.md)
+**ADR Reference:** [ADR-009: Choose gRPC Over REST](./adr/ADR-009-choose-grpc-over-rest.md)
 
 #### Decision 2: Redis Geospatial over PostGIS
 **Context:** Need sub-second proximity search for driver locations
@@ -187,7 +188,7 @@ Our approach:
 - ❌ **Persistence:** Data lost on restart
 - ✅ **Benefit:** Instant driver search (<1 second user experience)
 
-**ADR Reference:** [ADR-008: Redis Adoption](./docs/adr/ADR-008-choose-redis-to-enable-hyper-scale.md)
+**ADR Reference:** [ADR-008: Redis Adoption](./adr/ADR-008-choose-redis-to-enable-hyper-scale.md)
 
 #### Decision 3: RabbitMQ over Kafka
 **Context:** Event-driven communication between microservices
@@ -207,7 +208,7 @@ Our approach:
 - ❌ **Event Replay:** Cannot reprocess historical events
 - ✅ **Benefit:** Faster development cycles, lower resource usage
 
-**ADR Reference:** [ADR-001: RabbitMQ over Kafka](./docs/adr/ADR-001-rabbitmq-over-kafka.md)
+**ADR Reference:** [ADR-001: RabbitMQ over Kafka](./adr/ADR-001-rabbitmq-over-kafka.md)
 
 ### 3.3. Scalability Patterns Implemented
 
@@ -576,7 +577,7 @@ The **UIT-Go** project demonstrates that effective cloud-native architecture req
 
 | Category | Technology | Version | Purpose |
 |----------|------------|---------|---------|
-| **Framework** | NestJS | 10.0 | Microservices framework |
+| **Framework** | NestJS | 11.xx | Microservices framework |
 | **API Gateway** | Kong | 3.4 | gRPC routing, authentication |
 | **Databases** | PostgreSQL | 15 | User data, ACID transactions |
 | | MySQL | 8.0 | Trip data, relational queries |
