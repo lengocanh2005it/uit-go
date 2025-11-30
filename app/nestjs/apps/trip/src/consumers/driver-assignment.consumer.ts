@@ -273,10 +273,44 @@ export class DriverAssignmentConsumer implements OnModuleInit, OnModuleDestroy {
               { driverId: driver.driverId },
             );
 
+            const userInfo = await this.rabbitMqService.send(
+              SERVICES.USER_SERVICE,
+              PATTERNS.USER_SERVICE.GET_PROFILE_BY_USER_ID,
+              {
+                userId: driverInfo.userId,
+              },
+            );
+
             await this.tripRequestProducer.processTripRequest(
               { tripRequestId: newTripRequest.id, sub: driverInfo.userId },
               15000,
             );
+
+            if (userInfo) {
+              const { message: msgNotif, title: titleNotif } =
+                generateNotificationContent(NotificationTypeEnum.DRIVER_FOUND, {
+                  driverName: userInfo?.profile?.fullName ?? '',
+                });
+
+              this.rabbitMqService.emit(
+                SERVICES.NOTIFICATION_SERVICE,
+                PATTERNS.NOTIFICATION_SERVICE.CREATE_NOTIFICATION,
+                {
+                  userId: newTrip.passengerId,
+                  createNotificationDto: {
+                    type: NotificationTypeEnum.DRIVER_FOUND,
+                    message: msgNotif,
+                    title: titleNotif,
+                  },
+                  data: {
+                    tripId: newTrip.id,
+                    passengerId,
+                    driverId: driver.driverId,
+                    note,
+                  },
+                },
+              );
+            }
 
             this.rabbitMqService.emit(
               SERVICES.NOTIFICATION_SERVICE,
