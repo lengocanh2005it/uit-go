@@ -40,7 +40,7 @@ jobs:
         working-directory: ./app/nestjs
 
       - name: Run tests (Jest)
-        run: npm run test --if-present
+        run: npm run test --if-present -- --passWithNoTests
         working-directory: ./app/nestjs
 
       - name: Build NestJS apps
