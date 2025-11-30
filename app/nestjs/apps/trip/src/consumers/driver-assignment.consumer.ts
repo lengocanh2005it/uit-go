@@ -301,7 +301,7 @@ export class DriverAssignmentConsumer implements OnModuleInit, OnModuleDestroy {
             tripCreated = true;
           },
           {
-            ttl: 50000,
+            ttl: 5000,
           },
         );
 

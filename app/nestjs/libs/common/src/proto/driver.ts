@@ -13,6 +13,21 @@ import { Trip } from './trip';
 
 export const protobufPackage = 'driver';
 
+export interface UpdateDriverLocationRequest {
+  currentLocation: string;
+}
+
+export interface UpdateDriverLocationResponse {
+  message: string;
+  success: boolean;
+  data: GeoData | undefined;
+}
+
+export interface GeoData {
+  lat: number;
+  lng: number;
+}
+
 export interface NearbyDriver {
   driverId: string;
   lat: number;
@@ -226,6 +241,10 @@ export interface DriverServiceClient {
   findAvailableDrivers(
     request: FindAvailableDriversRequest,
   ): Observable<FindAvailableDriversResponse>;
+
+  updateDriverLocation(
+    request: UpdateDriverLocationRequest,
+  ): Observable<UpdateDriverLocationResponse>;
 }
 
 export interface DriverServiceController {
@@ -271,6 +290,13 @@ export interface DriverServiceController {
     | Promise<FindAvailableDriversResponse>
     | Observable<FindAvailableDriversResponse>
     | FindAvailableDriversResponse;
+
+  updateDriverLocation(
+    request: UpdateDriverLocationRequest,
+  ):
+    | Promise<UpdateDriverLocationResponse>
+    | Observable<UpdateDriverLocationResponse>
+    | UpdateDriverLocationResponse;
 }
 
 export function DriverServiceControllerMethods() {
@@ -283,6 +309,7 @@ export function DriverServiceControllerMethods() {
       'getLocationOfDriver',
       'getDriverInfoDetailById',
       'findAvailableDrivers',
+      'updateDriverLocation',
     ];
     for (const method of grpcMethods) {
       const descriptor: any = Reflect.getOwnPropertyDescriptor(
