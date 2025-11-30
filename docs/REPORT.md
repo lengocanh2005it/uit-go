@@ -88,9 +88,9 @@ graph TD
   Graf[Grafana] --> Prom
 ```
 
-### 2.2. Service Responsibilities
+### 2.2. Component Responsibilities
 
-| Service | Key Technologies | Primary Function |
+| Component | Key Technologies | Primary Function |
 |---------|------------------|------------------|
 | **Kong Gateway** | Kong, gRPC proxy | External gRPC endpoint, authentication gateway |
 | **User Service** | NestJS, TypeORM, PostgreSQL, gRPC | User registration, login, profile management |
