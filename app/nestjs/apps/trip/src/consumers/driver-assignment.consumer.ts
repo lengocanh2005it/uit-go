@@ -27,7 +27,7 @@ import {
 } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
 import { InjectRepository } from '@nestjs/typeorm';
-import { addSeconds } from 'date-fns';
+import { addMinutes, addSeconds } from 'date-fns';
 import { ObjectType } from 'nestjs-dynamoose';
 import { RedlockService } from 'nestjs-redlock-universal';
 import CircuitBreaker from 'opossum';
@@ -253,7 +253,7 @@ export class DriverAssignmentConsumer implements OnModuleInit, OnModuleDestroy {
 
             const newTripRequest = await this.createTripRequest(
               {
-                expiresTime: addSeconds(new Date(), 15),
+                expiresTime: addMinutes(new Date(), 1),
                 tripId: newTrip.id,
               },
               newTrip,
@@ -283,7 +283,7 @@ export class DriverAssignmentConsumer implements OnModuleInit, OnModuleDestroy {
 
             await this.tripRequestProducer.processTripRequest(
               { tripRequestId: newTripRequest.id, sub: driverInfo.userId },
-              15000,
+              60000,
             );
 
             if (userInfo) {
