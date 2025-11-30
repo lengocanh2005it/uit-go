@@ -90,122 +90,20 @@ graph TD
 
 ### 2.2. Service Responsibilities
 
-| Service | Database | Primary Function | Key Technologies |
-|---------|----------|------------------|------------------|
-| **Kong Gateway** | - | gRPC routing, authentication, rate limiting | Kong, gRPC proxy |
-| **User Service** | PostgreSQL | User registration, authentication, profile management | NestJS, TypeORM, JWT |
-| **Trip Service** | MySQL | Trip lifecycle, matching, fare calculation | NestJS, TypeORM, BullMQ |
-| **Driver Service** | DynamoDB + Redis | Driver management, real-time location tracking | NestJS, Redis Geo, DynamoDB |
-| **Notification Service** | MongoDB | Push and in-app notifications | NestJS, MongoDB, WebSocket |
-
-#### **Core Infrastructure Components - Detailed Explanation**
-
-**1. BullMQ - Background Job Processing**
-```typescript
-// Use Case: Trip Timeout Management
-// When a trip is created but no driver accepts within 2 minutes
-{
-  queue: 'trip-timeout',
-  job: {
-    name: 'check-trip-acceptance',
-    data: { tripId: '123', createdAt: '2025-12-01T10:00:00Z' },
-    delay: 120000 // 2 minutes
-  }
-}
-```
-**Responsibilities:**
-- **Trip Timeout Handling:** Automatically cancel trips if no driver accepts within timeout period
-- **Outbox Pattern:** Reliable event publishing by storing events in database first, then processing via jobs
-- **Retry Logic:** Exponential backoff for failed operations (payment processing, notifications)
-- **Performance Impact:** Prevents blocking operations, improves API response times by 40%
-
-**2. Apache Pulsar - High-Volume Event Streaming**
-```typescript
-// Use Case: Bursty Trip Creation Events
-// During peak hours (morning/evening rush), handle 1000+ trip requests/minute
-ProducerConfig: {
-  topic: 'persistent://uit-go/trips/trip-created',
-  batchingEnabled: true,
-  batchingMaxMessages: 1000,
-  batchingMaxPublishDelay: 100ms
-}
-
-ConsumerConfig: {
-  subscription: 'trip-analytics',
-  subscriptionType: 'Shared', // Multiple consumers for scaling
-  deadLetterPolicy: {
-    maxRedeliverCount: 3,
-    deadLetterTopic: 'persistent://uit-go/trips/dlq'
-  }
-}
-```
-**Key Features:**
-- **Durable Streaming:** Never lose trip creation events, even during system failures
-- **Multi-Consumer Support:** Multiple services can process the same trip events independently
-  - Analytics Service: Real-time trip metrics and dashboards
-  - Fraud Detection: Suspicious pattern identification
-  - Billing Service: Fare calculation and invoicing
-- **Dead Letter Queue (DLQ):** Automatic handling of poison pills and failed processing
-- **Performance:** 10-20ms publish latency, compared to 50-70ms with RabbitMQ for high-volume scenarios
-
-**3. Redis - Multi-Purpose In-Memory Data Store**
-```typescript
-// Use Case 1: Geospatial Driver Locations
-redis.geoAdd('drivers:active', {
-  longitude: 106.6297,
-  latitude: 10.8231,
-  member: 'driver-123'
-});
-
-// Find drivers within 5km of user
-redis.geoRadius('drivers:active', {
-  longitude: 106.6297,
-  latitude: 10.8231,
-  radius: 5,
-  unit: 'km'
-});
-
-// Use Case 2: Distributed Locking (Redlock Algorithm)
-const lock = await redlock.acquire(['driver-assignment-123'], 5000);
-try {
-  // Critical section: Assign driver to trip
-  await assignDriverToTrip(tripId, driverId);
-} finally {
-  await lock.release();
-}
-
-// Use Case 3: Cache Layer
-redis.setEx(`user:${userId}`, 3600, JSON.stringify(userProfile));
-```
-**Redis Roles in UIT-Go:**
-- **Geospatial Index:** Real-time driver location queries (3-5ms vs 50-100ms with PostGIS)
-- **Distributed Locking:** Prevent race conditions in driver assignment
-- **Session Storage:** User authentication sessions
-- **Cache Layer:** Frequently accessed data (user profiles, trip details)
-- **BullMQ Backend:** Queue storage and job management
-
-**4. RabbitMQ - Internal Event Bus**
-```typescript
-// Use Case: Loose Coupling between Services
-// When trip status changes, multiple services need to know
-amqp.publish('trip.status.updated', {
-  tripId: '123',
-  oldStatus: 'searching',
-  newStatus: 'driver_assigned',
-  driverId: 'driver-456',
-  timestamp: '2025-12-01T10:05:00Z'
-});
-
-// Multiple consumers can react to the same event
-tripService.consume('trip.status.updated', updateTripCache);
-notificationService.consume('trip.status.updated', sendPushNotification);
-analyticsService.consume('trip.status.updated', updateMetrics);
-```
-**Event Types Handled:**
-- `user.registered` → Send welcome email, initialize profile
-- `trip.created` → Notify nearby drivers, update analytics
-- `driver.location.updated` → Update real-time map, recalculate ETA
-- `payment.processed` → Update trip status, send receipt
+| Service | Key Technologies | Primary Function |
+|---------|------------------|------------------|
+| **Kong Gateway** | Kong, gRPC proxy | External gRPC endpoint, authentication gateway |
+| **User Service** | NestJS, TypeORM, PostgreSQL, gRPC | User registration, login, profile management |
+| **Trip Service** | NestJS, TypeORM, MySQL, gRPC, Pulsar | Trip lifecycle, driver matching, fare calculation |
+| **Driver Service** | NestJS, DynamoDB, Redis, gRPC, RabbitMQ | Driver management, real-time location tracking |
+| **Notification Service** | NestJS, MongoDB, RabbitMQ | In-app and push notifications |
+| **RabbitMQ** | Message Broker | RabbitMQ, AMQP protocol | Internal event-driven communication between microservices |
+| **Apache Pulsar** | Message Broker | Apache Pulsar, Streaming protocol | High-volume trip creation event streaming with durability |
+| **BullMQ** | Background Job Queue | BullMQ, Redis, Queue management | Managing background jobs (trip timeouts, outbox pattern, retries) |
+| **Redis** | In-Memory Data Store | Redis, Geospatial indexes | Geospatial queries, caching, distributed locking, session storage |
+| **Prometheus** | Monitoring | Prometheus, Metrics collection | System metrics collection, storage, and alerting |
+| **Grafana** | Visualization | Grafana, Dashboard engine | Metrics visualization, monitoring dashboards, analytics |
+| **K6** | Load Testing | K6, Performance testing | Performance and load testing for gRPC endpoints and system scalability |
 
 ### 2.3. Communication Patterns
 
@@ -272,7 +170,7 @@ Our approach:
 - ❌ **Complexity:** Proto file management, binary debugging
 - ✅ **Benefit:** Superior performance on user-critical paths
 
-**ADR Reference:** [ADR-009: Choose gRPC Over REST](./docs/adr/ADR-009-choose-grpc-over-rest.md)
+**ADR Reference:** [ADR-009: Choose gRPC Over REST](./adr/ADR-009-choose-grpc-over-rest.md)
 
 #### Decision 2: Redis Geospatial over PostGIS
 **Context:** Need sub-second proximity search for driver locations
@@ -290,7 +188,7 @@ Our approach:
 - ❌ **Persistence:** Data lost on restart
 - ✅ **Benefit:** Instant driver search (<1 second user experience)
 
-**ADR Reference:** [ADR-008: Redis Adoption](./docs/adr/ADR-008-choose-redis-to-enable-hyper-scale.md)
+**ADR Reference:** [ADR-008: Redis Adoption](./adr/ADR-008-choose-redis-to-enable-hyper-scale.md)
 
 #### Decision 3: RabbitMQ over Kafka
 **Context:** Event-driven communication between microservices
@@ -310,7 +208,7 @@ Our approach:
 - ❌ **Event Replay:** Cannot reprocess historical events
 - ✅ **Benefit:** Faster development cycles, lower resource usage
 
-**ADR Reference:** [ADR-001: RabbitMQ over Kafka](./docs/adr/ADR-001-rabbitmq-over-kafka.md)
+**ADR Reference:** [ADR-001: RabbitMQ over Kafka](./adr/ADR-001-rabbitmq-over-kafka.md)
 
 ### 3.3. Scalability Patterns Implemented
 
@@ -679,7 +577,7 @@ The **UIT-Go** project demonstrates that effective cloud-native architecture req
 
 | Category | Technology | Version | Purpose |
 |----------|------------|---------|---------|
-| **Framework** | NestJS | 10.0 | Microservices framework |
+| **Framework** | NestJS | 11.xx | Microservices framework |
 | **API Gateway** | Kong | 3.4 | gRPC routing, authentication |
 | **Databases** | PostgreSQL | 15 | User data, ACID transactions |
 | | MySQL | 8.0 | Trip data, relational queries |
