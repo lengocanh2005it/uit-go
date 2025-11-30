@@ -21,10 +21,11 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
           cache: "npm"
+          cache-dependency-path: app/nestjs/package-lock.json
 
       - name: Install dependencies
         run: npm ci
-        working-directory: ./apps/nestjs
+        working-directory: ./app/nestjs
 
       - name: Format code
         run: npm run format
