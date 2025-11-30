@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [20.x]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: ./apps/nestjs
+
+      - name: Format code
+        run: npm run format
+        working-directory: ./app/nestjs
+
+      - name: Lint code
+        run: npm run lint
+        working-directory: ./app/nestjs
+
+      - name: TypeScript type-check
+        run: npm run type-check
+        working-directory: ./app/nestjs
+
+      - name: Run tests (Jest)
+        run: npm run test --if-present
+        working-directory: ./app/nestjs
+
+      - name: Build NestJS apps
+        run: npm run build
+        working-directory: ./app/nestjs

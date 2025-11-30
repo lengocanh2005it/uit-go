@@ -4,7 +4,6 @@
 //   protoc               v6.33.1
 // source: notification.proto
 
-/* eslint-disable */
 import { GrpcMethod, GrpcStreamMethod } from '@nestjs/microservices';
 import { wrappers } from 'protobufjs';
 import { Observable } from 'rxjs';

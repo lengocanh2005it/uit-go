@@ -4,7 +4,6 @@
 //   protoc               v6.33.1
 // source: google/protobuf/struct.proto
 
-/* eslint-disable */
 import { wrappers } from 'protobufjs';
 
 export const protobufPackage = 'google.protobuf';
