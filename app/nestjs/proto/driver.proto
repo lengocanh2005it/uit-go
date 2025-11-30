@@ -21,6 +21,23 @@ service DriverService {
     returns (DriverInfo);
   rpc FindAvailableDrivers(FindAvailableDriversRequest)
     returns (FindAvailableDriversResponse);
+  rpc UpdateDriverLocation(UpdateDriverLocationRequest)
+    returns (UpdateDriverLocationResponse);
+}
+
+message UpdateDriverLocationRequest {
+  string current_location = 1;
+}
+
+message UpdateDriverLocationResponse {
+  string message = 1;
+  bool success = 2;
+  GeoData data = 3;
+}
+
+message GeoData {
+  double lat = 1;
+  double lng = 3;
 }
 
 message NearbyDriver {

@@ -3,6 +3,7 @@ import {
   GetDriverApprovalsDto,
   GetDriverInfoDetailByIdDto,
   GetLocationOfDriverDto,
+  UpdateDriverLocationDto,
 } from '@/driver/src/dto';
 import { status } from '@grpc/grpc-js';
 import { TGrpcUser } from '@libs/common';
@@ -223,5 +224,22 @@ export class DriverController {
     @GrpcBody(GetDriverInfoDetailByIdDto) dto: GetDriverInfoDetailByIdDto,
   ) {
     return this.driverService.getDriverInfoDetailById(dto);
+  }
+
+  @GrpcMethod(
+    DRIVER_SERVICE_NAME,
+    GRPC_METHODS.DRIVER_SERVICE.UPDATE_DRIVER_LOCATION,
+  )
+  @UseGuards(JwtGrpcGuard)
+  @UsePipes(GrpcValidationPipe)
+  async updateDriverLocation(
+    @GrpcBody(UpdateDriverLocationDto)
+    updateDriverLocationDto: UpdateDriverLocationDto,
+    @GrpcUser() grpcUser: TGrpcUser,
+  ) {
+    return this.driverService.updateDriverLocation(
+      updateDriverLocationDto,
+      grpcUser,
+    );
   }
 }
