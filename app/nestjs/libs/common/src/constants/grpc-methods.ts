@@ -4,6 +4,7 @@ export const GRPC_METHODS = {
     UPDATE_PROFILE: 'updateProfile',
     LOGIN: 'login',
     REGISTER: 'register',
+    SIGN_OUT: 'signOut',
   },
   TRIP_SERVICE: {
     GET_TRIP: 'getTrip',

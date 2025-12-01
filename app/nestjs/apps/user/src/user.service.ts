@@ -11,26 +11,26 @@ import { EventTypes, PATTERNS } from '@libs/common/constants';
 import { InjectRabbitMqService } from '@libs/common/decorators';
 import { CreateDriverDto, CreateOutboxDto } from '@libs/common/dto';
 import { DriverApprovalStatusEnum, DriverStatusEnum } from '@libs/common/enums';
+import { NotificationTypeEnum } from '@libs/common/enums/notification';
 import { RabbitMQService } from '@libs/common/modules/rabbitmq/rabbitmq.service';
 import {
   GetMeResponse,
   LoginResponse,
   RegisterResponse,
 } from '@libs/common/proto/user';
-import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { RpcException } from '@nestjs/microservices';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { UserRole } from '@user-service/enums';
 import * as bcrypt from 'bcryptjs';
+import { instanceToPlain } from 'class-transformer';
 import { omit } from 'lodash';
 import { ObjectType } from 'nestjs-dynamoose';
 import CircuitBreaker from 'opossum';
 import { DataSource, EntityManager, Repository } from 'typeorm';
 import { OutboxEvent, User, UserProfile } from './entities';
-import { NotificationTypeEnum } from '@libs/common/enums/notification';
-import { instanceToPlain } from 'class-transformer';
 
 @Injectable()
 export class UserService {
