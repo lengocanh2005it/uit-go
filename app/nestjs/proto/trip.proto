@@ -74,7 +74,7 @@ message UpdateTripRequestStatusRequest {
 }
 
 message UpdateTripRequestStatusResponse {
-
+  string message = 1;
 }
 
 message UpdateTripRequest {
