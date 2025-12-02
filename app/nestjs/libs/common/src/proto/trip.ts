@@ -67,7 +67,9 @@ export interface UpdateTripRequestStatusRequest {
   tripRequestId: string;
 }
 
-export interface UpdateTripRequestStatusResponse {}
+export interface UpdateTripRequestStatusResponse {
+  message: string;
+}
 
 export interface UpdateTripRequest {
   status?: string | undefined;

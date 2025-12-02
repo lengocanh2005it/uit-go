@@ -28,6 +28,7 @@ import {
   GetEstimateResponse,
   GetTripResponse,
   RateTripResponse,
+  UpdateTripRequestStatusResponse,
 } from '@libs/common/proto/trip';
 import {
   formatCurrencyVND,
@@ -293,7 +294,7 @@ export class TripService {
   public updateTripRequestStatus = async (
     updateTripRequestStatusDto: UpdateTripRequestStatusDto,
     grpcUser: TGrpcUser,
-  ) => {
+  ): Promise<UpdateTripRequestStatusResponse> => {
     return this.dataSource.transaction(async (manager) => {
       const { sub } = grpcUser;
       const { status: statusRequest, tripRequestId } =
@@ -387,6 +388,10 @@ export class TripService {
           3000,
         );
       }
+
+      return {
+        message: 'Trip request status updated successfully.',
+      };
     });
   };
 
