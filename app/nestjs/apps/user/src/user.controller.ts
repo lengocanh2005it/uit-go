@@ -1,4 +1,9 @@
-import { CreateUserDto, LoginUserDto, UpdateProfileDto } from '@/user/src/dto';
+import {
+  CreateUserDto,
+  GetUsersDto,
+  LoginUserDto,
+  UpdateProfileDto,
+} from '@/user/src/dto';
 import { TGrpcUser } from '@libs/common';
 import { GRPC_METHODS, PATTERNS } from '@libs/common/constants';
 import { GrpcBody, GrpcUser } from '@libs/common/decorators';
@@ -53,5 +58,12 @@ export class UserController {
   @MessagePattern(PATTERNS.USER_SERVICE.GET_PROFILE_BY_USER_ID)
   async getProfileByUserId(@Payload('userId', ParseUUIDPipe) userId: string) {
     return this.userService.getProfileByUserId(userId);
+  }
+
+  @GrpcMethod(USER_SERVICE_NAME, GRPC_METHODS.USER_SERVICE.GET_USERS)
+  @UseGuards(JwtGrpcGuard)
+  @UsePipes(GrpcValidationPipe)
+  async getUsers(@GrpcBody(GetUsersDto) getUsersDto: GetUsersDto) {
+    return this.userService.getUsers(getUsersDto);
   }
 }
