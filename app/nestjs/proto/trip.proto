@@ -13,6 +13,15 @@ service TripService {
   rpc GetEstimate(GetEstimateRequest) returns (GetEstimateResponse);
   rpc RateTrip(RateTripRequest) returns (RateTripResponse);
   rpc CancelTrip(CancelTripRequest) returns (CancelTripResponse);
+  rpc GetTrips(GetTripsRequest) returns (GetTripsResponse);
+}
+
+message GetTripsRequest {
+  optional string status = 1;
+}
+
+message GetTripsResponse {
+  repeated Trip trips = 1;
 }
 
 message Trip {

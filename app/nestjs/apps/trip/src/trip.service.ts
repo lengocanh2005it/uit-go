@@ -1,4 +1,4 @@
-import { GetEstimateDto, RateTripDto } from '@/trip/src/dto';
+import { GetEstimateDto, GetTripsDto, RateTripDto } from '@/trip/src/dto';
 import {
   DriverAssignmentProducer,
   TripStatusProducer,
@@ -27,6 +27,7 @@ import {
   CreateTripResponse,
   GetEstimateResponse,
   GetTripResponse,
+  GetTripsResponse,
   RateTripResponse,
   UpdateTripRequestStatusResponse,
 } from '@libs/common/proto/trip';
@@ -593,5 +594,55 @@ export class TripService {
         },
       };
     });
+  }
+
+  async getTrips(
+    grpcUser: TGrpcUser,
+    getTripsDto: GetTripsDto,
+  ): Promise<GetTripsResponse> {
+    const { sub, role } = grpcUser;
+
+    let driverInfo: any = null;
+
+    if (role === UserRole.DRIVER) {
+      driverInfo = await this.rabbitMqService.send(
+        SERVICES.DRIVER_SERVICE,
+        PATTERNS.DRIVER_SERVICE.GET_INFO,
+        {
+          userId: sub,
+        },
+      );
+
+      if (!driverInfo) {
+        throw new RpcException({
+          code: status.NOT_FOUND,
+          message: 'Your driver info not found.',
+        });
+      }
+    }
+
+    const { status: statusRequest } = getTripsDto;
+
+    const query = this.tripRepository.createQueryBuilder('trip');
+
+    if (role === UserRole.CUSTOMER) {
+      query.andWhere('trip.passengerId = :passengerId', { passengerId: sub });
+    }
+
+    if (role === UserRole.DRIVER) {
+      query.andWhere('trip.driverId = :driverId', {
+        driverId: driverInfo.driverId,
+      });
+    }
+
+    if (statusRequest) {
+      query.andWhere('trip.status = :status', { status: statusRequest });
+    }
+
+    const trips = await query.getMany();
+
+    return {
+      trips,
+    };
   }
 }

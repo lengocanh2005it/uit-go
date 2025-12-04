@@ -2,6 +2,7 @@ import {
   CancelTripDto,
   GetEstimateDto,
   GetTripDto,
+  GetTripsDto,
   RateTripDto,
 } from '@/trip/src/dto';
 import { TGrpcUser } from '@libs/common';
@@ -87,6 +88,16 @@ export class TripController {
     @Payload('driverId', ParseUUIDPipe) driverId: string,
   ) {
     return this.tripService.getTripsOfDriver(getAllTripsOfDriverDto, driverId);
+  }
+
+  @GrpcMethod(TRIP_SERVICE_NAME, GRPC_METHODS.TRIP_SERVICE.GET_TRIPS)
+  @UsePipes(GrpcValidationPipe)
+  @UseGuards(JwtGrpcGuard)
+  async getTrips(
+    @GrpcUser() grpcUser: TGrpcUser,
+    @GrpcBody(GetTripsDto) getTripsDto: GetTripsDto,
+  ) {
+    return this.tripService.getTrips(grpcUser, getTripsDto);
   }
 
   @GrpcMethod(TRIP_SERVICE_NAME, GRPC_METHODS.TRIP_SERVICE.GET_ESTIMATE)

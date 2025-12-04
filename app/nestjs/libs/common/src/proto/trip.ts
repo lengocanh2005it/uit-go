@@ -11,6 +11,14 @@ import { Observable } from 'rxjs';
 
 export const protobufPackage = 'trip';
 
+export interface GetTripsRequest {
+  status?: string | undefined;
+}
+
+export interface GetTripsResponse {
+  trips: Trip[];
+}
+
 export interface Trip {
   id: string;
   originAddress: string;
@@ -170,6 +178,8 @@ export interface TripServiceClient {
   rateTrip(request: RateTripRequest): Observable<RateTripResponse>;
 
   cancelTrip(request: CancelTripRequest): Observable<CancelTripResponse>;
+
+  getTrips(request: GetTripsRequest): Observable<GetTripsResponse>;
 }
 
 export interface TripServiceController {
@@ -218,6 +228,13 @@ export interface TripServiceController {
     | Promise<CancelTripResponse>
     | Observable<CancelTripResponse>
     | CancelTripResponse;
+
+  getTrips(
+    request: GetTripsRequest,
+  ):
+    | Promise<GetTripsResponse>
+    | Observable<GetTripsResponse>
+    | GetTripsResponse;
 }
 
 export function TripServiceControllerMethods() {
@@ -230,6 +247,7 @@ export function TripServiceControllerMethods() {
       'getEstimate',
       'rateTrip',
       'cancelTrip',
+      'getTrips',
     ];
     for (const method of grpcMethods) {
       const descriptor: any = Reflect.getOwnPropertyDescriptor(

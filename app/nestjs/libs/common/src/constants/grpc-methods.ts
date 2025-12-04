@@ -14,6 +14,7 @@ export const GRPC_METHODS = {
     UPDATE_TRIP_REQUEST_STATUS: 'updateTripRequestStatus',
     GET_ESTIMATE: 'getEstimate',
     RATE_TRIP: 'rateTrip',
+    GET_TRIPS: 'getTrips',
   },
   DRIVER_SERVICE: {
     UPDATE_DRIVER_STATUS_GRPC: 'updateDriverStatusGrpc',
