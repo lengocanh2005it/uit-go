@@ -12,6 +12,10 @@ import { DriverInfo } from './driver';
 
 export const protobufPackage = 'user';
 
+export interface GetUserRequest {
+  userId: string;
+}
+
 export interface GetUsersRequest {
   role?: string | undefined;
 }
@@ -149,6 +153,8 @@ export interface UserServiceClient {
   getMe(request: GetMeRequest): Observable<GetMeResponse>;
 
   getUsers(request: GetUsersRequest): Observable<GetUsersResponse>;
+
+  getUser(request: GetUserRequest): Observable<GetMeResponse>;
 }
 
 export interface UserServiceController {
@@ -177,6 +183,10 @@ export interface UserServiceController {
     | Promise<GetUsersResponse>
     | Observable<GetUsersResponse>
     | GetUsersResponse;
+
+  getUser(
+    request: GetUserRequest,
+  ): Promise<GetMeResponse> | Observable<GetMeResponse> | GetMeResponse;
 }
 
 export function UserServiceControllerMethods() {
@@ -187,6 +197,7 @@ export function UserServiceControllerMethods() {
       'register',
       'getMe',
       'getUsers',
+      'getUser',
     ];
     for (const method of grpcMethods) {
       const descriptor: any = Reflect.getOwnPropertyDescriptor(
