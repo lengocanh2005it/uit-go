@@ -1,5 +1,6 @@
 import {
   CreateUserDto,
+  GetUserDto,
   GetUsersDto,
   LoginUserDto,
   UpdateProfileDto,
@@ -26,7 +27,7 @@ export class UserController {
   @GrpcMethod(USER_SERVICE_NAME, GRPC_METHODS.USER_SERVICE.GET_ME)
   @UseGuards(JwtGrpcGuard)
   async getMe(@GrpcUser() grpcUser: TGrpcUser): Promise<GetMeResponse> {
-    return this.userService.getUser(grpcUser.sub);
+    return this.userService.getMe(grpcUser.sub);
   }
 
   @GrpcMethod(USER_SERVICE_NAME, GRPC_METHODS.USER_SERVICE.UPDATE_PROFILE)
@@ -65,5 +66,12 @@ export class UserController {
   @UsePipes(GrpcValidationPipe)
   async getUsers(@GrpcBody(GetUsersDto) getUsersDto: GetUsersDto) {
     return this.userService.getUsers(getUsersDto);
+  }
+
+  @GrpcMethod(USER_SERVICE_NAME, GRPC_METHODS.USER_SERVICE.GET_USER)
+  @UsePipes(GrpcValidationPipe)
+  @UseGuards(JwtGrpcGuard)
+  async getUser(@GrpcBody(GetUserDto) getUserDto: GetUserDto) {
+    return this.userService.getUser(getUserDto);
   }
 }

@@ -11,6 +11,11 @@ service UserService {
   rpc Register(RegisterRequest) returns (RegisterResponse);
   rpc GetMe(GetMeRequest) returns (GetMeResponse);
   rpc GetUsers(GetUsersRequest) returns (GetUsersResponse);
+  rpc GetUser(GetUserRequest) returns (GetMeResponse);
+}
+
+message GetUserRequest {
+  string user_id = 1;
 }
 
 message GetUsersRequest {

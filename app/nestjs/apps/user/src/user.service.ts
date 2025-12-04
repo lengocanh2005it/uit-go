@@ -1,5 +1,6 @@
 import {
   CreateUserDto,
+  GetUserDto,
   GetUsersDto,
   LoginUserDto,
   UpdateProfileDto,
@@ -179,7 +180,7 @@ export class UserService {
       driverId = driverInfo.data.driverId;
     }
 
-    const savedUser = await this.getUser(user.id);
+    const savedUser = await this.getMe(user.id);
 
     let typeNotif: NotificationTypeEnum | null = null;
     let params: NotificationParams = {};
@@ -334,7 +335,7 @@ export class UserService {
     });
   };
 
-  public getUser = async (sub: string): Promise<GetMeResponse> => {
+  public getMe = async (sub: string): Promise<GetMeResponse> => {
     const user = await this.userRepo.findOne({
       where: {
         id: sub,
@@ -392,7 +393,7 @@ export class UserService {
     Object.assign(profile, updateProfileDto);
     await this.profileRepo.save(profile);
 
-    return this.getUser(sub);
+    return this.getMe(sub);
   }
 
   private createNewOutbox = async (
@@ -456,5 +457,10 @@ export class UserService {
     return {
       users: users.map((u) => omit(u, ['password'])),
     };
+  }
+
+  async getUser(getUserDto: GetUserDto): Promise<GetMeResponse> {
+    const { userId } = getUserDto;
+    return this.getMe(userId);
   }
 }
