@@ -13,6 +13,63 @@ import { Trip } from './trip';
 
 export const protobufPackage = 'driver';
 
+export interface GetDriverInfoDetailByIdResponse {
+  id: string;
+  email: string;
+  role: string;
+  createdAt: Date | undefined;
+  updatedAt: Date | undefined;
+  driverInfo?: DriverInfo | undefined;
+  profile: UserProfile | undefined;
+}
+
+export interface User {
+  id: string;
+  email: string;
+  password: string;
+  role: string;
+  createdAt: Date | undefined;
+  updatedAt: Date | undefined;
+}
+
+export interface UserProfile {
+  id: string;
+  fullName: string;
+  phoneNumber: string;
+  address: string;
+  birthDay: Date | undefined;
+  user?: User | undefined;
+}
+
+export interface GetDriversRequest {
+  status?: string | undefined;
+}
+
+export interface GetDriversResponse {
+  drivers: GetDriversData[];
+}
+
+export interface GetDriversData {
+  userId: string;
+  driverId: string;
+  totalTrip: number;
+  rating: number;
+  licenseExpiry: Date | undefined;
+  licenseNumber: string;
+  status: string;
+  currentTripId?: string | undefined;
+  vehicleCached?: VehicleCached | undefined;
+  lastSeenAt: Date | undefined;
+  createdAt: Date | undefined;
+  updatedAt: Date | undefined;
+  location?: Location | undefined;
+}
+
+export interface Location {
+  lat: number;
+  lng: number;
+}
+
 export interface UpdateDriverLocationRequest {
   currentLocation: string;
 }
@@ -236,7 +293,7 @@ export interface DriverServiceClient {
 
   getDriverInfoDetailById(
     request: GetDriverInfoDetailByIdRequest,
-  ): Observable<DriverInfo>;
+  ): Observable<GetDriverInfoDetailByIdResponse>;
 
   findAvailableDrivers(
     request: FindAvailableDriversRequest,
@@ -245,6 +302,8 @@ export interface DriverServiceClient {
   updateDriverLocation(
     request: UpdateDriverLocationRequest,
   ): Observable<UpdateDriverLocationResponse>;
+
+  getDrivers(request: GetDriversRequest): Observable<GetDriversResponse>;
 }
 
 export interface DriverServiceController {
@@ -282,7 +341,10 @@ export interface DriverServiceController {
 
   getDriverInfoDetailById(
     request: GetDriverInfoDetailByIdRequest,
-  ): Promise<DriverInfo> | Observable<DriverInfo> | DriverInfo;
+  ):
+    | Promise<GetDriverInfoDetailByIdResponse>
+    | Observable<GetDriverInfoDetailByIdResponse>
+    | GetDriverInfoDetailByIdResponse;
 
   findAvailableDrivers(
     request: FindAvailableDriversRequest,
@@ -297,6 +359,13 @@ export interface DriverServiceController {
     | Promise<UpdateDriverLocationResponse>
     | Observable<UpdateDriverLocationResponse>
     | UpdateDriverLocationResponse;
+
+  getDrivers(
+    request: GetDriversRequest,
+  ):
+    | Promise<GetDriversResponse>
+    | Observable<GetDriversResponse>
+    | GetDriversResponse;
 }
 
 export function DriverServiceControllerMethods() {
@@ -310,6 +379,7 @@ export function DriverServiceControllerMethods() {
       'getDriverInfoDetailById',
       'findAvailableDrivers',
       'updateDriverLocation',
+      'getDrivers',
     ];
     for (const method of grpcMethods) {
       const descriptor: any = Reflect.getOwnPropertyDescriptor(

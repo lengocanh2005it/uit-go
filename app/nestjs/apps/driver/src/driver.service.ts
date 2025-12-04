@@ -1,6 +1,7 @@
 import {
   GetDriverApprovalsDto,
   GetDriverInfoDetailByIdDto,
+  GetDriversDto,
   GetLocationOfDriverDto,
   UpdateDriverLocationDto,
 } from '@/driver/src/dto';
@@ -49,6 +50,8 @@ import {
   FindAvailableDriversResponse,
   GetAllTripsOfDriverResponse,
   GetDriverApprovalsResponse,
+  GetDriversData,
+  GetDriversResponse,
   DriverLocation as IDriverLocation,
   NearbyDriver,
   UpdateDriverApprovalResponse,
@@ -57,6 +60,7 @@ import {
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { RpcException } from '@nestjs/microservices';
+import { omit } from 'lodash';
 import type { Item, Model } from 'nestjs-dynamoose';
 import { InjectModel } from 'nestjs-dynamoose';
 import CircuitBreaker from 'opossum';
@@ -818,5 +822,99 @@ export class DriverService {
         lng: lon,
       },
     };
+  }
+
+  async getDrivers(getDriversDto: GetDriversDto): Promise<GetDriversResponse> {
+    const { status } = getDriversDto;
+
+    let driverStatusList: any[];
+
+    if (status) {
+      driverStatusList = await this.driverStatusModel
+        .scan('status')
+        .eq(status)
+        .exec();
+    } else {
+      driverStatusList = await this.driverStatusModel.scan().exec();
+    }
+
+    const driverIds = driverStatusList
+      .map((ds) => ds.driverId)
+      .filter((id) => id);
+
+    if (driverIds.length === 0)
+      return {
+        drivers: [],
+      };
+
+    const drivers = await this.driverModel.batchGet(driverIds);
+
+    const driverLocationsArrays = await Promise.all(
+      driverIds.map((driverId) =>
+        this.driverLocationModel
+          .query('driver_id')
+          .eq(driverId)
+          .using('GSI_Driver')
+          .exec(),
+      ),
+    );
+
+    const driverLocations: any[] = driverLocationsArrays.flat();
+
+    const merged: GetDriversData[] = drivers.map((driver) => {
+      const statusInfo = driverStatusList.find(
+        (ds) => ds.driverId === driver.toJSON().driver_id,
+      );
+
+      const locationInfo = driverLocations.find(
+        (dl) => dl.driverId === driver.toJSON().driver_id,
+      );
+
+      const driverJson = driver.toJSON();
+
+      return {
+        userId: driverJson.user_id,
+        driverId: driverJson.driver_id,
+        totalTrip: driverJson.toal_trip,
+        rating: driverJson.rating,
+        licenseExpiry: new Date(driverJson.license_expiry),
+        licenseNumber: driverJson.license_number,
+        status: statusInfo?.status,
+        lastSeenAt: statusInfo?.lastSeenAt
+          ? new Date(statusInfo?.lastSeenAt)
+          : undefined,
+        createdAt: new Date(driver.toJSON().createdAt),
+        updatedAt: new Date(driver.toJSON().updatedAt),
+        vehicleCached: statusInfo?.vehicleCached ?? undefined,
+        location: locationInfo
+          ? { lat: locationInfo.lat, lng: locationInfo.lng }
+          : undefined,
+      };
+    });
+
+    return {
+      drivers: merged,
+    };
+  }
+
+  async getDriverInfoDetail(dto: GetDriverInfoDetailByIdDto) {
+    const driverInfo = await this.getDriverInfoDetailById(dto);
+
+    const userInfo = await this.rabbitMqService.send(
+      SERVICES.USER_SERVICE,
+      PATTERNS.USER_SERVICE.GET_PROFILE_BY_USER_ID,
+      {
+        userId: driverInfo.userId,
+      },
+    );
+
+    const formattedUser = {
+      ...omit(userInfo, ['password']),
+      driverInfo,
+    };
+
+    console.log('Formatted user: ', formattedUser);
+
+    return convertStringsToDates(formattedUser);
   }
 }
