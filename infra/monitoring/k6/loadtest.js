@@ -2,7 +2,7 @@ import grpc from 'k6/net/grpc';
 import { check, sleep } from 'k6';
 
 export let options = {
-    vus: 50,
+    vus: 500,
     duration: '2m',
 };
 
@@ -37,7 +37,5 @@ export default function () {
         });
 
     }
-
     client.close();
-    sleep(1);
 }
