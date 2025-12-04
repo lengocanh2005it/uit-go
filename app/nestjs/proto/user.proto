@@ -10,6 +10,32 @@ service UserService {
   rpc UpdateProfile(UpdateProfileRequest) returns (GetMeResponse);
   rpc Register(RegisterRequest) returns (RegisterResponse);
   rpc GetMe(GetMeRequest) returns (GetMeResponse);
+  rpc GetUsers(GetUsersRequest) returns (GetUsersResponse);
+}
+
+message GetUsersRequest {
+  optional string role = 1;
+}
+
+message GetUsersResponse {
+  repeated UserInfo users = 1;
+}
+
+message UserInfo {
+  string id = 1;
+  string email = 2;
+  string role = 3;
+  google.protobuf.Timestamp created_at = 4;
+  google.protobuf.Timestamp updated_at = 5;
+  Profile profile = 6;
+}
+
+message Profile {
+  string id = 1;
+  string full_name = 2;
+  string phone_number = 3;
+  string address = 4;
+  google.protobuf.Timestamp birth_day = 5;
 }
 
 message User {

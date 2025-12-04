@@ -1,4 +1,9 @@
-import { CreateUserDto, LoginUserDto, UpdateProfileDto } from '@/user/src/dto';
+import {
+  CreateUserDto,
+  GetUsersDto,
+  LoginUserDto,
+  UpdateProfileDto,
+} from '@/user/src/dto';
 import { status } from '@grpc/grpc-js';
 import {
   convertStringsToDates,
@@ -15,6 +20,7 @@ import { NotificationTypeEnum } from '@libs/common/enums/notification';
 import { RabbitMQService } from '@libs/common/modules/rabbitmq/rabbitmq.service';
 import {
   GetMeResponse,
+  GetUsersResponse,
   LoginResponse,
   RegisterResponse,
 } from '@libs/common/proto/user';
@@ -431,5 +437,24 @@ export class UserService {
       });
 
     return user;
+  }
+
+  async getUsers(getUsersDto: GetUsersDto): Promise<GetUsersResponse> {
+    const { role: filterRole } = getUsersDto;
+
+    const qb = this.userRepo
+      .createQueryBuilder('user')
+      .leftJoinAndSelect('user.profile', 'profile')
+      .where('user.role != :adminRole', { adminRole: UserRole.ADMIN });
+
+    if (filterRole) {
+      qb.andWhere('user.role = :filterRole', { filterRole });
+    }
+
+    const users = await qb.getMany();
+
+    return {
+      users: users.map((u) => omit(u, ['password'])),
+    };
   }
 }
