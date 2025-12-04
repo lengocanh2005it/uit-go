@@ -2,6 +2,7 @@ import {
   FindAvailableDriversDto,
   GetDriverApprovalsDto,
   GetDriverInfoDetailByIdDto,
+  GetDriversDto,
   GetLocationOfDriverDto,
   UpdateDriverLocationDto,
 } from '@/driver/src/dto';
@@ -122,6 +123,7 @@ export class DriverController {
     await this.driverService.updateDriverStatus(
       driverId,
       statusData,
+      undefined,
       currentLocation,
       currentTripId,
     );
@@ -130,7 +132,7 @@ export class DriverController {
       message: 'Status updated successfully.',
       data: {
         driverId,
-        status,
+        status: statusData,
       },
     };
   }
@@ -223,7 +225,7 @@ export class DriverController {
   async getDriverInfoDetailById(
     @GrpcBody(GetDriverInfoDetailByIdDto) dto: GetDriverInfoDetailByIdDto,
   ) {
-    return this.driverService.getDriverInfoDetailById(dto);
+    return this.driverService.getDriverInfoDetail(dto);
   }
 
   @GrpcMethod(
@@ -241,5 +243,12 @@ export class DriverController {
       updateDriverLocationDto,
       grpcUser,
     );
+  }
+
+  @GrpcMethod(DRIVER_SERVICE_NAME, GRPC_METHODS.DRIVER_SERVICE.GET_DRIVERS)
+  @UseGuards(JwtGrpcGuard)
+  @UsePipes(GrpcValidationPipe)
+  async getDrivers(@GrpcBody(GetDriversDto) getDriversDto: GetDriversDto) {
+    return this.driverService.getDrivers(getDriversDto);
   }
 }
