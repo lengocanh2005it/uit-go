@@ -332,6 +332,10 @@ export class DriverAssignmentConsumer implements OnModuleInit, OnModuleDestroy {
               },
             );
 
+            this.logger.log(
+              `Find driver has driver Id ${newTrip.driverId} for the trip of passenger ${newTrip.passengerId}`,
+            );
+
             tripCreated = true;
           },
           {

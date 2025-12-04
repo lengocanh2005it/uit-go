@@ -20,6 +20,7 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./apps/nestjs/test/jest-e2e.json",
     "up": "npm run build && dotenvx run -- docker compose up -d --build",
+    "up:nok6": "npm run build && dotenvx run -- docker compose up -d --build --scale k6=0",
     "down": "docker compose down",
     "logs": "docker compose logs -f",
     "ps": "docker compose ps",

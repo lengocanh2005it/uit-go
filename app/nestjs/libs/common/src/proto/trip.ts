@@ -4,6 +4,7 @@
 //   protoc               v6.33.1
 // source: trip.proto
 
+/* eslint-disable */
 import { GrpcMethod, GrpcStreamMethod } from '@nestjs/microservices';
 import { wrappers } from 'protobufjs';
 import { Observable } from 'rxjs';
@@ -66,7 +67,9 @@ export interface UpdateTripRequestStatusRequest {
   tripRequestId: string;
 }
 
-export interface UpdateTripRequestStatusResponse {}
+export interface UpdateTripRequestStatusResponse {
+  message: string;
+}
 
 export interface UpdateTripRequest {
   status?: string | undefined;

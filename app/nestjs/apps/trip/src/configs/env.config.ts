@@ -18,7 +18,6 @@ export default () => ({
   },
   jwt_secret: process.env.JWT_SECRET || '',
   jwt_expiration_time: process.env.JWT_EXPIRATION_TIME || '120s',
-  kong_url: process.env.KONG_URL || '',
   ipwho_url: process.env.IPWHO_URL || '',
   bullmq: {
     host: process.env.BULLMQ_HOST || 'redis',
