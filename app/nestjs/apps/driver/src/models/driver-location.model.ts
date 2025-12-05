@@ -2,10 +2,10 @@ import { Schema } from 'dynamoose';
 
 export const DriverLocationSchema = new Schema(
   {
-    hash_prefix: {
+    cell_token: {
       type: String,
       hashKey: true,
-      map: 'hashPrefix',
+      map: 'cellToken',
     },
     driver_id: {
       type: String,
@@ -15,11 +15,6 @@ export const DriverLocationSchema = new Schema(
         name: 'GSI_Driver',
         type: 'global',
       },
-    },
-    geo_hash: {
-      type: String,
-      required: true,
-      map: 'geoHash',
     },
     lat: {
       type: Number,

@@ -19,10 +19,8 @@ import {
   Vehicle,
   VehicleKey,
 } from '@/driver/src/interfaces';
-import { DriverApprovalSchema } from '@/driver/src/models';
 import { status } from '@grpc/grpc-js';
 import {
-  buildGeoLocation,
   CommonService,
   convertStringsToDates,
   generateNotificationContent,
@@ -34,6 +32,7 @@ import { PATTERNS } from '@libs/common/constants';
 import {
   InjectRabbitMqService,
   InjectRedisService,
+  InjectS2Service,
 } from '@libs/common/decorators';
 import {
   CreateDriverDto,
@@ -45,6 +44,7 @@ import { DriverApprovalStatusEnum, DriverStatusEnum } from '@libs/common/enums';
 import { NotificationTypeEnum } from '@libs/common/enums/notification';
 import { RabbitMQService } from '@libs/common/modules/rabbitmq/rabbitmq.service';
 import { RedisService } from '@libs/common/modules/redis/redis.service';
+import { S2Service } from '@libs/common/modules/s2/s2.service';
 import {
   DriverInfo,
   FindAvailableDriversResponse,
@@ -61,7 +61,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { RpcException } from '@nestjs/microservices';
 import { omit } from 'lodash';
-import type { Item, Model } from 'nestjs-dynamoose';
+import type { Model } from 'nestjs-dynamoose';
 import { InjectModel } from 'nestjs-dynamoose';
 import CircuitBreaker from 'opossum';
 import { v4 as uuidv4 } from 'uuid';
@@ -100,6 +100,7 @@ export class DriverService {
     private readonly configService: ConfigService,
     private readonly commonService: CommonService,
     @InjectRedisService() private readonly redisService: RedisService,
+    @InjectS2Service() private readonly s2Service: S2Service,
   ) {
     this.getTripsBreaker = new CircuitBreaker(
       (getAllTripsOfDriverDto, driverId) =>
@@ -280,7 +281,7 @@ export class DriverService {
     lng: number,
     status: DriverStatusEnum,
   ) {
-    const { hash_prefix, geo_hash } = buildGeoLocation(lat, lng);
+    const cellToken = this.s2Service.getCellId(lat, lng);
 
     const existingRecords = await this.driverLocationModel
       .query('driverId')
@@ -289,11 +290,11 @@ export class DriverService {
 
     if (existingRecords?.length) {
       const deleteRequests = existingRecords
-        .filter((r) => r.hashPrefix !== hash_prefix)
+        .filter((r) => r.cellToken !== cellToken)
         .map((r) =>
           this.driverLocationModel.delete({
             driverId,
-            hashPrefix: r.hashPrefix,
+            cellToken: r.cellToken,
           }),
         );
 
@@ -301,9 +302,9 @@ export class DriverService {
     }
 
     await this.driverLocationModel.update(
-      { driverId, hashPrefix: hash_prefix },
+      { driverId, cellToken },
       {
-        geo_hash,
+        cell_token: cellToken,
         lat,
         lng,
       } as any,
@@ -537,73 +538,78 @@ export class DriverService {
       'mechanisms.max_radius_km',
       25,
     );
+    const stepKm = 1;
+    const driversFound: NearbyDriver[] = [];
+    const seenDriverIds = new Set<string>();
 
-    const keyLat = lat.toFixed(3);
-    const keyLng = lng.toFixed(3);
-    const cacheKey = `avail:${keyLat}:${keyLng}:${maxRadiusKm}`;
-    const cached = await this.redisService.get(cacheKey);
+    for (let radius = stepKm; radius <= maxRadiusKm; radius += stepKm) {
+      const coveringCells = this.s2Service.getCoveringCells(
+        lat,
+        lng,
+        radius * 1000,
+      );
 
-    if (cached) {
-      this.logger.debug(`Cache hit for location ${lat},${lng}`);
-      return JSON.parse(cached) as FindAvailableDriversResponse;
+      const cellPromises = coveringCells.map((cellToken) =>
+        this.driverLocationModel.query('cellToken').eq(cellToken).exec(),
+      );
+
+      const cellResults = await Promise.all(cellPromises);
+
+      const driverIds = cellResults
+        .flatMap((records) => records.map((d) => d.driverId))
+        .filter((id) => !seenDriverIds.has(id));
+
+      if (!driverIds.length) continue;
+
+      const driverStatusRecords = await this.driverStatusModel.batchGet(
+        driverIds.map((id) => ({ driverId: id })),
+      );
+
+      const statusMap = new Map(
+        driverStatusRecords.map((s) => [s.driverId, s]),
+      );
+
+      for (const driverRecords of cellResults) {
+        for (const d of driverRecords) {
+          const status = statusMap.get(d.driverId);
+
+          if (
+            !status ||
+            status.status !== DriverStatusEnum.ONLINE ||
+            seenDriverIds.has(d.driverId)
+          )
+            continue;
+
+          const distanceMeters = this.s2Service.computeDistance(
+            lat,
+            lng,
+            d.lat,
+            d.lng,
+          );
+
+          driversFound.push({
+            driverId: d.driverId,
+            lat: d.lat,
+            lng: d.lng,
+            distanceKm: distanceMeters / 1000,
+            vehicle: status.toJSON().vehicle_cached,
+          });
+
+          seenDriverIds.add(d.driverId);
+        }
+      }
+
+      if (driversFound.length >= topN) break;
     }
 
-    const geoDrivers = await this.redisService.geoRadiusWithDistance(
-      'drivers:locations',
-      lng,
-      lat,
-      maxRadiusKm,
-      'km',
-      topN * 3,
-    );
+    const sortedDrivers = driversFound
+      .sort((a, b) => a.distanceKm - b.distanceKm)
+      .slice(0, topN);
 
-    if (!geoDrivers.length) return { count: 0, drivers: [] };
-
-    const driverIds = geoDrivers.map((d) => d.member);
-    const onlineMap = await this.redisService.areDriversOnline(driverIds);
-    const keys: DriverStatusKey[] = driverIds.map((id) => ({ driverId: id }));
-    const driverStatuses = await this.driverStatusModel.batchGet(keys);
-
-    const driverStatusMap = new Map(
-      driverStatuses.map((ds) => [ds.toJSON().driver_id, ds]),
-    );
-
-    const geoPosPromises = geoDrivers.map((d) =>
-      this.redisService.geoPos('drivers:locations', d.member),
-    );
-
-    const geoPositions = await Promise.all(geoPosPromises);
-    const drivers: NearbyDriver[] = [];
-
-    for (let i = 0; i < geoDrivers.length; i++) {
-      const d = geoDrivers[i];
-
-      if (!onlineMap[d.member]) continue;
-
-      const pos = geoPositions[i];
-      if (!pos) continue;
-
-      const ds = driverStatusMap.get(d.member);
-
-      drivers.push({
-        driverId: d.member,
-        lat: pos.lat,
-        lng: pos.lng,
-        distanceKm: d.distance,
-        vehicle: ds?.toJSON()?.vehicle_cached,
-      });
-
-      if (drivers.length >= topN) break;
-    }
-
-    const result: FindAvailableDriversResponse = {
-      count: drivers.length,
-      drivers,
+    return {
+      count: sortedDrivers.length,
+      drivers: sortedDrivers,
     };
-
-    await this.redisService.set(cacheKey, JSON.stringify(result), 30);
-
-    return result;
   }
 
   async getLocationOfDriver(
@@ -795,12 +801,12 @@ export class DriverService {
 
     const { lat, lon } =
       await this.commonService.getCoordinates(currentLocation);
-    const { hash_prefix, geo_hash } = buildGeoLocation(lat, lon);
+    const cellToken = this.s2Service.getCellId(lat, lon);
 
     await this.driverLocationModel.update(
-      { driverId: driverInfo.driverId, hashPrefix: hash_prefix },
+      { driverId: driverInfo.driverId, cellToken },
       {
-        geo_hash,
+        cell_token: cellToken,
         lat,
         lng: lon,
       } as any,
@@ -916,5 +922,17 @@ export class DriverService {
     console.log('Formatted user: ', formattedUser);
 
     return convertStringsToDates(formattedUser);
+  }
+
+  async areDriversOnline(driverIds: string[]): Promise<Map<string, boolean>> {
+    const onlineMap = new Map<string, boolean>();
+    const driverStatusRecords = await this.driverStatusModel.batchGet(
+      driverIds.map((id) => ({ driverId: id })),
+    );
+    driverIds.forEach((id) => {
+      const record = driverStatusRecords.find((r) => r.driverId === id);
+      onlineMap.set(id, record?.status === DriverStatusEnum.ONLINE);
+    });
+    return onlineMap;
   }
 }

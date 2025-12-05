@@ -198,9 +198,8 @@ export interface DriverApproval {
 }
 
 export interface DriverLocation {
-  hashPrefix: string;
+  cellToken: string;
   driverId: string;
-  geoHash: string;
   lat: number;
   lng: number;
   createdAt: Date | undefined;

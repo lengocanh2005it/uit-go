@@ -64,37 +64,10 @@ export async function sendWithTimeout<T = any>(
   );
 }
 
-export function buildGeoLocation(lat: number, lng: number, prefixLength = 5) {
-  const geo_hash = ngeohash.encode(lat, lng);
-  const hash_prefix = geo_hash.substring(0, prefixLength);
-  return { hash_prefix, geo_hash };
-}
-
 export function formatCurrencyVND(amount: number): string {
   if (isNaN(amount)) return '0 VNĐ';
   return `${amount.toLocaleString('vi-VN')} VNĐ`;
 }
-
-export const buildSearchPrefixes = (
-  lat: number,
-  lng: number,
-  radiusKm: number,
-  prefixLen = 5,
-): string[] => {
-  const earthRadiusKm = 6371;
-  const dLat = (radiusKm / earthRadiusKm) * (180 / Math.PI);
-  const dLng =
-    ((radiusKm / earthRadiusKm) * (180 / Math.PI)) /
-    Math.cos((lat * Math.PI) / 180);
-
-  const minLat = lat - dLat;
-  const maxLat = lat + dLat;
-  const minLng = lng - dLng;
-  const maxLng = lng + dLng;
-
-  const boxes = ngeohash.bboxes(minLat, minLng, maxLat, maxLng, prefixLen);
-  return Array.from(new Set(boxes.map((gh) => gh.substring(0, prefixLen))));
-};
 
 export function payloadIsObject(value: any): value is Record<string, any> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);

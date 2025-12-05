@@ -1,6 +1,7 @@
 import { ThrottlerGrpcGuard } from '@libs/common/guards';
 import { PulsarModule } from '@libs/common/modules/pulsar/pulsar.module';
 import { RedisService } from '@libs/common/modules/redis/redis.service';
+import { S2Module } from '@libs/common/modules/s2/s2.module';
 import {
   REDIS_SERVICE_TOKEN,
   REDLOCK_RETRY_COUNT,
@@ -34,6 +35,7 @@ import { RedisModule } from './modules/redis/redis.module';
     RabbitMQModule,
     RedisModule,
     PulsarModule,
+    S2Module,
     BullModule.forRootAsync({
       useFactory: (configService: ConfigService) => ({
         connection: {

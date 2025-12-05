@@ -213,13 +213,12 @@ message DriverApproval {
 }
 
 message DriverLocation {
-  string hash_prefix = 1;
+  string cell_token = 1;
   string driver_id = 2;
-  string geo_hash = 3;
-  double lat = 4;
-  double lng = 5;
-  google.protobuf.Timestamp created_at = 7;
-  google.protobuf.Timestamp updated_at = 8;
+  double lat = 3;
+  double lng = 4;
+  google.protobuf.Timestamp created_at = 5;
+  google.protobuf.Timestamp updated_at = 6;
 }
 
 message VehicleCached {
