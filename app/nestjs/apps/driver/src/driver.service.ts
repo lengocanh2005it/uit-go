@@ -58,7 +58,6 @@ import {
   UpdateDriverLocationResponse,
 } from '@libs/common/proto/driver';
 import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { RpcException } from '@nestjs/microservices';
 import { omit } from 'lodash';
 import type { Model } from 'nestjs-dynamoose';
@@ -97,7 +96,6 @@ export class DriverService {
       ProcessedEvent,
       ProcessedEventKey
     >,
-    private readonly configService: ConfigService,
     private readonly commonService: CommonService,
     @InjectRedisService() private readonly redisService: RedisService,
     @InjectS2Service() private readonly s2Service: S2Service,
@@ -198,7 +196,7 @@ export class DriverService {
     if (currentLocation?.trim() && statusData === DriverStatusEnum.ONLINE) {
       const { lon, lat } =
         await this.commonService.getCoordinates(currentLocation);
-      await this.updateLocationOfDriver(driverId, lat, lon, statusData);
+      await this.updateLocationOfDriver(driverId, lat, lon);
     }
 
     if (
@@ -275,12 +273,7 @@ export class DriverService {
     return record;
   }
 
-  async updateLocationOfDriver(
-    driverId: string,
-    lat: number,
-    lng: number,
-    status: DriverStatusEnum,
-  ) {
+  async updateLocationOfDriver(driverId: string, lat: number, lng: number) {
     const cellToken = this.s2Service.getCellId(lat, lng);
 
     const existingRecords = await this.driverLocationModel
@@ -288,36 +281,35 @@ export class DriverService {
       .eq(driverId)
       .exec();
 
-    if (existingRecords?.length) {
-      const deleteRequests = existingRecords
-        .filter((r) => r.cellToken !== cellToken)
-        .map((r) =>
-          this.driverLocationModel.delete({
-            driverId,
-            cellToken: r.cellToken,
-          }),
-        );
-
-      await Promise.all(deleteRequests);
+    for (const r of existingRecords) {
+      if (r?.cellToken && r.cellToken !== cellToken) {
+        await this.driverLocationModel.delete({
+          cell_token: r.cellToken,
+          driver_id: driverId,
+        } as any);
+      }
     }
 
-    await this.driverLocationModel.update(
-      { driverId, cellToken },
-      {
+    const existing = await this.driverLocationModel.get({
+      cell_token: cellToken,
+      driver_id: driverId,
+    } as any);
+
+    if (existing) {
+      await this.driverLocationModel.update(
+        { cellToken, driverId },
+        { lat, lng },
+      );
+    } else {
+      await this.driverLocationModel.create({
         cell_token: cellToken,
+        driver_id: driverId,
         lat,
         lng,
-      } as any,
-      { return: 'item' },
-    );
-
-    await this.redisService.geoAdd('drivers:locations', lng, lat, driverId);
-
-    if (status === DriverStatusEnum.ONLINE) {
-      await this.redisService.sadd('online_drivers', driverId);
-    } else {
-      await this.redisService.srem('online_drivers', driverId);
+      } as any);
     }
+
+    await this.updateDriverLocationInRedis(driverId, lat, lng, cellToken);
   }
 
   async createDriver(data: CreateDriverDto, userId: string) {
@@ -532,84 +524,60 @@ export class DriverService {
     lng: number,
     topN = 10,
   ): Promise<FindAvailableDriversResponse> {
-    this.logger.debug(`Finding drivers for (${lat}, ${lng})`);
+    const density = await this.getDriverDensity(lat, lng);
+    const k = this.chooseKFromDensity(density);
 
-    const maxRadiusKm = this.configService.get<number>(
-      'mechanisms.max_radius_km',
-      25,
+    const centerCell = this.s2Service.getCellId(lat, lng);
+    const frontierCells = this.s2Service.getKRing(centerCell, k);
+
+    const cellResults = await Promise.all(
+      frontierCells.map((cell) =>
+        this.driverLocationModel.query('cellToken').eq(cell).exec(),
+      ),
     );
-    const stepKm = 1;
-    const driversFound: NearbyDriver[] = [];
-    const seenDriverIds = new Set<string>();
 
-    for (let radius = stepKm; radius <= maxRadiusKm; radius += stepKm) {
-      const coveringCells = this.s2Service.getCoveringCells(
-        lat,
-        lng,
-        radius * 1000,
-      );
-
-      const cellPromises = coveringCells.map((cellToken) =>
-        this.driverLocationModel.query('cellToken').eq(cellToken).exec(),
-      );
-
-      const cellResults = await Promise.all(cellPromises);
-
-      const driverIds = cellResults
-        .flatMap((records) => records.map((d) => d.driverId))
-        .filter((id) => !seenDriverIds.has(id));
-
-      if (!driverIds.length) continue;
-
-      const driverStatusRecords = await this.driverStatusModel.batchGet(
-        driverIds.map((id) => ({ driverId: id })),
-      );
-
-      const statusMap = new Map(
-        driverStatusRecords.map((s) => [s.driverId, s]),
-      );
-
-      for (const driverRecords of cellResults) {
-        for (const d of driverRecords) {
-          const status = statusMap.get(d.driverId);
-
-          if (
-            !status ||
-            status.status !== DriverStatusEnum.ONLINE ||
-            seenDriverIds.has(d.driverId)
-          )
-            continue;
-
-          const distanceMeters = this.s2Service.computeDistance(
-            lat,
-            lng,
-            d.lat,
-            d.lng,
-          );
-
-          driversFound.push({
-            driverId: d.driverId,
-            lat: d.lat,
-            lng: d.lng,
-            distanceKm: distanceMeters / 1000,
-            vehicle: status.toJSON().vehicle_cached,
-          });
-
-          seenDriverIds.add(d.driverId);
-        }
-      }
-
-      if (driversFound.length >= topN) break;
+    const locations = cellResults.flat();
+    if (!locations.length) {
+      return { count: 0, drivers: [] };
     }
 
-    const sortedDrivers = driversFound
+    const driverIds = [...new Set(locations.map((x) => x.driverId))];
+
+    const statusRecords = await this.driverStatusModel.batchGet(
+      driverIds.map((id) => ({ driverId: id })),
+    );
+
+    const statusMap = new Map(
+      statusRecords.map((s) => [s.toJSON().driver_id, s]),
+    );
+
+    const drivers: NearbyDriver[] = [];
+
+    for (const d of locations) {
+      const status = statusMap.get(d.driverId);
+      if (!status || status.status !== DriverStatusEnum.ONLINE) continue;
+
+      const distanceMeters = this.s2Service.computeDistance(
+        lat,
+        lng,
+        d.lat,
+        d.lng,
+      );
+
+      drivers.push({
+        driverId: d.driverId,
+        lat: d.lat,
+        lng: d.lng,
+        distanceKm: distanceMeters / 1000,
+        vehicle: status.toJSON().vehicle_cached,
+      });
+    }
+
+    const sorted = drivers
       .sort((a, b) => a.distanceKm - b.distanceKm)
       .slice(0, topN);
 
-    return {
-      count: sortedDrivers.length,
-      drivers: sortedDrivers,
-    };
+    return { count: sorted.length, drivers: sorted };
   }
 
   async getLocationOfDriver(
@@ -792,41 +760,39 @@ export class DriverService {
     const { sub } = grpcUser;
 
     const driverInfo = await this.getDriverInfo(sub);
-
-    if (!driverInfo)
+    if (!driverInfo) {
       throw new RpcException({
         code: status.NOT_FOUND,
         message: `Driver info not found.`,
       });
+    }
 
     const { lat, lon } =
       await this.commonService.getCoordinates(currentLocation);
-    const cellToken = this.s2Service.getCellId(lat, lon);
+
+    const newCell = this.s2Service.getCellId(lat, lon);
+
+    await this.updateDriverLocationInRedis(
+      driverInfo.driverId,
+      lat,
+      lon,
+      newCell,
+    );
 
     await this.driverLocationModel.update(
-      { driverId: driverInfo.driverId, cellToken },
+      { driverId: driverInfo.driverId, cellToken: newCell },
       {
-        cell_token: cellToken,
+        cell_token: newCell,
         lat,
         lng: lon,
       } as any,
       { return: 'item' },
     );
 
-    await this.redisService.geoAdd(
-      'drivers:locations',
-      lon,
-      lat,
-      driverInfo.driverId,
-    );
-
     return {
       message: 'Your location has been successfully updated on the system.',
       success: true,
-      data: {
-        lat,
-        lng: lon,
-      },
+      data: { lat, lng: lon },
     };
   }
 
@@ -919,8 +885,6 @@ export class DriverService {
       driverInfo,
     };
 
-    console.log('Formatted user: ', formattedUser);
-
     return convertStringsToDates(formattedUser);
   }
 
@@ -934,5 +898,57 @@ export class DriverService {
       onlineMap.set(id, record?.status === DriverStatusEnum.ONLINE);
     });
     return onlineMap;
+  }
+
+  async getDriverDensity(lat: number, lng: number): Promise<number> {
+    const centerCell = this.s2Service.getCellId(lat, lng);
+
+    const coarseCell = this.s2Service.getParentCell(centerCell, 14);
+
+    const cells = this.s2Service.getKRing(coarseCell, 1);
+
+    const keys = cells.map((c) => `density:${c}`);
+    const densities = await this.redisService.getClient().mget(keys);
+
+    const driversCount = densities.reduce(
+      (sum, v) => sum + (v ? parseInt(v, 10) : 0),
+      0,
+    );
+
+    const area = Math.PI * 400 * 400;
+
+    return driversCount / area;
+  }
+
+  chooseKFromDensity(density: number): number {
+    if (density > 0.00003) return 2;
+    if (density > 0.00001) return 4;
+    return 6;
+  }
+
+  private async updateDriverLocationInRedis(
+    driverId: string,
+    lat: number,
+    lng: number,
+    newCell: string,
+  ): Promise<void> {
+    const redis = this.redisService.getClient();
+
+    const driverCellKey = `driver:${driverId}:cell`;
+    const oldCell = await redis.get(driverCellKey);
+
+    if (oldCell && oldCell !== newCell) {
+      await redis.decr(`density:${oldCell}`);
+    }
+
+    await redis.incr(`density:${newCell}`);
+    await redis.set(driverCellKey, newCell);
+
+    await redis.hset(`driver:${driverId}:location`, {
+      lat,
+      lng,
+      cell: newCell,
+      updatedAt: Date.now(),
+    });
   }
 }

@@ -12,6 +12,16 @@ export class S2Service {
     return cellId.toToken();
   }
 
+  getParentCell(cellToken: string, level: number): string {
+    const cell = S2CellId.fromToken(cellToken);
+
+    if (level < 0 || level > 30) {
+      throw new Error(`Invalid S2 level: ${level}`);
+    }
+
+    return cell.parentL(level).toToken();
+  }
+
   computeDistance(
     lat1: number,
     lng1: number,
