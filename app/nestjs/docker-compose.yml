@@ -278,6 +278,78 @@ services:
     volumes:
       - grafana-data:/var/lib/grafana
 
+  redis1:
+    image: redis:6.2
+    container_name: redis1
+    ports:
+      - "7000:7000"
+    volumes:
+      - redis-data1:/data
+      - ./redis1.conf:/usr/local/etc/redis/redis.conf
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+    networks:
+      - backend
+
+  redis2:
+    image: redis:6.2
+    container_name: redis2
+    ports:
+      - "7001:7001"
+    volumes:
+      - redis-data2:/data
+      - ./redis2.conf:/usr/local/etc/redis/redis.conf
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+    networks:
+      - backend
+
+  redis3:
+    image: redis:6.2
+    container_name: redis3
+    ports:
+      - "7002:7002"
+    volumes:
+      - redis-data3:/data
+      - ./redis3.conf:/usr/local/etc/redis/redis.conf
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+    networks:
+      - backend
+
+  redis4:
+    image: redis:6.2
+    container_name: redis4
+    ports:
+      - "7003:7003"
+    volumes:
+      - redis-data4:/data
+      - ./redis4.conf:/usr/local/etc/redis/redis.conf
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+    networks:
+      - backend
+
+  redis5:
+    image: redis:6.2
+    container_name: redis5
+    ports:
+      - "7004:7004"
+    volumes:
+      - redis-data5:/data
+      - ./redis5.conf:/usr/local/etc/redis/redis.conf
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+    networks:
+      - backend
+
+  redis6:
+    image: redis:6.2
+    container_name: redis6
+    ports:
+      - "7005:7005"
+    volumes:
+      - redis-data6:/data
+      - ./redis6.conf:/usr/local/etc/redis/redis.conf
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+    networks:
+      - backend
+
 networks:
   backend:
     driver: bridge
@@ -301,3 +373,9 @@ volumes:
   notification-db-data:
   grafana-data:
   redis-data:
+  redis-data1:
+  redis-data2:
+  redis-data3:
+  redis-data4:
+  redis-data5:
+  redis-data6:
