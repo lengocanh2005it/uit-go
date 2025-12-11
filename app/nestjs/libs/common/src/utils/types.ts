@@ -1,6 +1,6 @@
 import { Trip } from '@/trip/src/entities';
 import { CreateTripDto } from '@libs/common/dto';
-import { TripStatusEnum } from '@libs/common/enums';
+import { DriverStatusEnum, TripStatusEnum } from '@libs/common/enums';
 
 export interface AWSQueueMessage<T = any> {
   queueName: string;
@@ -82,4 +82,34 @@ export interface NotificationParams {
 export interface NotificationContent {
   title: string;
   message: string;
+}
+
+export interface UpdateDriverRealtimeParams {
+  driverId: string;
+  lat: number;
+  lng: number;
+  cellToken: string;
+  status: DriverStatusEnum;
+  vehicle: {
+    vehicleId: string;
+    plateNumber: string;
+    brand: string;
+    model: string;
+    color: string;
+  };
+}
+
+export interface DriverLocationCache {
+  lat: number;
+  lng: number;
+  cellToken: string;
+  status: DriverStatusEnum;
+  vehicle?: {
+    vehicleId: string;
+    plateNumber: string;
+    brand: string;
+    model: string;
+    color: string;
+  };
+  updatedAt: number;
 }

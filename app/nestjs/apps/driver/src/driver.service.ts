@@ -12,6 +12,8 @@ import {
   DriverKey,
   DriverLocation,
   DriverLocationKey,
+  DriverRealtimeInfo,
+  DriverRealtimeKey,
   DriverStatus,
   DriverStatusKey,
   ProcessedEvent,
@@ -23,10 +25,12 @@ import { status } from '@grpc/grpc-js';
 import {
   CommonService,
   convertStringsToDates,
+  DriverLocationCache,
   generateNotificationContent,
   NotificationParams,
   SERVICES,
   TGrpcUser,
+  UpdateDriverRealtimeParams,
 } from '@libs/common';
 import { PATTERNS } from '@libs/common/constants';
 import {
@@ -95,6 +99,11 @@ export class DriverService {
     private readonly processedEventModel: Model<
       ProcessedEvent,
       ProcessedEventKey
+    >,
+    @InjectModel('DriverRealtimeInfo')
+    private readonly driverRealtimeInfoModel: Model<
+      DriverRealtimeInfo,
+      DriverRealtimeKey
     >,
     private readonly commonService: CommonService,
     @InjectRedisService() private readonly redisService: RedisService,
@@ -530,50 +539,111 @@ export class DriverService {
     const centerCell = this.s2Service.getCellId(lat, lng);
     const frontierCells = this.s2Service.getKRing(centerCell, k);
 
-    const cellResults = await Promise.all(
-      frontierCells.map((cell) =>
-        this.driverLocationModel.query('cellToken').eq(cell).exec(),
-      ),
-    );
+    const redis = this.redisService.getClient();
 
-    const locations = cellResults.flat();
-    if (!locations.length) {
-      return { count: 0, drivers: [] };
+    const pipeline = redis.pipeline();
+    frontierCells.forEach((cell) => pipeline.smembers(`cell:${cell}:drivers`));
+    const results = (await pipeline.exec()) ?? [];
+
+    const driverIdSet = new Set<string>();
+    results.forEach(([err, ids]: any) => {
+      if (!err && ids) ids.forEach((id: string) => driverIdSet.add(id));
+    });
+
+    if (!driverIdSet.size) return { count: 0, drivers: [] };
+
+    const driverIds = Array.from(driverIdSet);
+
+    const infoPipeline = redis.pipeline();
+    driverIds.forEach((id) => infoPipeline.get(`driver:${id}:realtime`));
+    const infoResults = (await infoPipeline.exec()) ?? [];
+
+    const driversToFetchFromDB: string[] = [];
+    const nearbyDrivers: NearbyDriver[] = [];
+    const driverPositions: Record<string, { lat: number; lng: number }> = {};
+
+    for (let i = 0; i < infoResults.length; i++) {
+      const [err, raw] = infoResults[i];
+      const dataRaw = raw as string | null;
+
+      if (err || !dataRaw) {
+        driversToFetchFromDB.push(driverIds[i]);
+        continue;
+      }
+
+      let cached: DriverLocationCache | null = null;
+      try {
+        cached = JSON.parse(dataRaw);
+      } catch {
+        driversToFetchFromDB.push(driverIds[i]);
+        continue;
+      }
+
+      if (!cached || cached.lat == null || cached.lng == null) {
+        driversToFetchFromDB.push(driverIds[i]);
+        continue;
+      }
+
+      if (!cached.lat || !cached.lng) {
+        driversToFetchFromDB.push(driverIds[i]);
+        continue;
+      }
+
+      driverPositions[driverIds[i]] = {
+        lat: cached.lat,
+        lng: cached.lng,
+      };
+
+      if (cached.status && cached.vehicle) {
+        const distance = this.s2Service.computeDistance(
+          lat,
+          lng,
+          cached.lat,
+          cached.lng,
+        );
+
+        nearbyDrivers.push({
+          driverId: driverIds[i],
+          lat: cached.lat,
+          lng: cached.lng,
+          distanceKm: Math.round((distance / 1000) * 1000) / 1000,
+          vehicle: cached.vehicle,
+        });
+      } else {
+        driversToFetchFromDB.push(driverIds[i]);
+      }
     }
 
-    const driverIds = [...new Set(locations.map((x) => x.driverId))];
+    if (driversToFetchFromDB.length) {
+      const BATCH_SIZE = 100;
+      for (let i = 0; i < driversToFetchFromDB.length; i += BATCH_SIZE) {
+        const batchIds = driversToFetchFromDB
+          .slice(i, i + BATCH_SIZE)
+          .map((id) => ({ driverId: id }));
+        const records = await this.driverRealtimeInfoModel.batchGet(batchIds);
 
-    const statusRecords = await this.driverStatusModel.batchGet(
-      driverIds.map((id) => ({ driverId: id })),
-    );
+        for (const d of records) {
+          if (d.status !== DriverStatusEnum.ONLINE) continue;
+          const pos = driverPositions[d.driverId];
+          if (!pos) continue;
 
-    const statusMap = new Map(
-      statusRecords.map((s) => [s.toJSON().driver_id, s]),
-    );
-
-    const drivers: NearbyDriver[] = [];
-
-    for (const d of locations) {
-      const status = statusMap.get(d.driverId);
-      if (!status || status.status !== DriverStatusEnum.ONLINE) continue;
-
-      const distanceMeters = this.s2Service.computeDistance(
-        lat,
-        lng,
-        d.lat,
-        d.lng,
-      );
-
-      drivers.push({
-        driverId: d.driverId,
-        lat: d.lat,
-        lng: d.lng,
-        distanceKm: distanceMeters / 1000,
-        vehicle: status.toJSON().vehicle_cached,
-      });
+          nearbyDrivers.push({
+            driverId: d.driverId,
+            lat: pos.lat,
+            lng: pos.lng,
+            distanceKm:
+              Math.round(
+                (this.s2Service.computeDistance(lat, lng, pos.lat, pos.lng) /
+                  1000) *
+                  1000,
+              ) / 1000,
+            vehicle: d.toJSON().vehicleCached,
+          });
+        }
+      }
     }
 
-    const sorted = drivers
+    const sorted = nearbyDrivers
       .sort((a, b) => a.distanceKm - b.distanceKm)
       .slice(0, topN);
 
@@ -760,6 +830,7 @@ export class DriverService {
     const { sub } = grpcUser;
 
     const driverInfo = await this.getDriverInfo(sub);
+
     if (!driverInfo) {
       throw new RpcException({
         code: status.NOT_FOUND,
@@ -935,20 +1006,87 @@ export class DriverService {
     const redis = this.redisService.getClient();
 
     const driverCellKey = `driver:${driverId}:cell`;
+    const driverLocationKey = `driver:${driverId}:realtime`;
+
     const oldCell = await redis.get(driverCellKey);
+    const pipeline = redis.pipeline();
 
     if (oldCell && oldCell !== newCell) {
-      await redis.decr(`density:${oldCell}`);
+      pipeline.decr(`density:${oldCell}`);
+      pipeline.srem(`cell:${oldCell}:drivers`, driverId);
     }
 
-    await redis.incr(`density:${newCell}`);
-    await redis.set(driverCellKey, newCell);
+    pipeline.set(driverCellKey, newCell);
+    pipeline.incr(`density:${newCell}`);
+    pipeline.sadd(`cell:${newCell}:drivers`, driverId);
 
-    await redis.hset(`driver:${driverId}:location`, {
+    const vehicle = await this.vehicleModel
+      .query('driverId')
+      .eq(driverId)
+      .exec();
+
+    if (!vehicle.length)
+      throw new RpcException({
+        code: status.NOT_FOUND,
+        message: 'Vehicle info not found.',
+      });
+
+    const toVehicleToJson = vehicle[0].toJSON();
+
+    const driverStatus = await this.driverStatusModel.get({
+      driverId,
+    });
+
+    await this.upsertDriverRealtime({
+      driverId,
       lat,
       lng,
-      cell: newCell,
-      updatedAt: Date.now(),
+      status: driverStatus.toJSON().status,
+      vehicle: {
+        vehicleId: toVehicleToJson.vehicleId,
+        plateNumber: toVehicleToJson.plateNumber,
+        brand: toVehicleToJson.brand,
+        model: toVehicleToJson.model,
+        color: toVehicleToJson.color,
+      },
+      cellToken: newCell,
     });
+
+    const cacheData: DriverLocationCache = {
+      lat,
+      lng,
+      cellToken: newCell,
+      status: driverStatus.status,
+      vehicle: {
+        vehicleId: toVehicleToJson.vehicleId,
+        plateNumber: toVehicleToJson.plateNumber,
+        brand: toVehicleToJson.brand,
+        model: toVehicleToJson.model,
+        color: toVehicleToJson.color,
+      },
+      updatedAt: Date.now(),
+    };
+
+    pipeline.set(driverLocationKey, JSON.stringify(cacheData));
+
+    await pipeline.exec();
+  }
+
+  private async upsertDriverRealtime(params: UpdateDriverRealtimeParams) {
+    const { driverId, lat, lng, cellToken, status, vehicle } = params;
+
+    const updatedItem = await this.driverRealtimeInfoModel.update(
+      { driverId },
+      {
+        cellToken,
+        lat,
+        lng,
+        status: status ?? DriverStatusEnum.ONLINE,
+        vehicle,
+      },
+      { return: 'item' },
+    );
+
+    return updatedItem;
   }
 }
