@@ -15,8 +15,8 @@ client.load(['/proto'], 'trip.proto');
 client.load(['/proto'], 'user.proto');
 
 function getRandomLatLng() {
-    const lat = 10.75 + Math.random() * 0.02;
-    const lng = 106.66 + Math.random() * 0.02;
+    const lat = 10.7742262;
+    const lng = 106.7032499;
     return { lat, lng };
 }
 
@@ -33,7 +33,7 @@ export default function () {
 
         check(response, {
             'status is OK': (r) => r.status === grpc.StatusOK,
-            'has drivers': (r) => r.message && r.message.count > 0,
+            'has available drivers': (r) => r.message && r.message.count > 0,
         });
 
     }

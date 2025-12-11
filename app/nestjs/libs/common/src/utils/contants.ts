@@ -1,14 +1,7 @@
-import { UserRole } from '@/user/src/enums';
-import {
-  DriverApprovalStatusEnum,
-  DriverStatusEnum,
-  TripRequestStatusEnum,
-  TripStatusEnum,
-} from '@libs/common/enums';
-
 export const RABBITMQ_SERVCE_TOKEN = Symbol('RABBITMQ_SERVICE');
 export const PULSAR_SERVICE_TOKEN = Symbol('PULSAR_SERVICE');
 export const REDIS_SERVICE_TOKEN = Symbol('REDIS_SERVICE');
+export const S2_SERVICE_TOKEN = Symbol('S2');
 export const BULLMQ_SERVICE_TOKEN = Symbol('BULLMQ_SERVICE');
 export const RABBITMQ_QUEUE_SERVICES = [
   'USER_SERVICE',
