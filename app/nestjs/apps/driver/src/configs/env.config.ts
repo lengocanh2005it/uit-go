@@ -5,17 +5,11 @@ export default () => ({
     queues: process.env.RABBITMQ_QUEUES || '',
   },
   redis: {
-    host: process.env.REDIS_HOST || '',
-    port: parseInt(process.env.REDIS_PORT ?? '6379', 10) || 6379,
-    tls: process.env.REDIS_TLS === 'true',
+    clusterNodes: process.env.CLUSTER_NODES || '',
   },
   jwt_secret: process.env.JWT_SECRET || '',
   jwt_expiration_time: process.env.JWT_EXPIRATION_TIME || '120s',
   ipwho_url: process.env.IPWHO_URL || '',
-  bullmq: {
-    host: process.env.BULLMQ_HOST || 'redis',
-    port: parseInt(process.env.BULLMQ_PORT || '6379', 10) || 6379,
-  },
   geoapify: {
     url: process.env.GEOAPIFY_URL || '',
     api_key: process.env.GEOAPIFY_API_KEY || '',

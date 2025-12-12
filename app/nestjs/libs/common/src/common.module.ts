@@ -37,13 +37,14 @@ import { RedisModule } from './modules/redis/redis.module';
     PulsarModule,
     S2Module,
     BullModule.forRootAsync({
-      useFactory: (configService: ConfigService) => ({
-        connection: {
-          host: configService.get<string>('bullmq.host', 'redis'),
-          port: configService.get<number>('bullmq.port', 6379),
-        },
+      imports: [RedisModule],
+      inject: [REDIS_SERVICE_TOKEN],
+      useFactory: async (redisService: RedisService) => ({
+        connection: redisService.getClient(),
+        defaultJobOptions: { removeOnComplete: true, removeOnFail: true },
+        skipVersionCheck: true,
+        prefix: 'bull:{outbox_event_queue}',
       }),
-      inject: [ConfigService],
     }),
     HttpModule.registerAsync({
       global: true,
@@ -58,7 +59,9 @@ import { RedisModule } from './modules/redis/redis.module';
       imports: [RedisModule],
       inject: [REDIS_SERVICE_TOKEN],
       useFactory: (redisService: RedisService) => ({
-        nodes: [new IoredisAdapter(redisService.getClient())],
+        nodes: redisService
+          .getRedisNodes()
+          .map((node) => new IoredisAdapter(node)),
         defaultTtl: 5000,
         retryAttempts: REDLOCK_RETRY_COUNT,
         retryDelay: REDLOCK_RETRY_DELAY,

@@ -1,3 +1,17 @@
+x-redis-deps: &redis-deps
+    redis1:
+      condition: service_started
+    redis2:
+      condition: service_started
+    redis3:
+      condition: service_started
+    redis4:
+      condition: service_started
+    redis5:
+      condition: service_started
+    redis6:
+      condition: service_started
+
 services:
   kong:
     build: 
@@ -41,8 +55,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      redis:
-        condition: service_started
+      <<: *redis-deps
       kong:
         condition: service_started
       user-db:
@@ -79,8 +92,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      redis:
-        condition: service_started
+      <<: *redis-deps
       kong:
         condition: service_started
       driver-db:
@@ -103,8 +115,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      redis:
-        condition: service_started
+      <<: *redis-deps
       kong:
         condition: service_started
       trip-db:
@@ -127,8 +138,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      redis:
-        condition: service_started
+      <<: *redis-deps
       kong:
         condition: service_started
       notification-db:
@@ -217,18 +227,6 @@ services:
       retries: 5
       start_period: 10s
 
-  redis:
-    image: redis:6.2
-    container_name: redis
-    ports:
-      - "6379:6379"
-    networks:
-      - backend
-    volumes:
-      - redis-data:/data
-      - ./redis.conf:/usr/local/etc/redis/redis.conf
-    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
-
   k6:
     image: grafana/k6:latest
     container_name: k6
@@ -283,6 +281,7 @@ services:
     container_name: redis1
     ports:
       - "7000:7000"
+      - "17000:17000"
     volumes:
       - redis-data1:/data
       - ./redis1.conf:/usr/local/etc/redis/redis.conf
@@ -295,6 +294,7 @@ services:
     container_name: redis2
     ports:
       - "7001:7001"
+      - "17001:17001"
     volumes:
       - redis-data2:/data
       - ./redis2.conf:/usr/local/etc/redis/redis.conf
@@ -307,6 +307,7 @@ services:
     container_name: redis3
     ports:
       - "7002:7002"
+      - "17002:17002"
     volumes:
       - redis-data3:/data
       - ./redis3.conf:/usr/local/etc/redis/redis.conf
@@ -319,6 +320,7 @@ services:
     container_name: redis4
     ports:
       - "7003:7003"
+      - "17003:17003"
     volumes:
       - redis-data4:/data
       - ./redis4.conf:/usr/local/etc/redis/redis.conf
@@ -331,6 +333,7 @@ services:
     container_name: redis5
     ports:
       - "7004:7004"
+      - "17004:17004"
     volumes:
       - redis-data5:/data
       - ./redis5.conf:/usr/local/etc/redis/redis.conf
@@ -343,6 +346,7 @@ services:
     container_name: redis6
     ports:
       - "7005:7005"
+      - "17005:17005"
     volumes:
       - redis-data6:/data
       - ./redis6.conf:/usr/local/etc/redis/redis.conf
@@ -372,7 +376,6 @@ volumes:
   driver-db-data:
   notification-db-data:
   grafana-data:
-  redis-data:
   redis-data1:
   redis-data2:
   redis-data3:
