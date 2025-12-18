@@ -2,8 +2,11 @@ import grpc from 'k6/net/grpc';
 import { check, sleep } from 'k6';
 
 export let options = {
-    vus: 500,
-    duration: '2m',
+  stages: [
+    { duration: '30s', target: 100 },
+    { duration: '1m', target: 500 },
+    { duration: '30s', target: 0 },
+  ],
 };
 
 const REQUESTS_PER_VU = 5;
