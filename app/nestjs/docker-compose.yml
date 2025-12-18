@@ -259,10 +259,12 @@ services:
       - backend
     volumes:
       - ../../infra/monitoring/prometheus:/etc/prometheus
+      - prometheus-data:/prometheus
     ports:
       - "9090:9090"
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
       - '--web.enable-remote-write-receiver'
       - '--web.enable-lifecycle'
 
@@ -375,6 +377,7 @@ volumes:
   trip-db-data:
   driver-db-data:
   notification-db-data:
+  prometheus-data:
   grafana-data:
   redis-data1:
   redis-data2:

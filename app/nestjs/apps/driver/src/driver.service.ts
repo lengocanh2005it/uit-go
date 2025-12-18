@@ -542,7 +542,7 @@ export class DriverService {
     const redis = this.redisService.getClient();
 
     const pipeline = redis.pipeline();
-    frontierCells.forEach((cell) => pipeline.smembers(`cell:${cell}:drivers`));
+    frontierCells.forEach((cell) => pipeline.smembers(`{cell}:${cell}:drivers`));
     const results = (await pipeline.exec()) ?? [];
 
     const driverIdSet = new Set<string>();
@@ -555,7 +555,7 @@ export class DriverService {
     const driverIds = Array.from(driverIdSet);
 
     const infoPipeline = redis.pipeline();
-    driverIds.forEach((id) => infoPipeline.get(`driver:${id}:realtime`));
+    driverIds.forEach((id) => infoPipeline.get(`{driver}:${id}:realtime`));
     const infoResults = (await infoPipeline.exec()) ?? [];
 
     const driversToFetchFromDB: string[] = [];
@@ -635,7 +635,7 @@ export class DriverService {
               Math.round(
                 (this.s2Service.computeDistance(lat, lng, pos.lat, pos.lng) /
                   1000) *
-                  1000,
+                1000,
               ) / 1000,
             vehicle: d.toJSON().vehicleCached,
           });
@@ -978,7 +978,7 @@ export class DriverService {
 
     const cells = this.s2Service.getKRing(coarseCell, 1);
 
-    const keys = cells.map((c) => `density:${c}`);
+    const keys = cells.map((c) => `{density}:${c}`);
     const densities = await this.redisService.getClient().mget(keys);
 
     const driversCount = densities.reduce(
@@ -1005,20 +1005,24 @@ export class DriverService {
   ): Promise<void> {
     const redis = this.redisService.getClient();
 
-    const driverCellKey = `driver:${driverId}:cell`;
-    const driverLocationKey = `driver:${driverId}:realtime`;
+    const driverCellKey = `{driver}:${driverId}:cell`;
+    const driverLocationKey = `{driver}:${driverId}:realtime`;
 
     const oldCell = await redis.get(driverCellKey);
-    const pipeline = redis.pipeline();
+
+    // Separate pipelines for different hash tags to avoid CROSSSLOT errors
+    const driverPipeline = redis.pipeline();
+    const densityPipeline = redis.pipeline();
+    const cellPipeline = redis.pipeline();
 
     if (oldCell && oldCell !== newCell) {
-      pipeline.decr(`density:${oldCell}`);
-      pipeline.srem(`cell:${oldCell}:drivers`, driverId);
+      densityPipeline.decr(`{density}:${oldCell}`);
+      cellPipeline.srem(`{cell}:${oldCell}:drivers`, driverId);
     }
 
-    pipeline.set(driverCellKey, newCell);
-    pipeline.incr(`density:${newCell}`);
-    pipeline.sadd(`cell:${newCell}:drivers`, driverId);
+    driverPipeline.set(driverCellKey, newCell);
+    densityPipeline.incr(`{density}:${newCell}`);
+    cellPipeline.sadd(`{cell}:${newCell}:drivers`, driverId);
 
     const vehicle = await this.vehicleModel
       .query('driverId')
@@ -1067,9 +1071,14 @@ export class DriverService {
       updatedAt: Date.now(),
     };
 
-    pipeline.set(driverLocationKey, JSON.stringify(cacheData));
+    driverPipeline.set(driverLocationKey, JSON.stringify(cacheData));
 
-    await pipeline.exec();
+    // Execute all pipelines in parallel
+    await Promise.all([
+      driverPipeline.exec(),
+      densityPipeline.exec(),
+      cellPipeline.exec(),
+    ]);
   }
 
   private async upsertDriverRealtime(params: UpdateDriverRealtimeParams) {
@@ -1090,3 +1099,4 @@ export class DriverService {
     return updatedItem;
   }
 }
+
